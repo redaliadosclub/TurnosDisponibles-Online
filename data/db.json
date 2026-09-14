@@ -1,0 +1,628 @@
+{
+  "businesses": [
+    {
+      "id": "biz_turnosmed_demo",
+      "slug": "turnosmed-demo",
+      "name": "TurnosMed Demo (Clínica Médica)",
+      "businessType": "medical",
+      "description": "Centro de atención médica ambulatoria y diagnóstico con profesionales de primer nivel.",
+      "category": "Clínica Médica & Especialidades",
+      "address": "Av. Santa Fe 3420, Piso 2, Consultorios A y B, CABA",
+      "phone": "+54 11 4821-9900",
+      "whatsappNumber": "5491148219900",
+      "logoUrl": "https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=150&auto=format&fit=crop&q=80",
+      "primaryColor": "#0284c7",
+      "welcomeMessage": "Bienvenido al portal de reservas de TurnosMed Demo. Agenda tu consulta en menos de 2 minutos.",
+      "cancellationPolicy": "Podrás cancelar o reprogramar tu turno sin penalidad hasta 2 horas antes de la cita.",
+      "bufferMinutes": 5,
+      "plan": "pro",
+      "status": "active",
+      "createdAt": "2026-01-10T10:00:00.000Z"
+    },
+    {
+      "id": "biz_estetica_bella",
+      "slug": "estetica-bella",
+      "name": "Estética & Spa Bella",
+      "businessType": "beauty",
+      "description": "Tratamientos faciales, corporales y diseño de imagen personalizada.",
+      "category": "Centro de Estética & Belleza",
+      "address": "Calle Arenales 1450, Recoleta, CABA",
+      "phone": "+54 11 4987-1234",
+      "whatsappNumber": "5491149871234",
+      "logoUrl": "https://images.unsplash.com/photo-1560750588-73207b1ef5b8?w=150&auto=format&fit=crop&q=80",
+      "primaryColor": "#db2777",
+      "welcomeMessage": "Reserva tu tratamiento de belleza con nuestros especialistas.",
+      "cancellationPolicy": "Avisar con al menos 4 horas de antelación.",
+      "bufferMinutes": 10,
+      "plan": "pro",
+      "status": "active",
+      "createdAt": "2026-02-15T12:00:00.000Z"
+    }
+  ],
+  "professionals": [
+    {
+      "id": "prof_juan",
+      "businessId": "biz_turnosmed_demo",
+      "name": "Dr. Juan Pérez",
+      "title": "Especialista en Cardiología & Medicina General",
+      "photoUrl": "https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=160&auto=format&fit=crop&q=80",
+      "email": "dr.juan.perez@turnosmed.com",
+      "phone": "+54 11 4821-9901",
+      "active": true,
+      "specialty": "Cardiología",
+      "serviceIds": [
+        "srv_consulta",
+        "srv_cardio"
+      ]
+    },
+    {
+      "id": "prof_sofia",
+      "businessId": "biz_turnosmed_demo",
+      "name": "Dra. Sofía Benítez",
+      "title": "Especialista en Dermatología Clínica",
+      "photoUrl": "https://images.unsplash.com/photo-1594824813501-4835697203a9?w=160&auto=format&fit=crop&q=80",
+      "email": "dra.sofia.benitez@turnosmed.com",
+      "phone": "+54 11 4821-9902",
+      "active": true,
+      "specialty": "Dermatología",
+      "serviceIds": [
+        "srv_derma",
+        "srv_consulta"
+      ]
+    },
+    {
+      "id": "prof_valeria",
+      "businessId": "biz_estetica_bella",
+      "name": "Valeria Rossi",
+      "title": "Cosmetóloga y Estilista Senior",
+      "photoUrl": "https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=160&auto=format&fit=crop&q=80",
+      "email": "valeria@esteticabella.com",
+      "phone": "+54 11 4987-1235",
+      "active": true,
+      "specialty": "Cosmetología Facial",
+      "serviceIds": [
+        "srv_facial",
+        "srv_masaje"
+      ]
+    }
+  ],
+  "services": [
+    {
+      "id": "srv_consulta",
+      "businessId": "biz_turnosmed_demo",
+      "name": "Consulta Médica General",
+      "description": "Evaluación integral, diagnóstico clínico y prescripción de tratamientos.",
+      "durationMinutes": 30,
+      "price": 25000,
+      "currency": "$",
+      "active": true,
+      "assignedProfessionalIds": [
+        "prof_juan",
+        "prof_sofia"
+      ]
+    },
+    {
+      "id": "srv_cardio",
+      "businessId": "biz_turnosmed_demo",
+      "name": "Chequeo Cardiológico + ECG",
+      "description": "Electrocardiograma de 12 derivaciones con informe de apto físico o control cardiovascular.",
+      "durationMinutes": 45,
+      "price": 38000,
+      "currency": "$",
+      "active": true,
+      "assignedProfessionalIds": [
+        "prof_juan"
+      ]
+    },
+    {
+      "id": "srv_derma",
+      "businessId": "biz_turnosmed_demo",
+      "name": "Consulta Dermatológica y Mapeo",
+      "description": "Revisión preventiva de lunares, acné, manchas y afecciones cutáneas.",
+      "durationMinutes": 30,
+      "price": 30000,
+      "currency": "$",
+      "active": true,
+      "assignedProfessionalIds": [
+        "prof_sofia"
+      ]
+    },
+    {
+      "id": "srv_facial",
+      "businessId": "biz_estetica_bella",
+      "name": "Limpieza Facial Profunda con Punta de Diamante",
+      "description": "Higiene cutánea, extracción de impurezas, máscara descongestiva e hidratación profunda.",
+      "durationMinutes": 60,
+      "price": 35000,
+      "currency": "$",
+      "active": true,
+      "assignedProfessionalIds": [
+        "prof_valeria"
+      ]
+    },
+    {
+      "id": "srv_masaje",
+      "businessId": "biz_estetica_bella",
+      "name": "Masaje Descontracturante y Relajante",
+      "description": "Sesión integral de 50 minutos con aceites aromáticos.",
+      "durationMinutes": 50,
+      "price": 32000,
+      "currency": "$",
+      "active": true,
+      "assignedProfessionalIds": [
+        "prof_valeria"
+      ]
+    }
+  ],
+  "workingHours": [
+    {
+      "id": "wh_eb_1",
+      "businessId": "biz_estetica_bella",
+      "professionalId": null,
+      "dayOfWeek": 1,
+      "shifts": [
+        {
+          "start": "10:00",
+          "end": "19:00"
+        }
+      ],
+      "enabled": true
+    },
+    {
+      "id": "wh_eb_2",
+      "businessId": "biz_estetica_bella",
+      "professionalId": null,
+      "dayOfWeek": 2,
+      "shifts": [
+        {
+          "start": "10:00",
+          "end": "19:00"
+        }
+      ],
+      "enabled": true
+    },
+    {
+      "id": "wh_eb_3",
+      "businessId": "biz_estetica_bella",
+      "professionalId": null,
+      "dayOfWeek": 3,
+      "shifts": [
+        {
+          "start": "10:00",
+          "end": "19:00"
+        }
+      ],
+      "enabled": true
+    },
+    {
+      "id": "wh_eb_4",
+      "businessId": "biz_estetica_bella",
+      "professionalId": null,
+      "dayOfWeek": 4,
+      "shifts": [
+        {
+          "start": "10:00",
+          "end": "19:00"
+        }
+      ],
+      "enabled": true
+    },
+    {
+      "id": "wh_eb_5",
+      "businessId": "biz_estetica_bella",
+      "professionalId": null,
+      "dayOfWeek": 5,
+      "shifts": [
+        {
+          "start": "10:00",
+          "end": "19:00"
+        }
+      ],
+      "enabled": true
+    },
+    {
+      "id": "wh_eb_6",
+      "businessId": "biz_estetica_bella",
+      "professionalId": null,
+      "dayOfWeek": 6,
+      "shifts": [
+        {
+          "start": "10:00",
+          "end": "15:00"
+        }
+      ],
+      "enabled": true
+    },
+    {
+      "id": "wh_tm_1",
+      "businessId": "biz_turnosmed_demo",
+      "professionalId": null,
+      "dayOfWeek": 1,
+      "shifts": [
+        {
+          "start": "08:00",
+          "end": "12:00"
+        },
+        {
+          "start": "14:00",
+          "end": "18:00"
+        }
+      ],
+      "enabled": true
+    },
+    {
+      "id": "wh_tm_2",
+      "businessId": "biz_turnosmed_demo",
+      "professionalId": null,
+      "dayOfWeek": 2,
+      "shifts": [
+        {
+          "start": "08:00",
+          "end": "12:00"
+        },
+        {
+          "start": "14:00",
+          "end": "18:00"
+        }
+      ],
+      "enabled": true
+    },
+    {
+      "id": "wh_tm_3",
+      "businessId": "biz_turnosmed_demo",
+      "professionalId": null,
+      "dayOfWeek": 3,
+      "shifts": [
+        {
+          "start": "08:00",
+          "end": "12:00"
+        },
+        {
+          "start": "14:00",
+          "end": "18:00"
+        }
+      ],
+      "enabled": true
+    },
+    {
+      "id": "wh_tm_4",
+      "businessId": "biz_turnosmed_demo",
+      "professionalId": null,
+      "dayOfWeek": 4,
+      "shifts": [
+        {
+          "start": "08:00",
+          "end": "12:00"
+        },
+        {
+          "start": "14:00",
+          "end": "18:00"
+        }
+      ],
+      "enabled": true
+    },
+    {
+      "id": "wh_tm_5",
+      "businessId": "biz_turnosmed_demo",
+      "professionalId": null,
+      "dayOfWeek": 5,
+      "shifts": [
+        {
+          "start": "08:00",
+          "end": "12:00"
+        },
+        {
+          "start": "14:00",
+          "end": "18:00"
+        }
+      ],
+      "enabled": true
+    },
+    {
+      "id": "wh_tm_6",
+      "businessId": "biz_turnosmed_demo",
+      "professionalId": null,
+      "dayOfWeek": 6,
+      "shifts": [
+        {
+          "start": "09:00",
+          "end": "13:00"
+        }
+      ],
+      "enabled": true
+    },
+    {
+      "id": "wh_tm_0",
+      "businessId": "biz_turnosmed_demo",
+      "professionalId": null,
+      "dayOfWeek": 0,
+      "shifts": [],
+      "enabled": false
+    }
+  ],
+  "timeOffs": [
+    {
+      "id": "to_1",
+      "businessId": "biz_turnosmed_demo",
+      "professionalId": "prof_juan",
+      "startDate": "2026-12-24",
+      "endDate": "2026-12-25",
+      "reason": "Feriado de Navidad",
+      "type": "holiday"
+    }
+  ],
+  "customers": [
+    {
+      "id": "cust_1",
+      "businessId": "biz_turnosmed_demo",
+      "firstName": "Carlos",
+      "lastName": "Gómez",
+      "phone": "+5491155443322",
+      "email": "carlos.gomez@example.com",
+      "notes": "Paciente con antecedentes de hipertensión leve.",
+      "totalAppointments": 2,
+      "lastAppointmentDate": "2026-09-08",
+      "createdAt": "2026-03-01T10:00:00.000Z"
+    },
+    {
+      "id": "cust_2",
+      "businessId": "biz_turnosmed_demo",
+      "firstName": "María",
+      "lastName": "Fernández",
+      "phone": "+5491166778899",
+      "email": "maria.f@example.com",
+      "notes": "Control anual de lunares.",
+      "totalAppointments": 1,
+      "lastAppointmentDate": "2026-09-08",
+      "createdAt": "2026-03-02T14:30:00.000Z"
+    },
+    {
+      "id": "cust_3",
+      "businessId": "biz_turnosmed_demo",
+      "firstName": "Martín",
+      "lastName": "López",
+      "phone": "+5491133221100",
+      "email": "martin.lopez@example.com",
+      "notes": "Apto físico para gimnasio.",
+      "totalAppointments": 1,
+      "lastAppointmentDate": "2026-09-09",
+      "createdAt": "2026-03-04T09:15:00.000Z"
+    },
+    {
+      "id": "cust_1788902404031_edzb",
+      "businessId": "biz_turnosmed_demo",
+      "firstName": "Mariano",
+      "lastName": "López",
+      "phone": "+5491148219999",
+      "totalAppointments": 1,
+      "lastAppointmentDate": "2026-09-08",
+      "createdAt": "2026-09-08T21:20:04.031Z"
+    },
+    {
+      "id": "cust_1789159074043_olro",
+      "businessId": "biz_turnosmed_demo",
+      "firstName": "Carlos",
+      "lastName": "WAPI",
+      "phone": "+5491148219900",
+      "totalAppointments": 1,
+      "lastAppointmentDate": "2026-09-11",
+      "createdAt": "2026-09-11T20:37:54.043Z"
+    }
+  ],
+  "appointments": [
+    {
+      "id": "app_demo_1",
+      "bookingCode": "TM-4821",
+      "businessId": "biz_turnosmed_demo",
+      "professionalId": "prof_juan",
+      "serviceId": "srv_consulta",
+      "customerId": "cust_1",
+      "customerName": "Carlos Gómez",
+      "customerPhone": "+5491155443322",
+      "customerEmail": "carlos.gomez@example.com",
+      "notes": "Control de rutina y análisis de sangre",
+      "date": "2026-09-08",
+      "startTime": "08:00",
+      "endTime": "08:30",
+      "status": "confirmed",
+      "createdAt": "2026-03-01T10:00:00.000Z",
+      "updatedAt": "2026-03-01T10:00:00.000Z"
+    },
+    {
+      "id": "app_demo_2",
+      "bookingCode": "TM-5912",
+      "businessId": "biz_turnosmed_demo",
+      "professionalId": "prof_juan",
+      "serviceId": "srv_cardio",
+      "customerId": "cust_3",
+      "customerName": "Martín López",
+      "customerPhone": "+5491133221100",
+      "customerEmail": "martin.lopez@example.com",
+      "notes": "Apto deportivo",
+      "date": "2026-09-08",
+      "startTime": "10:00",
+      "endTime": "10:45",
+      "status": "confirmed",
+      "createdAt": "2026-03-03T11:20:00.000Z",
+      "updatedAt": "2026-03-03T11:20:00.000Z"
+    },
+    {
+      "id": "app_demo_3",
+      "bookingCode": "TM-7104",
+      "businessId": "biz_turnosmed_demo",
+      "professionalId": "prof_sofia",
+      "serviceId": "srv_derma",
+      "customerId": "cust_2",
+      "customerName": "María Fernández",
+      "customerPhone": "+5491166778899",
+      "customerEmail": "maria.f@example.com",
+      "notes": "Consulta dermatitis de contacto",
+      "date": "2026-09-08",
+      "startTime": "14:30",
+      "endTime": "15:00",
+      "status": "confirmed",
+      "createdAt": "2026-03-02T14:30:00.000Z",
+      "updatedAt": "2026-03-02T14:30:00.000Z"
+    },
+    {
+      "id": "app_demo_4",
+      "bookingCode": "TM-8340",
+      "businessId": "biz_turnosmed_demo",
+      "professionalId": "prof_juan",
+      "serviceId": "srv_consulta",
+      "customerId": "cust_1",
+      "customerName": "Carlos Gómez",
+      "customerPhone": "+5491155443322",
+      "date": "2026-09-09",
+      "startTime": "09:00",
+      "endTime": "09:30",
+      "status": "pending",
+      "createdAt": "2026-03-04T12:00:00.000Z",
+      "updatedAt": "2026-03-04T12:00:00.000Z"
+    },
+    {
+      "id": "app_1788902404032_h4n0",
+      "bookingCode": "TM-4359",
+      "businessId": "biz_turnosmed_demo",
+      "professionalId": "prof_juan",
+      "serviceId": "srv_consulta",
+      "customerId": "cust_1788902404031_edzb",
+      "customerName": "Mariano López",
+      "customerPhone": "+5491148219999",
+      "notes": "Control clínico",
+      "date": "2026-09-10",
+      "startTime": "08:00",
+      "endTime": "08:30",
+      "status": "confirmed",
+      "createdAt": "2026-09-08T21:20:04.032Z",
+      "updatedAt": "2026-09-08T21:20:04.032Z"
+    },
+    {
+      "id": "app_1789159074043_ckvm",
+      "bookingCode": "TM-8818",
+      "businessId": "biz_turnosmed_demo",
+      "professionalId": "prof_juan",
+      "serviceId": "srv_consulta",
+      "customerId": "cust_1789159074043_olro",
+      "customerName": "Carlos WAPI",
+      "customerPhone": "+5491148219900",
+      "date": "2026-09-15",
+      "startTime": "08:00",
+      "endTime": "08:30",
+      "status": "confirmed",
+      "createdAt": "2026-09-11T20:37:54.043Z",
+      "updatedAt": "2026-09-11T20:37:54.043Z"
+    }
+  ],
+  "analytics": [
+    {
+      "id": "evt_1",
+      "businessId": "biz_turnosmed_demo",
+      "type": "page_view",
+      "timestamp": "2026-09-08T21:15:57.825Z"
+    },
+    {
+      "id": "evt_2",
+      "businessId": "biz_turnosmed_demo",
+      "type": "booking_completed",
+      "timestamp": "2026-09-08T21:15:57.826Z"
+    },
+    {
+      "id": "evt_1788902404032_9ewa",
+      "businessId": "biz_turnosmed_demo",
+      "type": "booking_completed",
+      "timestamp": "2026-09-08T21:20:04.032Z",
+      "metadata": {
+        "bookingCode": "TM-4359",
+        "serviceId": "srv_consulta"
+      }
+    },
+    {
+      "id": "evt_1789156549183_kjsf",
+      "businessId": "biz_turnosmed_demo",
+      "type": "page_view",
+      "timestamp": "2026-09-11T19:55:49.183Z"
+    },
+    {
+      "id": "evt_1789156549185_dw4e",
+      "businessId": "biz_turnosmed_demo",
+      "type": "page_view",
+      "timestamp": "2026-09-11T19:55:49.185Z"
+    },
+    {
+      "id": "evt_1789159074043_7406",
+      "businessId": "biz_turnosmed_demo",
+      "type": "booking_completed",
+      "timestamp": "2026-09-11T20:37:54.043Z",
+      "metadata": {
+        "bookingCode": "TM-8818",
+        "serviceId": "srv_consulta"
+      }
+    },
+    {
+      "id": "evt_1789176894340_36by",
+      "businessId": "biz_turnosmed_demo",
+      "type": "page_view",
+      "timestamp": "2026-09-12T01:34:54.340Z"
+    },
+    {
+      "id": "evt_1789176894343_ahjc",
+      "businessId": "biz_turnosmed_demo",
+      "type": "page_view",
+      "timestamp": "2026-09-12T01:34:54.343Z"
+    },
+    {
+      "id": "evt_1789182791685_kpvv",
+      "businessId": "biz_turnosmed_demo",
+      "type": "page_view",
+      "timestamp": "2026-09-12T03:13:11.685Z"
+    },
+    {
+      "id": "evt_1789182791688_pejq",
+      "businessId": "biz_turnosmed_demo",
+      "type": "page_view",
+      "timestamp": "2026-09-12T03:13:11.688Z"
+    },
+    {
+      "id": "evt_1789183158086_9wt6",
+      "businessId": "biz_turnosmed_demo",
+      "type": "page_view",
+      "timestamp": "2026-09-12T03:19:18.086Z"
+    },
+    {
+      "id": "evt_1789183158088_c3gv",
+      "businessId": "biz_turnosmed_demo",
+      "type": "page_view",
+      "timestamp": "2026-09-12T03:19:18.088Z"
+    }
+  ],
+  "users": [
+    {
+      "id": "usr_superadmin",
+      "name": "Super Admin",
+      "email": "admin@turnosmed.com",
+      "role": "superadmin"
+    },
+    {
+      "id": "usr_owner_tm",
+      "name": "Dr. Roberto Sánchez (Director)",
+      "email": "direccion@turnosmed.com",
+      "role": "business_owner",
+      "businessId": "biz_turnosmed_demo"
+    },
+    {
+      "id": "usr_staff_tm",
+      "name": "Recepcionista Lorena",
+      "email": "recepcion@turnosmed.com",
+      "role": "staff",
+      "businessId": "biz_turnosmed_demo"
+    },
+    {
+      "id": "usr_customer_demo",
+      "name": "Carlos Gómez",
+      "email": "carlos.gomez@example.com",
+      "role": "customer",
+      "businessId": "biz_turnosmed_demo"
+    }
+  ]
+}

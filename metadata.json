@@ -1,0 +1,6 @@
+{
+  "name": "TurnosDisponibles - Plataforma de Gestión y Reserva de Turnos Online",
+  "description": "Plataforma multi-tenant de reservas y gestión de turnos online con disponibilidad en tiempo real, WhatsApp y recordatorios automáticos.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
