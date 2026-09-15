@@ -17,11 +17,81 @@ import {
 
 export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [businesses, setBusinesses] = useState<Business[]>([]);
-  const [currentBusiness, setCurrentBusiness] = useState<Business | null>(null);
+  const [businesses, setBusinesses] = useState<Business[]>([
+    {
+      id: 'biz_turnosmed_demo',
+      slug: 'turnosmed-demo',
+      name: 'TurnosMed Demo (Clínica Médica)',
+      businessType: 'medical',
+      description: 'Centro de atención médica ambulatoria y diagnóstico con profesionales de primer nivel.',
+      category: 'Clínica Médica & Especialidades',
+      address: 'Av. Santa Fe 3420, Piso 2, CABA',
+      phone: '+54 11 4821-9900',
+      whatsappNumber: '5491148219900',
+      logoUrl: 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=150&auto=format&fit=crop&q=80',
+      primaryColor: '#0284c7',
+      welcomeMessage: 'Bienvenido al portal de reservas. Agenda tu turno en menos de 2 minutos.',
+      cancellationPolicy: 'Podrás cancelar o reprogramar tu turno sin penalidad hasta 2 horas antes.',
+      bufferMinutes: 5,
+      plan: 'pro',
+      status: 'active',
+      createdAt: '2026-01-10T10:00:00.000Z',
+      paymentsEnabled: true,
+      depositRequired: false,
+      depositType: 'fixed',
+      depositAmount: 5000,
+      mpAliasOrLink: 'turnosmed.demo.mp',
+      bankAlias: 'consultorio.turnos',
+      bankCbu: '0000003100010000000001',
+      bankAccountHolder: 'Clínica TurnosMed S.A.',
+      bankName: 'Banco Galicia',
+      features: {
+        whatsappNotifications: true,
+        calendarSync: true,
+        patientPortal: true,
+        depositPayments: true,
+        customBranding: true,
+      },
+    }
+  ]);
+  const [currentBusiness, setCurrentBusiness] = useState<Business>({
+    id: 'biz_turnosmed_demo',
+    slug: 'turnosmed-demo',
+    name: 'TurnosMed Demo (Clínica Médica)',
+    businessType: 'medical',
+    description: 'Centro de atención médica ambulatoria y diagnóstico con profesionales de primer nivel.',
+    category: 'Clínica Médica & Especialidades',
+    address: 'Av. Santa Fe 3420, Piso 2, CABA',
+    phone: '+54 11 4821-9900',
+    whatsappNumber: '5491148219900',
+    logoUrl: 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=150&auto=format&fit=crop&q=80',
+    primaryColor: '#0284c7',
+    welcomeMessage: 'Bienvenido al portal de reservas. Agenda tu turno en menos de 2 minutos.',
+    cancellationPolicy: 'Podrás cancelar o reprogramar tu turno sin penalidad hasta 2 horas antes.',
+    bufferMinutes: 5,
+    plan: 'pro',
+    status: 'active',
+    createdAt: '2026-01-10T10:00:00.000Z',
+    paymentsEnabled: true,
+    depositRequired: false,
+    depositType: 'fixed',
+    depositAmount: 5000,
+    mpAliasOrLink: 'turnosmed.demo.mp',
+    bankAlias: 'consultorio.turnos',
+    bankCbu: '0000003100010000000001',
+    bankAccountHolder: 'Clínica TurnosMed S.A.',
+    bankName: 'Banco Galicia',
+    features: {
+      whatsappNotifications: true,
+      calendarSync: true,
+      patientPortal: true,
+      depositPayments: true,
+      customBranding: true,
+    },
+  });
   const [activeView, setActiveView] = useState<'public' | 'business' | 'superadmin'>('public');
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
 
   // Demo bar switch: defaults to FALSE so visitors see a 100% clean clinic page without admin controls
   const [showDemoBar, setShowDemoBar] = useState<boolean>(() => {
