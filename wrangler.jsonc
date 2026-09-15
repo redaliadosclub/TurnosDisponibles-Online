@@ -1,0 +1,9 @@
+{
+  "name": "turnos-disponibles-online",
+  "compatibility_date": "2024-09-23",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    "not_found_handling": "single-page-application"
+  }
+}
