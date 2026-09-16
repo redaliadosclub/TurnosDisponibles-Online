@@ -1123,7 +1123,7 @@ export function PublicBookingPage({
             {onGoToAdmin && (
               <button
                 type="button"
-                onClick={onOpenAuth}
+                onClick={onGoToAdmin}
                 className="hover:text-slate-800 transition flex items-center gap-1 cursor-pointer"
               >
                 <Lock className="w-3 h-3 text-slate-400" />
