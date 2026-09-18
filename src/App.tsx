@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Business, User } from './types';
-import { api } from './services/api';
+import { api, INITIAL_BUSINESSES } from './services/api';
 import { PublicBookingPage } from './components/PublicBookingPage';
 import { BusinessDashboard } from './components/BusinessDashboard';
 import { SuperAdminDashboard } from './components/SuperAdminDashboard';
@@ -16,82 +16,79 @@ import {
 } from 'lucide-react';
 
 export default function App() {
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [businesses, setBusinesses] = useState<Business[]>([
-    {
-      id: 'biz_turnosmed_demo',
-      slug: 'turnosmed-demo',
-      name: 'TurnosMed Demo (Clínica Médica)',
-      businessType: 'medical',
-      description: 'Centro de atención médica ambulatoria y diagnóstico con profesionales de primer nivel.',
-      category: 'Clínica Médica & Especialidades',
-      address: 'Av. Santa Fe 3420, Piso 2, CABA',
-      phone: '+54 11 4821-9900',
-      whatsappNumber: '5491148219900',
-      logoUrl: 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=150&auto=format&fit=crop&q=80',
-      primaryColor: '#0284c7',
-      welcomeMessage: 'Bienvenido al portal de reservas. Agenda tu turno en menos de 2 minutos.',
-      cancellationPolicy: 'Podrás cancelar o reprogramar tu turno sin penalidad hasta 2 horas antes.',
-      bufferMinutes: 5,
-      plan: 'pro',
-      status: 'active',
-      createdAt: '2026-01-10T10:00:00.000Z',
-      paymentsEnabled: true,
-      depositRequired: false,
-      depositType: 'fixed',
-      depositAmount: 5000,
-      mpAliasOrLink: 'turnosmed.demo.mp',
-      bankAlias: 'consultorio.turnos',
-      bankCbu: '0000003100010000000001',
-      bankAccountHolder: 'Clínica TurnosMed S.A.',
-      bankName: 'Banco Galicia',
-      features: {
-        whatsappNotifications: true,
-        calendarSync: true,
-        patientPortal: true,
-        depositPayments: true,
-        customBranding: true,
-      },
+  // Helper to extract requested slug from URL
+  const getRequestedSlug = () => {
+    // 1. Check query parameters (?b=... or ?slug=...)
+    const searchParams = new URLSearchParams(window.location.search);
+    const querySlug = searchParams.get('b') || searchParams.get('slug');
+    if (querySlug) return decodeURIComponent(querySlug).toLowerCase().trim();
+
+    // 2. Normalize and check hash (strip multiple leading hashes like ##, #/, /#, etc.)
+    let hash = window.location.hash || '';
+    hash = hash.replace(/^[#/]+/, '').trim();
+    if (hash.startsWith('booking-')) hash = hash.replace(/^booking-/, '');
+    if (hash.startsWith('book/')) hash = hash.replace(/^book\//, '');
+    hash = hash.replace(/[#/]+$/, '');
+    if (hash) return decodeURIComponent(hash).toLowerCase();
+
+    // 3. Check pathname (/book/slug, /booking-slug, or /slug)
+    let path = window.location.pathname.replace(/^\/+/, '').trim();
+    if (path.startsWith('book/')) path = path.replace(/^book\//, '');
+    if (path.startsWith('booking-')) path = path.replace(/^booking-/, '');
+    path = path.replace(/[#/]+$/, '');
+    if (path && path !== 'index.html') return decodeURIComponent(path).toLowerCase();
+
+    return '';
+  };
+
+  // Synchronous resolution of the initial business on page load so there is zero flicker or race condition
+  const resolveInitialBusiness = (): Business => {
+    const slug = getRequestedSlug();
+    let allBizs = INITIAL_BUSINESSES;
+    try {
+      const raw = localStorage.getItem('td_data_businesses');
+      if (raw) {
+        const saved: Business[] = JSON.parse(raw);
+        const map = new Map<string, Business>();
+        INITIAL_BUSINESSES.forEach((b) => map.set(b.id, b));
+        saved.forEach((b) => map.set(b.id, b));
+        allBizs = Array.from(map.values());
+      }
+    } catch {}
+
+    if (slug) {
+      const cleanSlug = slug.toLowerCase().trim();
+      const match = allBizs.find(
+        (b) =>
+          b.slug.toLowerCase() === cleanSlug ||
+          b.id.toLowerCase() === cleanSlug ||
+          b.slug.toLowerCase().replace(/[-_]/g, '') === cleanSlug.replace(/[-_]/g, '') ||
+          b.slug.toLowerCase().includes(cleanSlug) ||
+          cleanSlug.includes(b.slug.toLowerCase())
+      );
+      if (match) return match;
     }
-  ]);
-  const [currentBusiness, setCurrentBusiness] = useState<Business>({
-    id: 'biz_turnosmed_demo',
-    slug: 'turnosmed-demo',
-    name: 'TurnosMed Demo (Clínica Médica)',
-    businessType: 'medical',
-    description: 'Centro de atención médica ambulatoria y diagnóstico con profesionales de primer nivel.',
-    category: 'Clínica Médica & Especialidades',
-    address: 'Av. Santa Fe 3420, Piso 2, CABA',
-    phone: '+54 11 4821-9900',
-    whatsappNumber: '5491148219900',
-    logoUrl: 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=150&auto=format&fit=crop&q=80',
-    primaryColor: '#0284c7',
-    welcomeMessage: 'Bienvenido al portal de reservas. Agenda tu turno en menos de 2 minutos.',
-    cancellationPolicy: 'Podrás cancelar o reprogramar tu turno sin penalidad hasta 2 horas antes.',
-    bufferMinutes: 5,
-    plan: 'pro',
-    status: 'active',
-    createdAt: '2026-01-10T10:00:00.000Z',
-    paymentsEnabled: true,
-    depositRequired: false,
-    depositType: 'fixed',
-    depositAmount: 5000,
-    mpAliasOrLink: 'turnosmed.demo.mp',
-    bankAlias: 'consultorio.turnos',
-    bankCbu: '0000003100010000000001',
-    bankAccountHolder: 'Clínica TurnosMed S.A.',
-    bankName: 'Banco Galicia',
-    features: {
-      whatsappNotifications: true,
-      calendarSync: true,
-      patientPortal: true,
-      depositPayments: true,
-      customBranding: true,
-    },
+    return allBizs[0] || INITIAL_BUSINESSES[0];
+  };
+
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [businesses, setBusinesses] = useState<Business[]>(() => {
+    try {
+      const raw = localStorage.getItem('td_data_businesses');
+      if (raw) {
+        const saved: Business[] = JSON.parse(raw);
+        const map = new Map<string, Business>();
+        INITIAL_BUSINESSES.forEach((b) => map.set(b.id, b));
+        saved.forEach((b) => map.set(b.id, b));
+        return Array.from(map.values());
+      }
+    } catch {}
+    return INITIAL_BUSINESSES;
   });
+  const [currentBusiness, setCurrentBusiness] = useState<Business>(resolveInitialBusiness);
   const [activeView, setActiveView] = useState<'public' | 'business' | 'superadmin'>('public');
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   // Demo bar switch: defaults to FALSE so visitors see a 100% clean clinic page without admin controls
   const [showDemoBar, setShowDemoBar] = useState<boolean>(() => {
@@ -113,6 +110,16 @@ export default function App() {
     });
   };
 
+  // Auto-clean malformed double hashes in browser URL bar if present
+  useEffect(() => {
+    if (window.location.hash.startsWith('##') || window.location.hash.includes('/#')) {
+      const cleanHash = window.location.hash.replace(/^[#/]+/, '');
+      try {
+        window.history.replaceState(null, '', `/#${cleanHash}`);
+      } catch {}
+    }
+  }, []);
+
   // Guard: if somehow on superadmin view without proper role, kick back to public
   useEffect(() => {
     if (activeView === 'superadmin' && currentUser?.role !== 'superadmin') {
@@ -129,46 +136,34 @@ export default function App() {
         api.getAllBusinesses(),
       ]);
       setCurrentUser(user);
-      setBusinesses(bizList);
-
-      // Extract requested slug from URL (supports #booking-slug, /book/slug, ?b=slug, or #slug)
-      const hash = window.location.hash.replace(/^#\/?/, '');
-      const path = window.location.pathname.replace(/^\//, '');
-      const searchParams = new URLSearchParams(window.location.search);
-      const querySlug = searchParams.get('b') || searchParams.get('slug');
-
-      let targetSlug = '';
-      if (querySlug) {
-        targetSlug = querySlug.toLowerCase();
-      } else if (hash.startsWith('booking-')) {
-        targetSlug = hash.replace('booking-', '').toLowerCase();
-      } else if (hash.startsWith('book/')) {
-        targetSlug = hash.replace('book/', '').toLowerCase();
-      } else if (hash) {
-        targetSlug = hash.toLowerCase();
-      } else if (path.startsWith('book/')) {
-        targetSlug = path.replace('book/', '').toLowerCase();
+      const currentList = bizList && bizList.length > 0 ? bizList : businesses;
+      if (bizList && bizList.length > 0) {
+        setBusinesses(bizList);
       }
 
+      const targetSlug = getRequestedSlug();
       let matchedBiz: Business | undefined;
-      if (targetSlug && bizList.length > 0) {
-        matchedBiz = bizList.find(
+      if (targetSlug && currentList.length > 0) {
+        const cleanTarget = targetSlug.toLowerCase().trim();
+        matchedBiz = currentList.find(
           (b) =>
-            b.slug.toLowerCase() === targetSlug ||
-            b.id.toLowerCase() === targetSlug ||
-            (targetSlug.includes('demo') && b.slug.includes('demo'))
+            b.slug.toLowerCase() === cleanTarget ||
+            b.id.toLowerCase() === cleanTarget ||
+            b.slug.toLowerCase().replace(/[-_]/g, '') === cleanTarget.replace(/[-_]/g, '') ||
+            b.slug.toLowerCase().includes(cleanTarget) ||
+            cleanTarget.includes(b.slug.toLowerCase())
         );
       }
 
       if (matchedBiz) {
         setCurrentBusiness(matchedBiz);
         setActiveView('public');
-      } else if (bizList.length > 0) {
+      } else if (currentList.length > 0) {
         if (user && user.businessId) {
-          const userBiz = bizList.find((b) => b.id === user.businessId);
-          setCurrentBusiness(userBiz || bizList[0]);
+          const userBiz = currentList.find((b) => b.id === user.businessId);
+          setCurrentBusiness(userBiz || currentList[0]);
         } else {
-          setCurrentBusiness(bizList[0]);
+          setCurrentBusiness(currentList[0]);
         }
       }
     } catch (err) {
@@ -185,22 +180,17 @@ export default function App() {
   // Listen to hash changes in real-time (e.g. user clicks another link or pastes url)
   useEffect(() => {
     const handleHashChange = () => {
-      const hash = window.location.hash.replace(/^#\/?/, '');
-      let targetSlug = '';
-      if (hash.startsWith('booking-')) {
-        targetSlug = hash.replace('booking-', '').toLowerCase();
-      } else if (hash.startsWith('book/')) {
-        targetSlug = hash.replace('book/', '').toLowerCase();
-      } else if (hash) {
-        targetSlug = hash.toLowerCase();
-      }
+      const targetSlug = getRequestedSlug();
 
       if (targetSlug && businesses.length > 0) {
+        const cleanTarget = targetSlug.toLowerCase().trim();
         const found = businesses.find(
           (b) =>
-            b.slug.toLowerCase() === targetSlug ||
-            b.id.toLowerCase() === targetSlug ||
-            (targetSlug.includes('demo') && b.slug.includes('demo'))
+            b.slug.toLowerCase() === cleanTarget ||
+            b.id.toLowerCase() === cleanTarget ||
+            b.slug.toLowerCase().replace(/[-_]/g, '') === cleanTarget.replace(/[-_]/g, '') ||
+            b.slug.toLowerCase().includes(cleanTarget) ||
+            cleanTarget.includes(b.slug.toLowerCase())
         );
         if (found && found.id !== currentBusiness?.id) {
           setCurrentBusiness(found);
@@ -211,7 +201,7 @@ export default function App() {
 
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
-  }, [businesses.length, currentBusiness?.id]);
+  }, [businesses, currentBusiness?.id]);
 
   const handleLogout = async () => {
     await api.logout();
@@ -233,16 +223,7 @@ export default function App() {
     }
   };
 
-  if (loading || !currentBusiness) {
-    return (
-      <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center text-white">
-        <div className="w-12 h-12 rounded-2xl bg-teal-500 text-slate-950 flex items-center justify-center font-extrabold text-2xl animate-pulse mb-4">
-          TD
-        </div>
-        <p className="text-sm font-semibold text-slate-300">Cargando TurnosDisponibles...</p>
-      </div>
-    );
-  }
+  const activeBusiness = currentBusiness || businesses[0] || INITIAL_BUSINESSES[0];
 
   // The top bar is displayed ONLY if user is logged in (SuperAdmin or Business Owner/Staff)
   // Public visitors / patients booking an appointment NEVER see this admin navigation bar
@@ -396,7 +377,8 @@ export default function App() {
       <div className="flex-1">
         {activeView === 'public' && (
           <PublicBookingPage
-            business={currentBusiness}
+            key={activeBusiness.id}
+            business={activeBusiness}
             currentUser={currentUser}
             onGoToAdmin={() => {
               if (!currentUser) {
@@ -410,7 +392,7 @@ export default function App() {
 
         {activeView === 'business' && (
           <BusinessDashboard
-            business={currentBusiness}
+            business={activeBusiness}
             userRole={currentUser?.role || 'business_owner'}
             onUpdateBusiness={(updated) => {
               setCurrentBusiness(updated);
@@ -458,7 +440,7 @@ export default function App() {
         onClose={() => setShowAuthModal(false)}
         onLoginSuccess={handleLoginSuccess}
         currentBusinessId={currentBusiness.id}
-        allowSuperAdminQuickLogin={activeView !== 'public'}
+        allowSuperAdminQuickLogin={true}
       />
     </div>
   );

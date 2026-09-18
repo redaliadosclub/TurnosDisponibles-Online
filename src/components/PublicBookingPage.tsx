@@ -8,7 +8,7 @@ import {
   User,
 } from '../types';
 import { getBusinessLabels } from '../lib/businessTypes';
-import { api, BookingResult } from '../services/api';
+import { api, BookingResult, INITIAL_PROFESSIONALS, INITIAL_SERVICES } from '../services/api';
 import {
   formatDateSpanish,
   generateNextDays,
@@ -39,6 +39,7 @@ import {
 } from 'lucide-react';
 
 interface PublicBookingPageProps {
+  key?: React.Key;
   business: Business;
   currentUser?: User | null;
   onNavigateToDashboard?: () => void;
@@ -54,11 +55,19 @@ export function PublicBookingPage({
   const labels = useMemo(() => getBusinessLabels(business), [business]);
   const daysList = useMemo(() => generateNextDays(14), []);
 
+  const defaultProfs = useMemo(() => {
+    return INITIAL_PROFESSIONALS.filter((p) => p.businessId === business.id && p.active);
+  }, [business.id]);
+
+  const defaultSrvs = useMemo(() => {
+    return INITIAL_SERVICES.filter((s) => s.businessId === business.id && s.active);
+  }, [business.id]);
+
   // Selection states
-  const [professionals, setProfessionals] = useState<Professional[]>([]);
-  const [services, setServices] = useState<Service[]>([]);
-  const [selectedProfId, setSelectedProfId] = useState<string>('');
-  const [selectedServiceId, setSelectedServiceId] = useState<string>('');
+  const [professionals, setProfessionals] = useState<Professional[]>(defaultProfs);
+  const [services, setServices] = useState<Service[]>(defaultSrvs);
+  const [selectedProfId, setSelectedProfId] = useState<string>(defaultProfs[0]?.id || '');
+  const [selectedServiceId, setSelectedServiceId] = useState<string>(defaultSrvs[0]?.id || '');
   const [selectedDate, setSelectedDate] = useState<string>(daysList[0]?.dateStr || '');
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
 

@@ -552,9 +552,15 @@ export function BusinessDashboard({
                 <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
                   {BUSINESS_TYPES[business.businessType]?.name || business.businessType}
                 </span>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800">
-                  Plan {business.plan.toUpperCase()}
-                </span>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('plans')}
+                  className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 hover:bg-emerald-200 text-emerald-800 transition cursor-pointer flex items-center gap-1"
+                  title="Haz clic para ver y cambiar planes de suscripción"
+                >
+                  <Sparkles className="w-2.5 h-2.5 text-emerald-600" />
+                  <span>Plan {business.plan.toUpperCase()}</span>
+                </button>
               </div>
               <p className="text-xs text-slate-500">
                 Panel de Administración • Rol: <span className="font-semibold">{userRole}</span>
@@ -2047,9 +2053,17 @@ export function BusinessDashboard({
                 <button
                   type="button"
                   disabled={business.plan === 'free'}
-                  className="mt-6 w-full py-2.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-700"
+                  onClick={async () => {
+                    try {
+                      const updated = await api.updateBusiness(business.id, { plan: 'free' });
+                      onUpdateBusiness(updated);
+                    } catch (e) {
+                      console.error(e);
+                    }
+                  }}
+                  className="mt-6 w-full py-2.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
                 >
-                  {business.plan === 'free' ? 'Plan Actual' : 'Seleccionar'}
+                  {business.plan === 'free' ? 'Plan Actual' : 'Seleccionar Plan Gratis'}
                 </button>
               </div>
 
@@ -2074,6 +2088,14 @@ export function BusinessDashboard({
                 <button
                   type="button"
                   disabled={business.plan === 'pro'}
+                  onClick={async () => {
+                    try {
+                      const updated = await api.updateBusiness(business.id, { plan: 'pro' });
+                      onUpdateBusiness(updated);
+                    } catch (e) {
+                      console.error(e);
+                    }
+                  }}
                   className="mt-6 w-full py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition cursor-pointer"
                 >
                   {business.plan === 'pro' ? 'Plan Actual (Activo)' : 'Elegir Plan Pro ($29.000 ARS)'}
@@ -2097,6 +2119,14 @@ export function BusinessDashboard({
                 <button
                   type="button"
                   disabled={business.plan === 'business'}
+                  onClick={async () => {
+                    try {
+                      const updated = await api.updateBusiness(business.id, { plan: 'business' });
+                      onUpdateBusiness(updated);
+                    } catch (e) {
+                      console.error(e);
+                    }
+                  }}
                   className="mt-6 w-full py-2.5 rounded-xl border border-slate-900 bg-slate-900 text-white text-xs font-bold hover:bg-black cursor-pointer"
                 >
                   {business.plan === 'business' ? 'Plan Actual' : 'Elegir Plan Clínica ($49.000 ARS)'}

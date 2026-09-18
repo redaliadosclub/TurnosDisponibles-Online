@@ -16,6 +16,14 @@ import {
   formatBusinessWhatsAppAlert,
   generateWaMeLink,
 } from '../lib/notifications';
+import { db } from '../lib/firebase';
+import {
+  collection,
+  doc,
+  getDocs,
+  setDoc,
+  deleteDoc,
+} from 'firebase/firestore';
 
 export interface BookingPayload {
   businessId: string;
@@ -119,6 +127,35 @@ export const INITIAL_BUSINESSES: Business[] = [
     bankName: 'Banco Galicia',
     paymentInstructions: 'Se requiere el 50% de seña previa para congelar el turno con la especialista.',
   },
+  {
+    id: 'biz_dermatocosmiatria_spa',
+    slug: 'dermatocosmiatria-spa',
+    name: 'Dermatocosmiatría & Estética Spa',
+    businessType: 'beauty',
+    description: 'Centro de cosmiatría integral, peelings dermatológicos, rejuvenecimiento facial y spa estético.',
+    category: 'Centro de Dermatocosmiatría & Spa',
+    address: 'Av. Libertador 2250, Piso 4 B, Recoleta, CABA',
+    phone: '+54 11 5566-7788',
+    whatsappNumber: '5491155667788',
+    logoUrl: 'https://images.unsplash.com/photo-1570172619644-dfd03ed5d881?w=150&auto=format&fit=crop&q=80',
+    primaryColor: '#0d9488',
+    welcomeMessage: 'Bienvenido a Dermatocosmiatría & Estética Spa. Reserva tu turno de cuidado facial y corporal en menos de 2 minutos.',
+    cancellationPolicy: 'Podrás cancelar o reprogramar sin cargo avisando con al menos 4 horas de anticipación.',
+    bufferMinutes: 10,
+    plan: 'pro',
+    status: 'active',
+    createdAt: '2026-03-01T10:00:00.000Z',
+    paymentsEnabled: true,
+    depositRequired: true,
+    depositType: 'fixed',
+    depositAmount: 5000,
+    mpAliasOrLink: 'dermato.spa.mp',
+    bankAlias: 'DERMATO.SPA.RECOLETA',
+    bankCbu: '0170098820000045612389',
+    bankAccountHolder: 'Dermatocosmiatría Spa',
+    bankName: 'Banco BBVA',
+    paymentInstructions: 'Para confirmar tu turno, se abona una seña de $5.000 mediante Mercado Pago o transferencia bancaria.',
+  },
 ];
 
 export const INITIAL_PROFESSIONALS: Professional[] = [
@@ -157,6 +194,30 @@ export const INITIAL_PROFESSIONALS: Professional[] = [
     active: true,
     specialty: 'Cosmetología Facial',
     serviceIds: ['srv_facial', 'srv_masaje'],
+  },
+  {
+    id: 'prof_mariana_dermato',
+    businessId: 'biz_dermatocosmiatria_spa',
+    name: 'Lic. Mariana Gómez',
+    title: 'Dermatocosmiatra & Especialista en Estética Facial',
+    photoUrl: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=160&auto=format&fit=crop&q=80',
+    email: 'mariana@dermatocosmiatria.com',
+    phone: '+54 11 5566-7789',
+    active: true,
+    specialty: 'Dermatocosmiatría Facial',
+    serviceIds: ['srv_dermato_limpieza', 'srv_dermato_peeling', 'srv_dermato_antiage'],
+  },
+  {
+    id: 'prof_camila_dermato',
+    businessId: 'biz_dermatocosmiatria_spa',
+    name: 'Camila Valenzuela',
+    title: 'Cosmiatra & Masoterapeuta Facial',
+    photoUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=160&auto=format&fit=crop&q=80',
+    email: 'camila@dermatocosmiatria.com',
+    phone: '+54 11 5566-7790',
+    active: true,
+    specialty: 'Cosmiatría & Drenaje Facial',
+    serviceIds: ['srv_dermato_limpieza', 'srv_dermato_hidra'],
   },
 ];
 
@@ -216,6 +277,50 @@ export const INITIAL_SERVICES: Service[] = [
     active: true,
     assignedProfessionalIds: ['prof_valeria'],
   },
+  {
+    id: 'srv_dermato_limpieza',
+    businessId: 'biz_dermatocosmiatria_spa',
+    name: 'Limpieza Facial Profunda con Punta de Diamante',
+    description: 'Higiene cutánea integral, extracción de comedones, microdermoabrasión, máscara descongestiva e hidratación.',
+    durationMinutes: 60,
+    price: 28000,
+    currency: '$',
+    active: true,
+    assignedProfessionalIds: ['prof_mariana_dermato', 'prof_camila_dermato'],
+  },
+  {
+    id: 'srv_dermato_peeling',
+    businessId: 'biz_dermatocosmiatria_spa',
+    name: 'Peeling Médico Renovador & Efecto Glow',
+    description: 'Ácidos combinados (mandélico, glicólico o salicílico) para renovar la capa córnea, emparejar el tono y atenuar manchas.',
+    durationMinutes: 45,
+    price: 32000,
+    currency: '$',
+    active: true,
+    assignedProfessionalIds: ['prof_mariana_dermato'],
+  },
+  {
+    id: 'srv_dermato_antiage',
+    businessId: 'biz_dermatocosmiatria_spa',
+    name: 'Tratamiento Anti-Age & Radiofrecuencia Facial',
+    description: 'Estimulación térmica de colágeno, efecto tensor no invasivo con sérum de ácido hialurónico concentrado.',
+    durationMinutes: 60,
+    price: 35000,
+    currency: '$',
+    active: true,
+    assignedProfessionalIds: ['prof_mariana_dermato'],
+  },
+  {
+    id: 'srv_dermato_hidra',
+    businessId: 'biz_dermatocosmiatria_spa',
+    name: 'Dermo-Nutrición & Drenaje Linfático Facial',
+    description: 'Tratamiento intensivo para pieles sensibles, secas o reactivas con masaje descontracturante y descongestivo.',
+    durationMinutes: 50,
+    price: 26000,
+    currency: '$',
+    active: true,
+    assignedProfessionalIds: ['prof_camila_dermato'],
+  },
 ];
 
 const INITIAL_WORKING_HOURS: WorkingHours[] = [
@@ -270,6 +375,62 @@ const INITIAL_WORKING_HOURS: WorkingHours[] = [
   {
     id: 'wh_tm_0',
     businessId: 'biz_turnosmed_demo',
+    professionalId: null,
+    dayOfWeek: 0,
+    shifts: [],
+    enabled: false,
+  },
+  {
+    id: 'wh_dermato_1',
+    businessId: 'biz_dermatocosmiatria_spa',
+    professionalId: null,
+    dayOfWeek: 1,
+    shifts: [{ start: '09:00', end: '13:00' }, { start: '14:00', end: '19:00' }],
+    enabled: true,
+  },
+  {
+    id: 'wh_dermato_2',
+    businessId: 'biz_dermatocosmiatria_spa',
+    professionalId: null,
+    dayOfWeek: 2,
+    shifts: [{ start: '09:00', end: '13:00' }, { start: '14:00', end: '19:00' }],
+    enabled: true,
+  },
+  {
+    id: 'wh_dermato_3',
+    businessId: 'biz_dermatocosmiatria_spa',
+    professionalId: null,
+    dayOfWeek: 3,
+    shifts: [{ start: '09:00', end: '13:00' }, { start: '14:00', end: '19:00' }],
+    enabled: true,
+  },
+  {
+    id: 'wh_dermato_4',
+    businessId: 'biz_dermatocosmiatria_spa',
+    professionalId: null,
+    dayOfWeek: 4,
+    shifts: [{ start: '09:00', end: '13:00' }, { start: '14:00', end: '19:00' }],
+    enabled: true,
+  },
+  {
+    id: 'wh_dermato_5',
+    businessId: 'biz_dermatocosmiatria_spa',
+    professionalId: null,
+    dayOfWeek: 5,
+    shifts: [{ start: '09:00', end: '13:00' }, { start: '14:00', end: '19:00' }],
+    enabled: true,
+  },
+  {
+    id: 'wh_dermato_6',
+    businessId: 'biz_dermatocosmiatria_spa',
+    professionalId: null,
+    dayOfWeek: 6,
+    shifts: [{ start: '10:00', end: '15:00' }],
+    enabled: true,
+  },
+  {
+    id: 'wh_dermato_0',
+    businessId: 'biz_dermatocosmiatria_spa',
     professionalId: null,
     dayOfWeek: 0,
     shifts: [],
@@ -422,16 +583,167 @@ export class ApiService {
   private appointments: Appointment[];
   private currentUser: User | null;
   private authListeners: ((user: User | null) => void)[] = [];
+  private isCloudSynced = false;
 
   constructor() {
-    this.businesses = loadStorage<Business[]>(STORAGE_KEYS.BUSINESSES, INITIAL_BUSINESSES);
-    this.professionals = loadStorage<Professional[]>(STORAGE_KEYS.PROFESSIONALS, INITIAL_PROFESSIONALS);
-    this.services = loadStorage<Service[]>(STORAGE_KEYS.SERVICES, INITIAL_SERVICES);
-    this.workingHours = loadStorage<WorkingHours[]>(STORAGE_KEYS.WORKING_HOURS, INITIAL_WORKING_HOURS);
+    // Merge default initial businesses with any previously cached in localStorage
+    const savedBusinesses = loadStorage<Business[]>(STORAGE_KEYS.BUSINESSES, []);
+    const bizMap = new Map<string, Business>();
+    INITIAL_BUSINESSES.forEach((b) => bizMap.set(b.id, b));
+    savedBusinesses.forEach((b) => bizMap.set(b.id, b));
+    this.businesses = Array.from(bizMap.values());
+
+    // Merge default professionals
+    const savedProfs = loadStorage<Professional[]>(STORAGE_KEYS.PROFESSIONALS, []);
+    const profMap = new Map<string, Professional>();
+    INITIAL_PROFESSIONALS.forEach((p) => profMap.set(p.id, p));
+    savedProfs.forEach((p) => profMap.set(p.id, p));
+    this.professionals = Array.from(profMap.values());
+
+    // Merge default services
+    const savedServices = loadStorage<Service[]>(STORAGE_KEYS.SERVICES, []);
+    const srvMap = new Map<string, Service>();
+    INITIAL_SERVICES.forEach((s) => srvMap.set(s.id, s));
+    savedServices.forEach((s) => srvMap.set(s.id, s));
+    this.services = Array.from(srvMap.values());
+
+    // Merge default working hours
+    const savedWH = loadStorage<WorkingHours[]>(STORAGE_KEYS.WORKING_HOURS, []);
+    const whMap = new Map<string, WorkingHours>();
+    INITIAL_WORKING_HOURS.forEach((w) => whMap.set(w.id, w));
+    savedWH.forEach((w) => whMap.set(w.id, w));
+    this.workingHours = Array.from(whMap.values());
+
     this.timeOffs = loadStorage<TimeOff[]>(STORAGE_KEYS.TIME_OFFS, INITIAL_TIMEOFFS);
     this.customers = loadStorage<Customer[]>(STORAGE_KEYS.CUSTOMERS, INITIAL_CUSTOMERS);
     this.appointments = loadStorage<Appointment[]>(STORAGE_KEYS.APPOINTMENTS, INITIAL_APPOINTMENTS);
     this.currentUser = loadStorage<User | null>(STORAGE_KEYS.USER, null);
+
+    // Synchronize with Firestore cloud in the background
+    this.syncFromCloud().catch(() => {});
+  }
+
+  // Cloud Sync from Firebase Firestore
+  async syncFromCloud(): Promise<void> {
+    try {
+      // 1. Fetch businesses from Firestore
+      const bizSnap = await getDocs(collection(db, 'businesses'));
+      if (!bizSnap.empty) {
+        const cloudBizs: Business[] = [];
+        bizSnap.forEach((d) => {
+          cloudBizs.push(d.data() as Business);
+        });
+
+        // Merge defaults, then current local storage, then cloud (ensuring no loss)
+        const map = new Map<string, Business>();
+        INITIAL_BUSINESSES.forEach((b) => map.set(b.id, b));
+        this.businesses.forEach((b) => map.set(b.id, b));
+        cloudBizs.forEach((b) => map.set(b.id, b));
+        this.businesses = Array.from(map.values());
+        saveStorage(STORAGE_KEYS.BUSINESSES, this.businesses);
+
+        // Upload any businesses that exist in local state but not yet in Firestore
+        for (const b of this.businesses) {
+          if (!cloudBizs.some((cb) => cb.id === b.id)) {
+            await setDoc(doc(db, 'businesses', b.id), b).catch(() => {});
+          }
+        }
+      } else {
+        // Seed initial businesses to Firestore so cloud has the baseline
+        for (const b of this.businesses) {
+          await setDoc(doc(db, 'businesses', b.id), b).catch(() => {});
+        }
+      }
+
+      // 2. Fetch professionals from Firestore
+      const profSnap = await getDocs(collection(db, 'professionals'));
+      if (!profSnap.empty) {
+        const cloudProfs: Professional[] = [];
+        profSnap.forEach((d) => {
+          cloudProfs.push(d.data() as Professional);
+        });
+        const map = new Map<string, Professional>();
+        INITIAL_PROFESSIONALS.forEach((p) => map.set(p.id, p));
+        this.professionals.forEach((p) => map.set(p.id, p));
+        cloudProfs.forEach((p) => map.set(p.id, p));
+        this.professionals = Array.from(map.values());
+        saveStorage(STORAGE_KEYS.PROFESSIONALS, this.professionals);
+
+        for (const p of this.professionals) {
+          if (!cloudProfs.some((cp) => cp.id === p.id)) {
+            await setDoc(doc(db, 'professionals', p.id), p).catch(() => {});
+          }
+        }
+      } else {
+        for (const p of this.professionals) {
+          await setDoc(doc(db, 'professionals', p.id), p).catch(() => {});
+        }
+      }
+
+      // 3. Fetch services from Firestore
+      const srvSnap = await getDocs(collection(db, 'services'));
+      if (!srvSnap.empty) {
+        const cloudSrvs: Service[] = [];
+        srvSnap.forEach((d) => {
+          cloudSrvs.push(d.data() as Service);
+        });
+        const map = new Map<string, Service>();
+        INITIAL_SERVICES.forEach((s) => map.set(s.id, s));
+        this.services.forEach((s) => map.set(s.id, s));
+        cloudSrvs.forEach((s) => map.set(s.id, s));
+        this.services = Array.from(map.values());
+        saveStorage(STORAGE_KEYS.SERVICES, this.services);
+
+        for (const s of this.services) {
+          if (!cloudSrvs.some((cs) => cs.id === s.id)) {
+            await setDoc(doc(db, 'services', s.id), s).catch(() => {});
+          }
+        }
+      } else {
+        for (const s of this.services) {
+          await setDoc(doc(db, 'services', s.id), s).catch(() => {});
+        }
+      }
+
+      // 4. Fetch appointments from Firestore
+      const apptSnap = await getDocs(collection(db, 'appointments'));
+      if (!apptSnap.empty) {
+        const cloudAppts: Appointment[] = [];
+        apptSnap.forEach((d) => {
+          cloudAppts.push(d.data() as Appointment);
+        });
+        const map = new Map<string, Appointment>();
+        INITIAL_APPOINTMENTS.forEach((a) => map.set(a.id, a));
+        this.appointments.forEach((a) => map.set(a.id, a));
+        cloudAppts.forEach((a) => map.set(a.id, a));
+        this.appointments = Array.from(map.values());
+        saveStorage(STORAGE_KEYS.APPOINTMENTS, this.appointments);
+
+        for (const a of this.appointments) {
+          if (!cloudAppts.some((ca) => ca.id === a.id)) {
+            await setDoc(doc(db, 'appointments', a.id), a).catch(() => {});
+          }
+        }
+      }
+
+      // 5. Fetch working hours from Firestore
+      const whSnap = await getDocs(collection(db, 'workingHours'));
+      if (!whSnap.empty) {
+        const cloudWhs: WorkingHours[] = [];
+        whSnap.forEach((d) => {
+          cloudWhs.push(d.data() as WorkingHours);
+        });
+        const map = new Map<string, WorkingHours>();
+        INITIAL_WORKING_HOURS.forEach((w) => map.set(w.id, w));
+        cloudWhs.forEach((w) => map.set(w.id, w));
+        this.workingHours = Array.from(map.values());
+        saveStorage(STORAGE_KEYS.WORKING_HOURS, this.workingHours);
+      }
+
+      this.isCloudSynced = true;
+    } catch (err) {
+      console.warn('Could not sync data from Firestore cloud, continuing with local store', err);
+    }
   }
 
   onAuthStateChange(callback: (user: User | null) => void) {
@@ -496,16 +808,30 @@ export class ApiService {
 
   // Businesses
   async getBusinesses(): Promise<Business[]> {
+    if (!this.isCloudSynced) {
+      await this.syncFromCloud().catch(() => {});
+    }
     return this.businesses;
   }
 
   async getAllBusinesses(): Promise<Business[]> {
+    if (!this.isCloudSynced) {
+      await this.syncFromCloud().catch(() => {});
+    }
     return this.businesses;
   }
 
   async getBusinessBySlug(slug: string): Promise<Business> {
+    if (!this.isCloudSynced) {
+      await this.syncFromCloud().catch(() => {});
+    }
+    const cleanSlug = slug.toLowerCase().trim().replace(/^[#/]+/, '').replace(/^booking-/, '').replace(/^book\//, '');
     const found = this.businesses.find(
-      (b) => b.slug.toLowerCase() === slug.toLowerCase() || b.id === slug
+      (b) =>
+        b.slug.toLowerCase() === cleanSlug ||
+        b.id.toLowerCase() === cleanSlug ||
+        b.slug.toLowerCase() === slug.toLowerCase() ||
+        b.id.toLowerCase() === slug.toLowerCase()
     );
     if (!found) throw new Error('Negocio no encontrado');
     return found;
@@ -519,6 +845,12 @@ export class ApiService {
     };
     this.businesses.push(newBiz);
     saveStorage(STORAGE_KEYS.BUSINESSES, this.businesses);
+
+    // Save to Firestore Cloud
+    await setDoc(doc(db, 'businesses', newBiz.id), newBiz).catch((err) => {
+      console.warn('Error persisting business to Firestore:', err);
+    });
+
     return newBiz;
   }
 
@@ -528,6 +860,12 @@ export class ApiService {
     const updated = { ...this.businesses[idx], ...data };
     this.businesses[idx] = updated;
     saveStorage(STORAGE_KEYS.BUSINESSES, this.businesses);
+
+    // Update in Firestore Cloud
+    await setDoc(doc(db, 'businesses', updated.id), updated).catch((err) => {
+      console.warn('Error updating business in Firestore:', err);
+    });
+
     return updated;
   }
 
@@ -544,6 +882,12 @@ export class ApiService {
     };
     this.professionals.push(newProf);
     saveStorage(STORAGE_KEYS.PROFESSIONALS, this.professionals);
+
+    // Save to Firestore Cloud
+    await setDoc(doc(db, 'professionals', newProf.id), newProf).catch((err) => {
+      console.warn('Error persisting professional to Firestore:', err);
+    });
+
     return newProf;
   }
 
@@ -553,12 +897,24 @@ export class ApiService {
     const updated = { ...this.professionals[idx], ...data };
     this.professionals[idx] = updated;
     saveStorage(STORAGE_KEYS.PROFESSIONALS, this.professionals);
+
+    // Update in Firestore Cloud
+    await setDoc(doc(db, 'professionals', updated.id), updated).catch((err) => {
+      console.warn('Error updating professional in Firestore:', err);
+    });
+
     return updated;
   }
 
   async deleteProfessional(businessId: string, id: string): Promise<{ success: boolean }> {
     this.professionals = this.professionals.filter((p) => !(p.id === id && p.businessId === businessId));
     saveStorage(STORAGE_KEYS.PROFESSIONALS, this.professionals);
+
+    // Delete in Firestore Cloud
+    await deleteDoc(doc(db, 'professionals', id)).catch((err) => {
+      console.warn('Error deleting professional in Firestore:', err);
+    });
+
     return { success: true };
   }
 
@@ -575,6 +931,12 @@ export class ApiService {
     };
     this.services.push(newSrv);
     saveStorage(STORAGE_KEYS.SERVICES, this.services);
+
+    // Save to Firestore Cloud
+    await setDoc(doc(db, 'services', newSrv.id), newSrv).catch((err) => {
+      console.warn('Error persisting service to Firestore:', err);
+    });
+
     return newSrv;
   }
 
@@ -584,12 +946,24 @@ export class ApiService {
     const updated = { ...this.services[idx], ...data };
     this.services[idx] = updated;
     saveStorage(STORAGE_KEYS.SERVICES, this.services);
+
+    // Update in Firestore Cloud
+    await setDoc(doc(db, 'services', updated.id), updated).catch((err) => {
+      console.warn('Error updating service in Firestore:', err);
+    });
+
     return updated;
   }
 
   async deleteService(businessId: string, id: string): Promise<{ success: boolean }> {
     this.services = this.services.filter((s) => !(s.id === id && s.businessId === businessId));
     saveStorage(STORAGE_KEYS.SERVICES, this.services);
+
+    // Delete in Firestore Cloud
+    await deleteDoc(doc(db, 'services', id)).catch((err) => {
+      console.warn('Error deleting service in Firestore:', err);
+    });
+
     return { success: true };
   }
 
@@ -743,6 +1117,11 @@ export class ApiService {
     this.appointments.push(newAppointment);
     saveStorage(STORAGE_KEYS.APPOINTMENTS, this.appointments);
 
+    // Save to Firestore Cloud
+    await setDoc(doc(db, 'appointments', newAppointment.id), newAppointment).catch((err) => {
+      console.warn('Error persisting appointment to Firestore:', err);
+    });
+
     const notificationPayload = {
       customerName: newAppointment.customerName,
       customerPhone: newAppointment.customerPhone,
@@ -777,14 +1156,21 @@ export class ApiService {
   async updateAppointmentStatus(id: string, status: Appointment['status'], reason?: string): Promise<Appointment> {
     const idx = this.appointments.findIndex((a) => a.id === id);
     if (idx === -1) throw new Error('Turno no encontrado');
-    this.appointments[idx] = {
+    const updated = {
       ...this.appointments[idx],
       status,
       cancellationReason: reason,
       updatedAt: new Date().toISOString(),
     };
+    this.appointments[idx] = updated;
     saveStorage(STORAGE_KEYS.APPOINTMENTS, this.appointments);
-    return this.appointments[idx];
+
+    // Update in Firestore Cloud
+    await setDoc(doc(db, 'appointments', updated.id), updated).catch((err) => {
+      console.warn('Error updating appointment in Firestore:', err);
+    });
+
+    return updated;
   }
 
   // Analytics & Stats

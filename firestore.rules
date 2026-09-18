@@ -1,0 +1,30 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // Permitir lectura y escritura de la colección de negocios y sus datos
+    match /businesses/{businessId} {
+      allow read, write: if true;
+    }
+    match /professionals/{profId} {
+      allow read, write: if true;
+    }
+    match /services/{serviceId} {
+      allow read, write: if true;
+    }
+    match /workingHours/{whId} {
+      allow read, write: if true;
+    }
+    match /timeOffs/{toId} {
+      allow read, write: if true;
+    }
+    match /appointments/{appId} {
+      allow read, write: if true;
+    }
+    match /customers/{custId} {
+      allow read, write: if true;
+    }
+    match /users/{userId} {
+      allow read, write: if true;
+    }
+  }
+}

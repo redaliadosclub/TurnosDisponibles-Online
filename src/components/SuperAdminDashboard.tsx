@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Business, BusinessPlan, BusinessTypeKey } from '../types';
 import { api } from '../services/api';
 import { BUSINESS_TYPES } from '../lib/businessTypes';
+import { PlansPricingModal } from './PlansPricingModal';
 import {
   Building2,
   Users,
@@ -21,6 +22,7 @@ import {
   Link as LinkIcon,
   Share2,
   HelpCircle,
+  Sparkles,
 } from 'lucide-react';
 
 interface SuperAdminDashboardProps {
@@ -40,6 +42,7 @@ export function SuperAdminDashboard({
   const [filterQuery, setFilterQuery] = useState('');
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
   const [showLinksGuide, setShowLinksGuide] = useState(false);
+  const [showPlansModal, setShowPlansModal] = useState(false);
 
   const getFullPublicUrl = (slug: string) => {
     const origin = window.location.origin;
@@ -110,6 +113,10 @@ export function SuperAdminDashboard({
                 <span className="px-2 py-0.5 rounded-md text-[10px] font-bold bg-teal-500/20 text-teal-300 border border-teal-500/30">
                   SUPERADMIN
                 </span>
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                  CLOUD FIRESTORE CONECTADO
+                </span>
               </div>
               <p className="text-xs text-slate-400">
                 Control global de inquilinos (tenants), suscripciones y métricas de plataforma.
@@ -118,6 +125,16 @@ export function SuperAdminDashboard({
           </div>
 
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowPlansModal(true)}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-teal-500/20 hover:bg-teal-500/30 text-teal-300 text-xs font-semibold border border-teal-500/40 transition cursor-pointer"
+              title="Ver tabla de precios y suscripciones SaaS (Free, Pro $29.000, Business $49.000)"
+            >
+              <Sparkles className="w-4 h-4 text-teal-300" />
+              <span>Planes & Precios SaaS</span>
+            </button>
+
             <button
               type="button"
               onClick={() => setShowLinksGuide(true)}
@@ -757,6 +774,12 @@ export function SuperAdminDashboard({
           </div>
         </div>
       )}
+
+      {/* PLANS & PRICING MODAL */}
+      <PlansPricingModal
+        isOpen={showPlansModal}
+        onClose={() => setShowPlansModal(false)}
+      />
     </div>
   );
 }
