@@ -44,6 +44,7 @@ interface PublicBookingPageProps {
   currentUser?: User | null;
   onNavigateToDashboard?: () => void;
   onGoToAdmin?: () => void;
+  onBackToPortal?: () => void;
 }
 
 export function PublicBookingPage({
@@ -51,6 +52,7 @@ export function PublicBookingPage({
   currentUser,
   onNavigateToDashboard,
   onGoToAdmin,
+  onBackToPortal,
 }: PublicBookingPageProps) {
   const labels = useMemo(() => getBusinessLabels(business), [business]);
   const daysList = useMemo(() => generateNextDays(14), []);
@@ -326,10 +328,20 @@ export function PublicBookingPage({
             </div>
 
             <div className="flex flex-wrap items-center gap-2 self-stretch sm:self-center">
+              {onBackToPortal && (
+                <button
+                  type="button"
+                  onClick={onBackToPortal}
+                  className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/20 hover:bg-white/30 text-white text-xs font-semibold border border-white/30 transition shadow-sm cursor-pointer"
+                  title="Volver al Portal y Directorio de Negocios"
+                >
+                  <span>← Portal Principal</span>
+                </button>
+              )}
               <button
                 type="button"
                 onClick={() => setShowLookupModal(true)}
-                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-medium border border-white/25 transition shadow-sm"
+                className="flex-1 sm:flex-none flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-medium border border-white/25 transition shadow-sm cursor-pointer"
               >
                 <Search className="w-3.5 h-3.5" />
                 <span>Consultar mi turno</span>

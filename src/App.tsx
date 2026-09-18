@@ -6,6 +6,7 @@ import { BusinessDashboard } from './components/BusinessDashboard';
 import { SuperAdminDashboard } from './components/SuperAdminDashboard';
 import { AuthModal } from './components/AuthModal';
 import { NotFoundBusinessView } from './components/NotFoundBusinessView';
+import { LandingPortalPage } from './components/portal/LandingPortalPage';
 import {
   Building2,
   Shield,
@@ -13,6 +14,7 @@ import {
   LogOut,
   Globe,
   LayoutDashboard,
+  Calendar,
   X,
 } from 'lucide-react';
 
@@ -43,14 +45,23 @@ export default function App() {
       searchParams.get('biz');
     if (querySlug) return decodeURIComponent(querySlug).toLowerCase().trim();
 
-    // 2. Normalize and check hash (e.g. #booking-dermatocosmiatria-spa, #dermatocosmiatria-spa, #/booking-dermatocosmiatria-spa)
+    // 2. Normalize and check hash
     let hash = window.location.hash || '';
     hash = hash.replace(/^[#/!]+/, '').trim();
+
+    // Portal section hashes or home aliases should remain on portal
+    const portalSections = ['portal', 'home', 'inicio', 'directorio', 'b2b-ventajas', 'precios', 'blog', 'faq'];
+    if (portalSections.includes(hash)) {
+      return '';
+    }
+
     if (hash.startsWith('booking-')) hash = hash.replace(/^booking-/, '');
     if (hash.startsWith('book/')) hash = hash.replace(/^book\//, '');
     if (hash.startsWith('b/')) hash = hash.replace(/^b\//, '');
     hash = hash.replace(/[#/]+$/, '');
-    if (hash && hash !== 'public' && hash !== 'booking') return decodeURIComponent(hash).toLowerCase();
+    if (hash && hash !== 'public' && hash !== 'booking' && hash !== 'portal') {
+      return decodeURIComponent(hash).toLowerCase();
+    }
 
     // 3. Check pathname (/book/slug, /booking-slug, or /slug)
     let path = window.location.pathname.replace(/^\/+/, '').trim();
@@ -58,7 +69,7 @@ export default function App() {
     if (path.startsWith('booking-')) path = path.replace(/^booking-/, '');
     if (path.startsWith('b/')) path = path.replace(/^b\//, '');
     path = path.replace(/[#/]+$/, '');
-    if (path && path !== 'index.html' && path !== 'public' && path !== 'booking') {
+    if (path && path !== 'index.html' && path !== 'public' && path !== 'booking' && path !== 'portal') {
       return decodeURIComponent(path).toLowerCase();
     }
 
@@ -87,33 +98,27 @@ export default function App() {
     return INITIAL_BUSINESSES;
   };
 
-  // Synchronous resolution of the initial business on page load so there is zero flicker or race condition
-  const resolveInitialBusiness = (): Business => {
-    const slug = getRequestedSlug();
-    const allBizs = getCleanSavedBusinesses();
-
-    if (slug) {
-      const match = findBusinessBySlug(allBizs, slug);
-      if (match) return match;
-    }
-    return allBizs[0] || INITIAL_BUSINESSES[0];
-  };
+  // Synchronous resolution of initial view and business
+  const initialSlug = getRequestedSlug();
+  const initialBizs = getCleanSavedBusinesses();
+  const matchedInitialBiz = initialSlug ? findBusinessBySlug(initialBizs, initialSlug) : undefined;
 
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [businesses, setBusinesses] = useState<Business[]>(getCleanSavedBusinesses);
-  const [currentBusiness, setCurrentBusiness] = useState<Business>(resolveInitialBusiness);
-  const [notFoundSlug, setNotFoundSlug] = useState<string | null>(() => {
-    const slug = getRequestedSlug();
-    if (!slug) return null;
-    const allBizs = getCleanSavedBusinesses();
-    const match = findBusinessBySlug(allBizs, slug);
-    return match ? null : slug;
+  const [businesses, setBusinesses] = useState<Business[]>(initialBizs);
+  const [currentBusiness, setCurrentBusiness] = useState<Business>(
+    matchedInitialBiz || initialBizs[0] || INITIAL_BUSINESSES[0]
+  );
+  const [notFoundSlug, setNotFoundSlug] = useState<string | null>(
+    initialSlug && !matchedInitialBiz ? initialSlug : null
+  );
+  const [activeView, setActiveView] = useState<'portal' | 'public' | 'business' | 'superadmin'>(() => {
+    if (initialSlug) return 'public';
+    return 'portal';
   });
-  const [activeView, setActiveView] = useState<'public' | 'business' | 'superadmin'>('public');
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Demo bar switch: defaults to FALSE so visitors see a 100% clean clinic page without admin controls
+  // Demo bar switch: defaults to FALSE so visitors see a 100% clean page without admin controls
   const [showDemoBar, setShowDemoBar] = useState<boolean>(() => {
     try {
       const saved = localStorage.getItem('td_demo_bar_visible');
@@ -143,10 +148,10 @@ export default function App() {
     }
   }, []);
 
-  // Guard: if somehow on superadmin view without proper role, kick back to public
+  // Guard: if somehow on superadmin view without proper role, kick back to portal
   useEffect(() => {
     if (activeView === 'superadmin' && currentUser?.role !== 'superadmin') {
-      setActiveView('public');
+      setActiveView('portal');
     }
   }, [activeView, currentUser]);
 
@@ -184,9 +189,7 @@ export default function App() {
         setNotFoundSlug(null);
         if (user && user.businessId) {
           const userBiz = currentList.find((b) => b.id === user.businessId);
-          setCurrentBusiness(userBiz || currentList[0]);
-        } else if (currentList.length > 0) {
-          setCurrentBusiness(currentList[0]);
+          if (userBiz) setCurrentBusiness(userBiz);
         }
       }
     } catch (err) {
@@ -200,7 +203,7 @@ export default function App() {
     initialize();
   }, []);
 
-  // Listen to hash changes in real-time (e.g. user clicks another link or pastes url)
+  // Listen to hash changes in real-time
   useEffect(() => {
     const handleHashChange = () => {
       const targetSlug = getRequestedSlug();
@@ -221,30 +224,34 @@ export default function App() {
         }
       } else {
         setNotFoundSlug(null);
+        // If hash is cleared or section hash on portal, keep portal view
+        if (activeView === 'public' && !targetSlug) {
+          setActiveView('portal');
+        }
       }
     };
 
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
-  }, [businesses, currentBusiness?.id]);
+  }, [businesses, activeView]);
 
   const handleLogout = async () => {
     await api.logout();
     setCurrentUser(null);
-    setActiveView('public');
+    setActiveView('portal');
   };
 
   const handleLoginSuccess = (user: User) => {
     setCurrentUser(user);
     if (user.role === 'superadmin') {
       setActiveView('superadmin');
-      setShowDemoBar(true); // SuperAdmin naturally gets demo/admin bar
+      setShowDemoBar(true);
     } else if (user.businessId) {
       const match = businesses.find((b) => b.id === user.businessId);
       if (match) setCurrentBusiness(match);
       setActiveView('business');
     } else {
-      setActiveView('public');
+      setActiveView('portal');
     }
   };
 
@@ -252,27 +259,54 @@ export default function App() {
 
   // The top bar is displayed ONLY if user is logged in (SuperAdmin or Business Owner/Staff)
   // Public visitors / patients booking an appointment NEVER see this admin navigation bar
-  const shouldRenderTopBar = currentUser !== null && (activeView !== 'public' || showDemoBar);
+  const shouldRenderTopBar = currentUser !== null && (activeView !== 'portal' || showDemoBar);
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col relative">
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col relative">
       {/* Top Demo & Multi-Tenant Control Bar */}
       {shouldRenderTopBar && (
-        <nav className="bg-slate-950 text-white border-b border-slate-800 text-xs py-2 px-4 sticky top-0 z-40 shadow-md">
+        <nav className="bg-slate-950 text-white border-b border-slate-800 text-xs py-2 px-4 sticky top-0 z-50 shadow-md">
           <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
             {/* Brand & View Switcher */}
             <div className="flex items-center gap-4">
-              <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  try {
+                    window.location.hash = '';
+                  } catch {}
+                  setActiveView('portal');
+                }}
+                className="flex items-center gap-2 hover:opacity-90 transition text-left"
+              >
                 <span className="w-6 h-6 rounded-lg bg-teal-500 text-slate-950 flex items-center justify-center font-extrabold text-xs">
                   TD
                 </span>
                 <span className="font-extrabold tracking-tight text-white text-sm">
                   TurnosDisponibles <span className="text-[10px] text-teal-400 font-medium">.online</span>
                 </span>
-              </div>
+              </button>
 
               {/* View Selector Tabs */}
               <div className="flex items-center bg-slate-900 rounded-xl p-1 border border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    try {
+                      window.location.hash = '';
+                    } catch {}
+                    setActiveView('portal');
+                  }}
+                  className={`flex items-center gap-1.5 px-3 py-1 rounded-lg font-semibold transition cursor-pointer ${
+                    activeView === 'portal'
+                      ? 'bg-teal-500 text-slate-950 shadow-xs'
+                      : 'text-slate-300 hover:text-white'
+                  }`}
+                >
+                  <Globe className="w-3.5 h-3.5" />
+                  <span>Portal Principal</span>
+                </button>
+
                 <button
                   type="button"
                   onClick={() => setActiveView('public')}
@@ -282,11 +316,11 @@ export default function App() {
                       : 'text-slate-300 hover:text-white'
                   }`}
                 >
-                  <Globe className="w-3.5 h-3.5" />
-                  <span>Página Pública</span>
+                  <Calendar className="w-3.5 h-3.5" />
+                  <span>Reserva Clínica</span>
                 </button>
 
-                {/* Panel Negocio - Accessible if logged in or opens login modal */}
+                {/* Panel Negocio */}
                 <button
                   type="button"
                   onClick={() => {
@@ -306,7 +340,7 @@ export default function App() {
                   <span>Panel Negocio</span>
                 </button>
 
-                {/* SuperAdmin Tab - STRICTLY PROTECTED: ONLY visible for superadmin role */}
+                {/* SuperAdmin Tab */}
                 {currentUser?.role === 'superadmin' && (
                   <button
                     type="button"
@@ -326,7 +360,7 @@ export default function App() {
 
             {/* Tenant Selector & Auth / Profile */}
             <div className="flex items-center gap-3">
-              {/* Tenant selector: ONLY superadmin can switch businesses. Doctors/Staff see their own business locked */}
+              {/* Tenant selector: ONLY superadmin can switch businesses */}
               {currentUser?.role === 'superadmin' ? (
                 <div className="flex items-center gap-1.5 bg-slate-900 px-2.5 py-1 rounded-xl border border-slate-800">
                   <Building2 className="w-3.5 h-3.5 text-amber-400 shrink-0" />
@@ -382,13 +416,13 @@ export default function App() {
                 </button>
               )}
 
-              {/* Quick Hide Button if in public view */}
-              {activeView === 'public' && showDemoBar && (
+              {/* Quick Hide Button */}
+              {activeView !== 'superadmin' && showDemoBar && (
                 <button
                   type="button"
                   onClick={() => setShowDemoBar(false)}
                   className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition cursor-pointer"
-                  title="Ocultar barra demo para ver como paciente"
+                  title="Ocultar barra demo"
                 >
                   <X className="w-3.5 h-3.5" />
                 </button>
@@ -400,25 +434,51 @@ export default function App() {
 
       {/* Main View Render */}
       <div className="flex-1">
-        {notFoundSlug && activeView === 'public' ? (
-          <NotFoundBusinessView
-            searchedSlug={notFoundSlug}
-            availableBusinesses={businesses.length > 0 ? businesses : INITIAL_BUSINESSES}
-            onSelectBusiness={(b) => {
-              setCurrentBusiness(b);
-              setNotFoundSlug(null);
-              try {
-                window.location.hash = `#booking-${b.slug}`;
-              } catch {}
+        {activeView === 'portal' && (
+          <LandingPortalPage
+            onSelectBooking={(slug) => {
+              const allAvailable = [...businesses, ...INITIAL_BUSINESSES];
+              const match = findBusinessBySlug(allAvailable, slug);
+              if (match) {
+                setCurrentBusiness(match);
+                setNotFoundSlug(null);
+                setActiveView('public');
+                try {
+                  window.location.hash = `#booking-${match.slug}`;
+                } catch {}
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }
             }}
-            onGoToLogin={() => setShowAuthModal(true)}
+            onOpenAuthModal={() => setShowAuthModal(true)}
           />
-        ) : (
-          activeView === 'public' && (
+        )}
+
+        {activeView === 'public' &&
+          (notFoundSlug ? (
+            <NotFoundBusinessView
+              searchedSlug={notFoundSlug}
+              availableBusinesses={businesses.length > 0 ? businesses : INITIAL_BUSINESSES}
+              onSelectBusiness={(b) => {
+                setCurrentBusiness(b);
+                setNotFoundSlug(null);
+                try {
+                  window.location.hash = `#booking-${b.slug}`;
+                } catch {}
+              }}
+              onGoToLogin={() => setShowAuthModal(true)}
+            />
+          ) : (
             <PublicBookingPage
               key={activeBusiness.id}
               business={activeBusiness}
               currentUser={currentUser}
+              onBackToPortal={() => {
+                try {
+                  window.location.hash = '';
+                } catch {}
+                setActiveView('portal');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+              }}
               onGoToAdmin={() => {
                 if (!currentUser) {
                   setShowAuthModal(true);
@@ -427,8 +487,7 @@ export default function App() {
                 }
               }}
             />
-          )
-        )}
+          ))}
 
         {activeView === 'business' && (
           <BusinessDashboard
@@ -456,7 +515,7 @@ export default function App() {
         )}
       </div>
 
-      {/* Floating Demo Switcher Button: ONLY visible for logged in SuperAdmin master so public visitors never see it */}
+      {/* Floating Demo Switcher Button: ONLY visible for logged in SuperAdmin master */}
       {currentUser?.role === 'superadmin' && (
         <div className="fixed bottom-4 right-4 z-50">
           <button
@@ -485,3 +544,4 @@ export default function App() {
     </div>
   );
 }
+
