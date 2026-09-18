@@ -18,25 +18,34 @@ import {
 export default function App() {
   // Helper to extract requested slug from URL
   const getRequestedSlug = () => {
-    // 1. Check query parameters (?b=... or ?slug=...)
+    // 1. Check query parameters (?b=... or ?slug=... or ?business=... or ?negocio=...)
     const searchParams = new URLSearchParams(window.location.search);
-    const querySlug = searchParams.get('b') || searchParams.get('slug');
+    const querySlug =
+      searchParams.get('b') ||
+      searchParams.get('slug') ||
+      searchParams.get('business') ||
+      searchParams.get('negocio') ||
+      searchParams.get('biz');
     if (querySlug) return decodeURIComponent(querySlug).toLowerCase().trim();
 
-    // 2. Normalize and check hash (strip multiple leading hashes like ##, #/, /#, etc.)
+    // 2. Normalize and check hash (e.g. #booking-dermatocosmiatria-spa, #dermatocosmiatria-spa, #/booking-dermatocosmiatria-spa)
     let hash = window.location.hash || '';
-    hash = hash.replace(/^[#/]+/, '').trim();
+    hash = hash.replace(/^[#/!]+/, '').trim();
     if (hash.startsWith('booking-')) hash = hash.replace(/^booking-/, '');
     if (hash.startsWith('book/')) hash = hash.replace(/^book\//, '');
+    if (hash.startsWith('b/')) hash = hash.replace(/^b\//, '');
     hash = hash.replace(/[#/]+$/, '');
-    if (hash) return decodeURIComponent(hash).toLowerCase();
+    if (hash && hash !== 'public' && hash !== 'booking') return decodeURIComponent(hash).toLowerCase();
 
     // 3. Check pathname (/book/slug, /booking-slug, or /slug)
     let path = window.location.pathname.replace(/^\/+/, '').trim();
     if (path.startsWith('book/')) path = path.replace(/^book\//, '');
     if (path.startsWith('booking-')) path = path.replace(/^booking-/, '');
+    if (path.startsWith('b/')) path = path.replace(/^b\//, '');
     path = path.replace(/[#/]+$/, '');
-    if (path && path !== 'index.html') return decodeURIComponent(path).toLowerCase();
+    if (path && path !== 'index.html' && path !== 'public' && path !== 'booking') {
+      return decodeURIComponent(path).toLowerCase();
+    }
 
     return '';
   };
@@ -143,9 +152,15 @@ export default function App() {
 
       const targetSlug = getRequestedSlug();
       let matchedBiz: Business | undefined;
-      if (targetSlug && currentList.length > 0) {
+      
+      const allAvailable = [
+        ...currentList,
+        ...INITIAL_BUSINESSES,
+      ];
+
+      if (targetSlug) {
         const cleanTarget = targetSlug.toLowerCase().trim();
-        matchedBiz = currentList.find(
+        matchedBiz = allAvailable.find(
           (b) =>
             b.slug.toLowerCase() === cleanTarget ||
             b.id.toLowerCase() === cleanTarget ||
@@ -158,7 +173,7 @@ export default function App() {
       if (matchedBiz) {
         setCurrentBusiness(matchedBiz);
         setActiveView('public');
-      } else if (currentList.length > 0) {
+      } else if (!targetSlug && currentList.length > 0) {
         if (user && user.businessId) {
           const userBiz = currentList.find((b) => b.id === user.businessId);
           setCurrentBusiness(userBiz || currentList[0]);
