@@ -65,20 +65,32 @@ export default function App() {
     return '';
   };
 
-  // Synchronous resolution of the initial business on page load so there is zero flicker or race condition
-  const resolveInitialBusiness = (): Business => {
-    const slug = getRequestedSlug();
-    let allBizs = INITIAL_BUSINESSES;
+  const LEGACY_DEMO_IDS = new Set(['biz_turnosmed_demo', 'biz_estetica_bella', 'turnosmed-demo', 'estetica-bella']);
+
+  const getCleanSavedBusinesses = (): Business[] => {
     try {
       const raw = localStorage.getItem('td_data_businesses');
       if (raw) {
         const saved: Business[] = JSON.parse(raw);
+        const filtered = saved.filter(
+          (b) => !LEGACY_DEMO_IDS.has(b.id) && !LEGACY_DEMO_IDS.has(b.slug)
+        );
+        if (filtered.length !== saved.length) {
+          localStorage.setItem('td_data_businesses', JSON.stringify(filtered));
+        }
         const map = new Map<string, Business>();
         INITIAL_BUSINESSES.forEach((b) => map.set(b.id, b));
-        saved.forEach((b) => map.set(b.id, b));
-        allBizs = Array.from(map.values());
+        filtered.forEach((b) => map.set(b.id, b));
+        return Array.from(map.values());
       }
     } catch {}
+    return INITIAL_BUSINESSES;
+  };
+
+  // Synchronous resolution of the initial business on page load so there is zero flicker or race condition
+  const resolveInitialBusiness = (): Business => {
+    const slug = getRequestedSlug();
+    const allBizs = getCleanSavedBusinesses();
 
     if (slug) {
       const match = findBusinessBySlug(allBizs, slug);
@@ -88,34 +100,12 @@ export default function App() {
   };
 
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [businesses, setBusinesses] = useState<Business[]>(() => {
-    try {
-      const raw = localStorage.getItem('td_data_businesses');
-      if (raw) {
-        const saved: Business[] = JSON.parse(raw);
-        const map = new Map<string, Business>();
-        INITIAL_BUSINESSES.forEach((b) => map.set(b.id, b));
-        saved.forEach((b) => map.set(b.id, b));
-        return Array.from(map.values());
-      }
-    } catch {}
-    return INITIAL_BUSINESSES;
-  });
+  const [businesses, setBusinesses] = useState<Business[]>(getCleanSavedBusinesses);
   const [currentBusiness, setCurrentBusiness] = useState<Business>(resolveInitialBusiness);
   const [notFoundSlug, setNotFoundSlug] = useState<string | null>(() => {
     const slug = getRequestedSlug();
     if (!slug) return null;
-    let allBizs = INITIAL_BUSINESSES;
-    try {
-      const raw = localStorage.getItem('td_data_businesses');
-      if (raw) {
-        const saved: Business[] = JSON.parse(raw);
-        const map = new Map<string, Business>();
-        INITIAL_BUSINESSES.forEach((b) => map.set(b.id, b));
-        saved.forEach((b) => map.set(b.id, b));
-        allBizs = Array.from(map.values());
-      }
-    } catch {}
+    const allBizs = getCleanSavedBusinesses();
     const match = findBusinessBySlug(allBizs, slug);
     return match ? null : slug;
   });

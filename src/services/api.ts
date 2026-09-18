@@ -70,64 +70,6 @@ const tomorrow = getTomorrowString();
 
 export const INITIAL_BUSINESSES: Business[] = [
   {
-    id: 'biz_turnosmed_demo',
-    slug: 'turnosmed-demo',
-    name: 'TurnosMed Demo (Clínica Médica)',
-    businessType: 'medical',
-    description: 'Centro de atención médica ambulatoria y diagnóstico con profesionales de primer nivel.',
-    category: 'Clínica Médica & Especialidades',
-    address: 'Av. Santa Fe 3420, Piso 2, Consultorios A y B, CABA',
-    phone: '+54 11 4821-9900',
-    whatsappNumber: '5491148219900',
-    logoUrl: 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=150&auto=format&fit=crop&q=80',
-    primaryColor: '#0284c7',
-    welcomeMessage: 'Bienvenido al portal de reservas de TurnosMed Demo. Agenda tu consulta en menos de 2 minutos.',
-    cancellationPolicy: 'Podrás cancelar o reprogramar tu turno sin penalidad hasta 2 horas antes de la cita.',
-    bufferMinutes: 5,
-    plan: 'pro',
-    status: 'active',
-    createdAt: '2026-01-10T10:00:00.000Z',
-    paymentsEnabled: true,
-    depositRequired: false,
-    depositType: 'fixed',
-    depositAmount: 5000,
-    mpAliasOrLink: 'turnosmed.demo.mp',
-    bankAlias: 'TURNOSMED.CONSULTORIOS',
-    bankCbu: '0720123488000034981290',
-    bankAccountHolder: 'TurnosMed SRL',
-    bankName: 'Banco Santander',
-    paymentInstructions: 'Para confirmar tu turno, puedes abonar la seña por Mercado Pago o transferencia bancaria y enviar el comprobante.',
-  },
-  {
-    id: 'biz_estetica_bella',
-    slug: 'estetica-bella',
-    name: 'Estética & Spa Bella',
-    businessType: 'beauty',
-    description: 'Tratamientos faciales, corporales y diseño de imagen personalizada.',
-    category: 'Centro de Estética & Belleza',
-    address: 'Calle Arenales 1450, Recoleta, CABA',
-    phone: '+54 11 4987-1234',
-    whatsappNumber: '5491149871234',
-    logoUrl: 'https://images.unsplash.com/photo-1560750588-73207b1ef5b8?w=150&auto=format&fit=crop&q=80',
-    primaryColor: '#db2777',
-    welcomeMessage: 'Reserva tu tratamiento de belleza con nuestros especialistas.',
-    cancellationPolicy: 'Avisar con al menos 4 horas de antelación.',
-    bufferMinutes: 10,
-    plan: 'pro',
-    status: 'active',
-    createdAt: '2026-02-15T12:00:00.000Z',
-    paymentsEnabled: true,
-    depositRequired: true,
-    depositType: 'percentage',
-    depositAmount: 50,
-    mpAliasOrLink: 'estetica.bella.mp',
-    bankAlias: 'ESTETICA.BELLA.RECOLETA',
-    bankCbu: '0140998822000054321987',
-    bankAccountHolder: 'Estética Bella SA',
-    bankName: 'Banco Galicia',
-    paymentInstructions: 'Se requiere el 50% de seña previa para congelar el turno con la especialista.',
-  },
-  {
     id: 'biz_dermatocosmiatria_spa',
     slug: 'dermatocosmiatria-spa',
     name: 'Dermatocosmiatría & Estética Spa',
@@ -160,42 +102,6 @@ export const INITIAL_BUSINESSES: Business[] = [
 
 export const INITIAL_PROFESSIONALS: Professional[] = [
   {
-    id: 'prof_juan',
-    businessId: 'biz_turnosmed_demo',
-    name: 'Dr. Juan Pérez',
-    title: 'Especialista en Cardiología & Medicina General',
-    photoUrl: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=160&auto=format&fit=crop&q=80',
-    email: 'dr.juan.perez@turnosmed.com',
-    phone: '+54 11 4821-9901',
-    active: true,
-    specialty: 'Cardiología',
-    serviceIds: ['srv_consulta', 'srv_cardio'],
-  },
-  {
-    id: 'prof_sofia',
-    businessId: 'biz_turnosmed_demo',
-    name: 'Dra. Sofía Benítez',
-    title: 'Especialista en Dermatología Clínica',
-    photoUrl: 'https://images.unsplash.com/photo-1594824813501-4835697203a9?w=160&auto=format&fit=crop&q=80',
-    email: 'dra.sofia.benitez@turnosmed.com',
-    phone: '+54 11 4821-9902',
-    active: true,
-    specialty: 'Dermatología',
-    serviceIds: ['srv_derma', 'srv_consulta'],
-  },
-  {
-    id: 'prof_valeria',
-    businessId: 'biz_estetica_bella',
-    name: 'Valeria Rossi',
-    title: 'Cosmetóloga y Estilista Senior',
-    photoUrl: 'https://images.unsplash.com/photo-1573496359142-b8d87734a5a2?w=160&auto=format&fit=crop&q=80',
-    email: 'valeria@esteticabella.com',
-    phone: '+54 11 4987-1235',
-    active: true,
-    specialty: 'Cosmetología Facial',
-    serviceIds: ['srv_facial', 'srv_masaje'],
-  },
-  {
     id: 'prof_mariana_dermato',
     businessId: 'biz_dermatocosmiatria_spa',
     name: 'Lic. Mariana Gómez',
@@ -222,61 +128,6 @@ export const INITIAL_PROFESSIONALS: Professional[] = [
 ];
 
 export const INITIAL_SERVICES: Service[] = [
-  {
-    id: 'srv_consulta',
-    businessId: 'biz_turnosmed_demo',
-    name: 'Consulta Médica General',
-    description: 'Evaluación integral, diagnóstico clínico y prescripción de tratamientos.',
-    durationMinutes: 30,
-    price: 25000,
-    currency: '$',
-    active: true,
-    assignedProfessionalIds: ['prof_juan', 'prof_sofia'],
-  },
-  {
-    id: 'srv_cardio',
-    businessId: 'biz_turnosmed_demo',
-    name: 'Chequeo Cardiológico + ECG',
-    description: 'Electrocardiograma de 12 derivaciones con informe de apto físico o control cardiovascular.',
-    durationMinutes: 45,
-    price: 38000,
-    currency: '$',
-    active: true,
-    assignedProfessionalIds: ['prof_juan'],
-  },
-  {
-    id: 'srv_derma',
-    businessId: 'biz_turnosmed_demo',
-    name: 'Consulta Dermatológica y Mapeo',
-    description: 'Revisión preventiva de lunares, acné, manchas y afecciones cutáneas.',
-    durationMinutes: 30,
-    price: 30000,
-    currency: '$',
-    active: true,
-    assignedProfessionalIds: ['prof_sofia'],
-  },
-  {
-    id: 'srv_facial',
-    businessId: 'biz_estetica_bella',
-    name: 'Limpieza Facial Profunda con Punta de Diamante',
-    description: 'Higiene cutánea, extracción de impurezas, máscara descongestiva e hidratación profunda.',
-    durationMinutes: 60,
-    price: 35000,
-    currency: '$',
-    active: true,
-    assignedProfessionalIds: ['prof_valeria'],
-  },
-  {
-    id: 'srv_masaje',
-    businessId: 'biz_estetica_bella',
-    name: 'Masaje Descontracturante y Relajante',
-    description: 'Sesión integral de 50 minutos con aceites aromáticos.',
-    durationMinutes: 50,
-    price: 32000,
-    currency: '$',
-    active: true,
-    assignedProfessionalIds: ['prof_valeria'],
-  },
   {
     id: 'srv_dermato_limpieza',
     businessId: 'biz_dermatocosmiatria_spa',
@@ -324,62 +175,6 @@ export const INITIAL_SERVICES: Service[] = [
 ];
 
 const INITIAL_WORKING_HOURS: WorkingHours[] = [
-  {
-    id: 'wh_tm_1',
-    businessId: 'biz_turnosmed_demo',
-    professionalId: null,
-    dayOfWeek: 1,
-    shifts: [{ start: '08:00', end: '12:00' }, { start: '14:00', end: '18:00' }],
-    enabled: true,
-  },
-  {
-    id: 'wh_tm_2',
-    businessId: 'biz_turnosmed_demo',
-    professionalId: null,
-    dayOfWeek: 2,
-    shifts: [{ start: '08:00', end: '12:00' }, { start: '14:00', end: '18:00' }],
-    enabled: true,
-  },
-  {
-    id: 'wh_tm_3',
-    businessId: 'biz_turnosmed_demo',
-    professionalId: null,
-    dayOfWeek: 3,
-    shifts: [{ start: '08:00', end: '12:00' }, { start: '14:00', end: '18:00' }],
-    enabled: true,
-  },
-  {
-    id: 'wh_tm_4',
-    businessId: 'biz_turnosmed_demo',
-    professionalId: null,
-    dayOfWeek: 4,
-    shifts: [{ start: '08:00', end: '12:00' }, { start: '14:00', end: '18:00' }],
-    enabled: true,
-  },
-  {
-    id: 'wh_tm_5',
-    businessId: 'biz_turnosmed_demo',
-    professionalId: null,
-    dayOfWeek: 5,
-    shifts: [{ start: '08:00', end: '12:00' }, { start: '14:00', end: '18:00' }],
-    enabled: true,
-  },
-  {
-    id: 'wh_tm_6',
-    businessId: 'biz_turnosmed_demo',
-    professionalId: null,
-    dayOfWeek: 6,
-    shifts: [{ start: '09:00', end: '13:00' }],
-    enabled: true,
-  },
-  {
-    id: 'wh_tm_0',
-    businessId: 'biz_turnosmed_demo',
-    professionalId: null,
-    dayOfWeek: 0,
-    shifts: [],
-    enabled: false,
-  },
   {
     id: 'wh_dermato_1',
     businessId: 'biz_dermatocosmiatria_spa',
@@ -441,8 +236,8 @@ const INITIAL_WORKING_HOURS: WorkingHours[] = [
 const INITIAL_TIMEOFFS: TimeOff[] = [
   {
     id: 'to_1',
-    businessId: 'biz_turnosmed_demo',
-    professionalId: 'prof_juan',
+    businessId: 'biz_dermatocosmiatria_spa',
+    professionalId: 'prof_mariana_dermato',
     startDate: '2026-12-24',
     endDate: '2026-12-25',
     reason: 'Feriado de Navidad',
@@ -453,96 +248,66 @@ const INITIAL_TIMEOFFS: TimeOff[] = [
 const INITIAL_CUSTOMERS: Customer[] = [
   {
     id: 'cust_1',
-    businessId: 'biz_turnosmed_demo',
-    firstName: 'Carlos',
-    lastName: 'Gómez',
+    businessId: 'biz_dermatocosmiatria_spa',
+    firstName: 'Lucía',
+    lastName: 'Benítez',
     phone: '+5491155443322',
-    email: 'carlos.gomez@example.com',
-    notes: 'Paciente con antecedentes de hipertensión leve.',
+    email: 'lucia.benitez@example.com',
+    notes: 'Tratamiento de piel sensible / rosácea.',
     totalAppointments: 2,
     lastAppointmentDate: today,
     createdAt: '2026-03-01T10:00:00.000Z',
   },
   {
     id: 'cust_2',
-    businessId: 'biz_turnosmed_demo',
-    firstName: 'María',
-    lastName: 'Fernández',
+    businessId: 'biz_dermatocosmiatria_spa',
+    firstName: 'Florencia',
+    lastName: 'Herrera',
     phone: '+5491166778899',
-    email: 'maria.f@example.com',
-    notes: 'Control anual de lunares.',
+    email: 'florencia.h@example.com',
+    notes: 'Seguimiento de peeling mandélico.',
     totalAppointments: 1,
     lastAppointmentDate: today,
     createdAt: '2026-03-02T14:30:00.000Z',
-  },
-  {
-    id: 'cust_3',
-    businessId: 'biz_turnosmed_demo',
-    firstName: 'Martín',
-    lastName: 'López',
-    phone: '+5491133221100',
-    email: 'martin.lopez@example.com',
-    notes: 'Apto físico para gimnasio.',
-    totalAppointments: 1,
-    lastAppointmentDate: tomorrow,
-    createdAt: '2026-03-04T09:15:00.000Z',
   },
 ];
 
 const INITIAL_APPOINTMENTS: Appointment[] = [
   {
-    id: 'app_demo_1',
-    bookingCode: 'TM-4821',
-    businessId: 'biz_turnosmed_demo',
-    professionalId: 'prof_juan',
-    serviceId: 'srv_consulta',
+    id: 'app_dermato_1',
+    bookingCode: 'DS-4821',
+    businessId: 'biz_dermatocosmiatria_spa',
+    professionalId: 'prof_mariana_dermato',
+    serviceId: 'srv_dermato_limpieza',
     customerId: 'cust_1',
-    customerName: 'Carlos Gómez',
+    customerName: 'Lucía Benítez',
     customerPhone: '+5491155443322',
-    customerEmail: 'carlos.gomez@example.com',
-    notes: 'Control de rutina y análisis de sangre',
+    customerEmail: 'lucia.benitez@example.com',
+    notes: 'Limpieza facial profunda con microdermoabrasión',
     date: today,
-    startTime: '08:00',
-    endTime: '08:30',
+    startTime: '09:00',
+    endTime: '10:00',
     status: 'confirmed',
     createdAt: '2026-03-01T10:00:00.000Z',
     updatedAt: '2026-03-01T10:00:00.000Z',
   },
   {
-    id: 'app_demo_2',
-    bookingCode: 'TM-5912',
-    businessId: 'biz_turnosmed_demo',
-    professionalId: 'prof_juan',
-    serviceId: 'srv_cardio',
-    customerId: 'cust_3',
-    customerName: 'Martín López',
-    customerPhone: '+5491133221100',
-    customerEmail: 'martin.lopez@example.com',
-    notes: 'Apto deportivo',
+    id: 'app_dermato_2',
+    bookingCode: 'DS-5912',
+    businessId: 'biz_dermatocosmiatria_spa',
+    professionalId: 'prof_camila_dermato',
+    serviceId: 'srv_dermato_hidra',
+    customerId: 'cust_2',
+    customerName: 'Florencia Herrera',
+    customerPhone: '+5491166778899',
+    customerEmail: 'florencia.h@example.com',
+    notes: 'Dermo-Nutrición y drenaje facial',
     date: today,
-    startTime: '10:00',
-    endTime: '10:45',
+    startTime: '11:00',
+    endTime: '11:50',
     status: 'confirmed',
     createdAt: '2026-03-03T11:20:00.000Z',
     updatedAt: '2026-03-03T11:20:00.000Z',
-  },
-  {
-    id: 'app_demo_3',
-    bookingCode: 'TM-7104',
-    businessId: 'biz_turnosmed_demo',
-    professionalId: 'prof_sofia',
-    serviceId: 'srv_derma',
-    customerId: 'cust_2',
-    customerName: 'María Fernández',
-    customerPhone: '+5491166778899',
-    customerEmail: 'maria.f@example.com',
-    notes: 'Consulta dermatitis de contacto',
-    date: today,
-    startTime: '14:30',
-    endTime: '15:00',
-    status: 'confirmed',
-    createdAt: '2026-03-02T15:10:00.000Z',
-    updatedAt: '2026-03-02T15:10:00.000Z',
   },
 ];
 
@@ -586,37 +351,57 @@ export class ApiService {
   private isCloudSynced = false;
 
   constructor() {
+    const LEGACY_DEMO_BIZ_IDS = new Set(['biz_turnosmed_demo', 'biz_estetica_bella', 'turnosmed-demo', 'estetica-bella']);
+
     // Merge default initial businesses with any previously cached in localStorage
-    const savedBusinesses = loadStorage<Business[]>(STORAGE_KEYS.BUSINESSES, []);
+    const savedBusinesses = loadStorage<Business[]>(STORAGE_KEYS.BUSINESSES, []).filter(
+      (b) => !LEGACY_DEMO_BIZ_IDS.has(b.id) && !LEGACY_DEMO_BIZ_IDS.has(b.slug)
+    );
     const bizMap = new Map<string, Business>();
     INITIAL_BUSINESSES.forEach((b) => bizMap.set(b.id, b));
     savedBusinesses.forEach((b) => bizMap.set(b.id, b));
     this.businesses = Array.from(bizMap.values());
+    saveStorage(STORAGE_KEYS.BUSINESSES, this.businesses);
 
     // Merge default professionals
-    const savedProfs = loadStorage<Professional[]>(STORAGE_KEYS.PROFESSIONALS, []);
+    const savedProfs = loadStorage<Professional[]>(STORAGE_KEYS.PROFESSIONALS, []).filter(
+      (p) => !LEGACY_DEMO_BIZ_IDS.has(p.businessId)
+    );
     const profMap = new Map<string, Professional>();
     INITIAL_PROFESSIONALS.forEach((p) => profMap.set(p.id, p));
     savedProfs.forEach((p) => profMap.set(p.id, p));
     this.professionals = Array.from(profMap.values());
+    saveStorage(STORAGE_KEYS.PROFESSIONALS, this.professionals);
 
     // Merge default services
-    const savedServices = loadStorage<Service[]>(STORAGE_KEYS.SERVICES, []);
+    const savedServices = loadStorage<Service[]>(STORAGE_KEYS.SERVICES, []).filter(
+      (s) => !LEGACY_DEMO_BIZ_IDS.has(s.businessId)
+    );
     const srvMap = new Map<string, Service>();
     INITIAL_SERVICES.forEach((s) => srvMap.set(s.id, s));
     savedServices.forEach((s) => srvMap.set(s.id, s));
     this.services = Array.from(srvMap.values());
+    saveStorage(STORAGE_KEYS.SERVICES, this.services);
 
     // Merge default working hours
-    const savedWH = loadStorage<WorkingHours[]>(STORAGE_KEYS.WORKING_HOURS, []);
+    const savedWH = loadStorage<WorkingHours[]>(STORAGE_KEYS.WORKING_HOURS, []).filter(
+      (w) => !LEGACY_DEMO_BIZ_IDS.has(w.businessId)
+    );
     const whMap = new Map<string, WorkingHours>();
     INITIAL_WORKING_HOURS.forEach((w) => whMap.set(w.id, w));
     savedWH.forEach((w) => whMap.set(w.id, w));
     this.workingHours = Array.from(whMap.values());
+    saveStorage(STORAGE_KEYS.WORKING_HOURS, this.workingHours);
 
-    this.timeOffs = loadStorage<TimeOff[]>(STORAGE_KEYS.TIME_OFFS, INITIAL_TIMEOFFS);
-    this.customers = loadStorage<Customer[]>(STORAGE_KEYS.CUSTOMERS, INITIAL_CUSTOMERS);
-    this.appointments = loadStorage<Appointment[]>(STORAGE_KEYS.APPOINTMENTS, INITIAL_APPOINTMENTS);
+    this.timeOffs = loadStorage<TimeOff[]>(STORAGE_KEYS.TIME_OFFS, INITIAL_TIMEOFFS).filter(
+      (t) => !LEGACY_DEMO_BIZ_IDS.has(t.businessId)
+    );
+    this.customers = loadStorage<Customer[]>(STORAGE_KEYS.CUSTOMERS, INITIAL_CUSTOMERS).filter(
+      (c) => !LEGACY_DEMO_BIZ_IDS.has(c.businessId)
+    );
+    this.appointments = loadStorage<Appointment[]>(STORAGE_KEYS.APPOINTMENTS, INITIAL_APPOINTMENTS).filter(
+      (a) => !LEGACY_DEMO_BIZ_IDS.has(a.businessId)
+    );
     this.currentUser = loadStorage<User | null>(STORAGE_KEYS.USER, null);
 
     // Synchronize with Firestore cloud in the background
@@ -625,13 +410,17 @@ export class ApiService {
 
   // Cloud Sync from Firebase Firestore
   async syncFromCloud(): Promise<void> {
+    const LEGACY_DEMO_BIZ_IDS = new Set(['biz_turnosmed_demo', 'biz_estetica_bella', 'turnosmed-demo', 'estetica-bella']);
     try {
       // 1. Fetch businesses from Firestore
       const bizSnap = await getDocs(collection(db, 'businesses'));
       if (!bizSnap.empty) {
         const cloudBizs: Business[] = [];
         bizSnap.forEach((d) => {
-          cloudBizs.push(d.data() as Business);
+          const b = d.data() as Business;
+          if (!LEGACY_DEMO_BIZ_IDS.has(b.id) && !LEGACY_DEMO_BIZ_IDS.has(b.slug)) {
+            cloudBizs.push(b);
+          }
         });
 
         // Merge defaults, then current local storage, then cloud (ensuring no loss)
@@ -639,7 +428,9 @@ export class ApiService {
         INITIAL_BUSINESSES.forEach((b) => map.set(b.id, b));
         this.businesses.forEach((b) => map.set(b.id, b));
         cloudBizs.forEach((b) => map.set(b.id, b));
-        this.businesses = Array.from(map.values());
+        this.businesses = Array.from(map.values()).filter(
+          (b) => !LEGACY_DEMO_BIZ_IDS.has(b.id) && !LEGACY_DEMO_BIZ_IDS.has(b.slug)
+        );
         saveStorage(STORAGE_KEYS.BUSINESSES, this.businesses);
 
         // Upload any businesses that exist in local state but not yet in Firestore
@@ -660,13 +451,18 @@ export class ApiService {
       if (!profSnap.empty) {
         const cloudProfs: Professional[] = [];
         profSnap.forEach((d) => {
-          cloudProfs.push(d.data() as Professional);
+          const p = d.data() as Professional;
+          if (!LEGACY_DEMO_BIZ_IDS.has(p.businessId)) {
+            cloudProfs.push(p);
+          }
         });
         const map = new Map<string, Professional>();
         INITIAL_PROFESSIONALS.forEach((p) => map.set(p.id, p));
         this.professionals.forEach((p) => map.set(p.id, p));
         cloudProfs.forEach((p) => map.set(p.id, p));
-        this.professionals = Array.from(map.values());
+        this.professionals = Array.from(map.values()).filter(
+          (p) => !LEGACY_DEMO_BIZ_IDS.has(p.businessId)
+        );
         saveStorage(STORAGE_KEYS.PROFESSIONALS, this.professionals);
 
         for (const p of this.professionals) {
@@ -685,13 +481,18 @@ export class ApiService {
       if (!srvSnap.empty) {
         const cloudSrvs: Service[] = [];
         srvSnap.forEach((d) => {
-          cloudSrvs.push(d.data() as Service);
+          const s = d.data() as Service;
+          if (!LEGACY_DEMO_BIZ_IDS.has(s.businessId)) {
+            cloudSrvs.push(s);
+          }
         });
         const map = new Map<string, Service>();
         INITIAL_SERVICES.forEach((s) => map.set(s.id, s));
         this.services.forEach((s) => map.set(s.id, s));
         cloudSrvs.forEach((s) => map.set(s.id, s));
-        this.services = Array.from(map.values());
+        this.services = Array.from(map.values()).filter(
+          (s) => !LEGACY_DEMO_BIZ_IDS.has(s.businessId)
+        );
         saveStorage(STORAGE_KEYS.SERVICES, this.services);
 
         for (const s of this.services) {
