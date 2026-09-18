@@ -5,6 +5,7 @@ import { PublicBookingPage } from './components/PublicBookingPage';
 import { BusinessDashboard } from './components/BusinessDashboard';
 import { SuperAdminDashboard } from './components/SuperAdminDashboard';
 import { AuthModal } from './components/AuthModal';
+import { NotFoundBusinessView } from './components/NotFoundBusinessView';
 import {
   Building2,
   Shield,
@@ -16,6 +17,20 @@ import {
 } from 'lucide-react';
 
 export default function App() {
+  // Helper to find a business by slug/id in an array
+  const findBusinessBySlug = (list: Business[], slug: string): Business | undefined => {
+    if (!slug) return undefined;
+    const clean = slug.toLowerCase().trim();
+    return list.find(
+      (b) =>
+        b.slug.toLowerCase() === clean ||
+        b.id.toLowerCase() === clean ||
+        b.slug.toLowerCase().replace(/[-_]/g, '') === clean.replace(/[-_]/g, '') ||
+        b.slug.toLowerCase().includes(clean) ||
+        clean.includes(b.slug.toLowerCase())
+    );
+  };
+
   // Helper to extract requested slug from URL
   const getRequestedSlug = () => {
     // 1. Check query parameters (?b=... or ?slug=... or ?business=... or ?negocio=...)
@@ -66,15 +81,7 @@ export default function App() {
     } catch {}
 
     if (slug) {
-      const cleanSlug = slug.toLowerCase().trim();
-      const match = allBizs.find(
-        (b) =>
-          b.slug.toLowerCase() === cleanSlug ||
-          b.id.toLowerCase() === cleanSlug ||
-          b.slug.toLowerCase().replace(/[-_]/g, '') === cleanSlug.replace(/[-_]/g, '') ||
-          b.slug.toLowerCase().includes(cleanSlug) ||
-          cleanSlug.includes(b.slug.toLowerCase())
-      );
+      const match = findBusinessBySlug(allBizs, slug);
       if (match) return match;
     }
     return allBizs[0] || INITIAL_BUSINESSES[0];
@@ -95,6 +102,23 @@ export default function App() {
     return INITIAL_BUSINESSES;
   });
   const [currentBusiness, setCurrentBusiness] = useState<Business>(resolveInitialBusiness);
+  const [notFoundSlug, setNotFoundSlug] = useState<string | null>(() => {
+    const slug = getRequestedSlug();
+    if (!slug) return null;
+    let allBizs = INITIAL_BUSINESSES;
+    try {
+      const raw = localStorage.getItem('td_data_businesses');
+      if (raw) {
+        const saved: Business[] = JSON.parse(raw);
+        const map = new Map<string, Business>();
+        INITIAL_BUSINESSES.forEach((b) => map.set(b.id, b));
+        saved.forEach((b) => map.set(b.id, b));
+        allBizs = Array.from(map.values());
+      }
+    } catch {}
+    const match = findBusinessBySlug(allBizs, slug);
+    return match ? null : slug;
+  });
   const [activeView, setActiveView] = useState<'public' | 'business' | 'superadmin'>('public');
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [loading, setLoading] = useState(true);
@@ -151,33 +175,27 @@ export default function App() {
       }
 
       const targetSlug = getRequestedSlug();
-      let matchedBiz: Business | undefined;
-      
       const allAvailable = [
         ...currentList,
         ...INITIAL_BUSINESSES,
       ];
 
       if (targetSlug) {
-        const cleanTarget = targetSlug.toLowerCase().trim();
-        matchedBiz = allAvailable.find(
-          (b) =>
-            b.slug.toLowerCase() === cleanTarget ||
-            b.id.toLowerCase() === cleanTarget ||
-            b.slug.toLowerCase().replace(/[-_]/g, '') === cleanTarget.replace(/[-_]/g, '') ||
-            b.slug.toLowerCase().includes(cleanTarget) ||
-            cleanTarget.includes(b.slug.toLowerCase())
-        );
-      }
-
-      if (matchedBiz) {
-        setCurrentBusiness(matchedBiz);
-        setActiveView('public');
-      } else if (!targetSlug && currentList.length > 0) {
+        const matchedBiz = findBusinessBySlug(allAvailable, targetSlug);
+        if (matchedBiz) {
+          setCurrentBusiness(matchedBiz);
+          setNotFoundSlug(null);
+          setActiveView('public');
+        } else {
+          setNotFoundSlug(targetSlug);
+          setActiveView('public');
+        }
+      } else {
+        setNotFoundSlug(null);
         if (user && user.businessId) {
           const userBiz = currentList.find((b) => b.id === user.businessId);
           setCurrentBusiness(userBiz || currentList[0]);
-        } else {
+        } else if (currentList.length > 0) {
           setCurrentBusiness(currentList[0]);
         }
       }
@@ -196,21 +214,23 @@ export default function App() {
   useEffect(() => {
     const handleHashChange = () => {
       const targetSlug = getRequestedSlug();
+      const allAvailable = [
+        ...businesses,
+        ...INITIAL_BUSINESSES,
+      ];
 
-      if (targetSlug && businesses.length > 0) {
-        const cleanTarget = targetSlug.toLowerCase().trim();
-        const found = businesses.find(
-          (b) =>
-            b.slug.toLowerCase() === cleanTarget ||
-            b.id.toLowerCase() === cleanTarget ||
-            b.slug.toLowerCase().replace(/[-_]/g, '') === cleanTarget.replace(/[-_]/g, '') ||
-            b.slug.toLowerCase().includes(cleanTarget) ||
-            cleanTarget.includes(b.slug.toLowerCase())
-        );
-        if (found && found.id !== currentBusiness?.id) {
+      if (targetSlug) {
+        const found = findBusinessBySlug(allAvailable, targetSlug);
+        if (found) {
           setCurrentBusiness(found);
+          setNotFoundSlug(null);
+          setActiveView('public');
+        } else {
+          setNotFoundSlug(targetSlug);
           setActiveView('public');
         }
+      } else {
+        setNotFoundSlug(null);
       }
     };
 
@@ -390,19 +410,34 @@ export default function App() {
 
       {/* Main View Render */}
       <div className="flex-1">
-        {activeView === 'public' && (
-          <PublicBookingPage
-            key={activeBusiness.id}
-            business={activeBusiness}
-            currentUser={currentUser}
-            onGoToAdmin={() => {
-              if (!currentUser) {
-                setShowAuthModal(true);
-              } else {
-                setActiveView('business');
-              }
+        {notFoundSlug && activeView === 'public' ? (
+          <NotFoundBusinessView
+            searchedSlug={notFoundSlug}
+            availableBusinesses={businesses.length > 0 ? businesses : INITIAL_BUSINESSES}
+            onSelectBusiness={(b) => {
+              setCurrentBusiness(b);
+              setNotFoundSlug(null);
+              try {
+                window.location.hash = `#booking-${b.slug}`;
+              } catch {}
             }}
+            onGoToLogin={() => setShowAuthModal(true)}
           />
+        ) : (
+          activeView === 'public' && (
+            <PublicBookingPage
+              key={activeBusiness.id}
+              business={activeBusiness}
+              currentUser={currentUser}
+              onGoToAdmin={() => {
+                if (!currentUser) {
+                  setShowAuthModal(true);
+                } else {
+                  setActiveView('business');
+                }
+              }}
+            />
+          )
         )}
 
         {activeView === 'business' && (
