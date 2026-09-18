@@ -416,12 +416,15 @@ export class ApiService {
       const bizSnap = await getDocs(collection(db, 'businesses'));
       if (!bizSnap.empty) {
         const cloudBizs: Business[] = [];
-        bizSnap.forEach((d) => {
+        for (const d of bizSnap.docs) {
           const b = d.data() as Business;
-          if (!LEGACY_DEMO_BIZ_IDS.has(b.id) && !LEGACY_DEMO_BIZ_IDS.has(b.slug)) {
+          if (LEGACY_DEMO_BIZ_IDS.has(d.id) || LEGACY_DEMO_BIZ_IDS.has(b.id) || LEGACY_DEMO_BIZ_IDS.has(b.slug)) {
+            // Delete legacy demo doc from Firestore permanently
+            deleteDoc(doc(db, 'businesses', d.id)).catch(() => {});
+          } else {
             cloudBizs.push(b);
           }
-        });
+        }
 
         // Merge defaults, then current local storage, then cloud (ensuring no loss)
         const map = new Map<string, Business>();
@@ -450,12 +453,14 @@ export class ApiService {
       const profSnap = await getDocs(collection(db, 'professionals'));
       if (!profSnap.empty) {
         const cloudProfs: Professional[] = [];
-        profSnap.forEach((d) => {
+        for (const d of profSnap.docs) {
           const p = d.data() as Professional;
-          if (!LEGACY_DEMO_BIZ_IDS.has(p.businessId)) {
+          if (LEGACY_DEMO_BIZ_IDS.has(d.id) || LEGACY_DEMO_BIZ_IDS.has(p.businessId)) {
+            deleteDoc(doc(db, 'professionals', d.id)).catch(() => {});
+          } else {
             cloudProfs.push(p);
           }
-        });
+        }
         const map = new Map<string, Professional>();
         INITIAL_PROFESSIONALS.forEach((p) => map.set(p.id, p));
         this.professionals.forEach((p) => map.set(p.id, p));
@@ -480,12 +485,14 @@ export class ApiService {
       const srvSnap = await getDocs(collection(db, 'services'));
       if (!srvSnap.empty) {
         const cloudSrvs: Service[] = [];
-        srvSnap.forEach((d) => {
+        for (const d of srvSnap.docs) {
           const s = d.data() as Service;
-          if (!LEGACY_DEMO_BIZ_IDS.has(s.businessId)) {
+          if (LEGACY_DEMO_BIZ_IDS.has(d.id) || LEGACY_DEMO_BIZ_IDS.has(s.businessId)) {
+            deleteDoc(doc(db, 'services', d.id)).catch(() => {});
+          } else {
             cloudSrvs.push(s);
           }
-        });
+        }
         const map = new Map<string, Service>();
         INITIAL_SERVICES.forEach((s) => map.set(s.id, s));
         this.services.forEach((s) => map.set(s.id, s));
@@ -510,14 +517,21 @@ export class ApiService {
       const apptSnap = await getDocs(collection(db, 'appointments'));
       if (!apptSnap.empty) {
         const cloudAppts: Appointment[] = [];
-        apptSnap.forEach((d) => {
-          cloudAppts.push(d.data() as Appointment);
-        });
+        for (const d of apptSnap.docs) {
+          const a = d.data() as Appointment;
+          if (LEGACY_DEMO_BIZ_IDS.has(d.id) || LEGACY_DEMO_BIZ_IDS.has(a.businessId)) {
+            deleteDoc(doc(db, 'appointments', d.id)).catch(() => {});
+          } else {
+            cloudAppts.push(a);
+          }
+        }
         const map = new Map<string, Appointment>();
         INITIAL_APPOINTMENTS.forEach((a) => map.set(a.id, a));
         this.appointments.forEach((a) => map.set(a.id, a));
         cloudAppts.forEach((a) => map.set(a.id, a));
-        this.appointments = Array.from(map.values());
+        this.appointments = Array.from(map.values()).filter(
+          (a) => !LEGACY_DEMO_BIZ_IDS.has(a.businessId)
+        );
         saveStorage(STORAGE_KEYS.APPOINTMENTS, this.appointments);
 
         for (const a of this.appointments) {
@@ -531,13 +545,20 @@ export class ApiService {
       const whSnap = await getDocs(collection(db, 'workingHours'));
       if (!whSnap.empty) {
         const cloudWhs: WorkingHours[] = [];
-        whSnap.forEach((d) => {
-          cloudWhs.push(d.data() as WorkingHours);
-        });
+        for (const d of whSnap.docs) {
+          const w = d.data() as WorkingHours;
+          if (LEGACY_DEMO_BIZ_IDS.has(d.id) || LEGACY_DEMO_BIZ_IDS.has(w.businessId)) {
+            deleteDoc(doc(db, 'workingHours', d.id)).catch(() => {});
+          } else {
+            cloudWhs.push(w);
+          }
+        }
         const map = new Map<string, WorkingHours>();
         INITIAL_WORKING_HOURS.forEach((w) => map.set(w.id, w));
         cloudWhs.forEach((w) => map.set(w.id, w));
-        this.workingHours = Array.from(map.values());
+        this.workingHours = Array.from(map.values()).filter(
+          (w) => !LEGACY_DEMO_BIZ_IDS.has(w.businessId)
+        );
         saveStorage(STORAGE_KEYS.WORKING_HOURS, this.workingHours);
       }
 
