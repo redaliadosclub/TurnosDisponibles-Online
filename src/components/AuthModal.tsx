@@ -29,8 +29,18 @@ export function AuthModal({
   const [role, setRole] = useState<Role>('business_owner');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [secretAdminVisible, setSecretAdminVisible] = useState(false);
+  const [clickCount, setClickCount] = useState(0);
 
   if (!isOpen) return null;
+
+  const handleSecretClick = () => {
+    const next = clickCount + 1;
+    setClickCount(next);
+    if (next >= 3) {
+      setSecretAdminVisible(true);
+    }
+  };
 
   const notifySuccess = (user: User) => {
     if (onLoginSuccess) onLoginSuccess(user);
@@ -78,15 +88,20 @@ export function AuthModal({
       <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-slate-200">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-slate-900 text-white flex items-center justify-center font-bold text-sm">
-              TM
-            </div>
+            <button
+              type="button"
+              onClick={handleSecretClick}
+              title="TurnosDisponibles"
+              className="w-8 h-8 rounded-xl bg-slate-900 text-teal-400 flex items-center justify-center font-bold text-xs cursor-pointer hover:scale-105 transition-transform"
+            >
+              TD
+            </button>
             <div>
               <h3 className="text-base font-extrabold text-slate-900 leading-tight">
-                {isRegister ? 'Crear Cuenta' : 'Acceso al Consultorio'}
+                {isRegister ? 'Crear Cuenta' : 'Acceso Profesional'}
               </h3>
               <p className="text-[11px] text-slate-500">
-                {isRegister ? 'Registra tu consultorio o perfil' : 'Ingresa con tu correo y contraseña'}
+                {isRegister ? 'Registra tu consultorio o negocio' : 'Ingresa con tu correo y contraseña'}
               </p>
             </div>
           </div>
@@ -106,12 +121,13 @@ export function AuthModal({
         )}
 
         <form onSubmit={handleSubmit} className="space-y-3 text-xs">
-          {allowSuperAdminQuickLogin && !isRegister && (
-            <div className="p-2.5 rounded-2xl bg-amber-50 border border-amber-200 flex items-center justify-between">
+          {/* Secret SuperAdmin Bypass: Only displayed when clicking the TD logo 3 times */}
+          {secretAdminVisible && !isRegister && (
+            <div className="p-2.5 rounded-2xl bg-amber-50 border border-amber-300 flex items-center justify-between animate-in fade-in">
               <div className="flex items-center gap-2">
                 <Shield className="w-4 h-4 text-amber-600 shrink-0" />
                 <div>
-                  <div className="font-bold text-amber-900 text-[11px]">Acceso Rápido SuperAdmin</div>
+                  <div className="font-bold text-amber-900 text-[11px]">Acceso Maestro SuperAdmin</div>
                   <div className="text-[10px] text-amber-700">agenciaclienteya@gmail.com</div>
                 </div>
               </div>
