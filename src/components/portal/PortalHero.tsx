@@ -1,4 +1,6 @@
-import React from 'react';
+import React, { useMemo, useState } from 'react';
+import { Business } from '../../types';
+import { extractLocationsFromBusinesses } from '../../lib/locationUtils';
 import {
   Search,
   MapPin,
@@ -11,6 +13,7 @@ import {
   TrendingUp,
   Clock,
   Star,
+  Navigation,
 } from 'lucide-react';
 
 interface PortalHeroProps {
@@ -22,6 +25,7 @@ interface PortalHeroProps {
   onLocationChange: (val: string) => void;
   onExecuteSearch: () => void;
   onOpenAuthModal: () => void;
+  businesses?: Business[];
 }
 
 export function PortalHero({
@@ -33,7 +37,10 @@ export function PortalHero({
   onLocationChange,
   onExecuteSearch,
   onOpenAuthModal,
+  businesses = [],
 }: PortalHeroProps) {
+  const [isLocating, setIsLocating] = useState(false);
+
   const categories = [
     { value: 'all', label: 'Todas las categorías' },
     { value: 'beauty', label: 'Estética & Spa' },
@@ -43,15 +50,32 @@ export function PortalHero({
     { value: 'veterinary', label: 'Veterinarias' },
   ];
 
-  const locations = [
-    { value: 'all', label: 'Todas las zonas' },
-    { value: 'Recoleta', label: 'Recoleta, CABA' },
-    { value: 'Palermo', label: 'Palermo, CABA' },
-    { value: 'Belgrano', label: 'Belgrano, CABA' },
-    { value: 'Caballito', label: 'Caballito, CABA' },
-    { value: 'Colegiales', label: 'Colegiales, CABA' },
-    { value: 'San Isidro', label: 'San Isidro / Zona Norte' },
-  ];
+  // Extraer automáticamente las zonas y ciudades reales de los negocios registrados
+  const dynamicLocations = useMemo(() => {
+    return extractLocationsFromBusinesses(businesses);
+  }, [businesses]);
+
+  const handleDetectLocation = () => {
+    if (!navigator.geolocation) {
+      alert('La geolocalización no está disponible en este dispositivo.');
+      return;
+    }
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setIsLocating(false);
+        // Filtra por Cerca de mí
+        onLocationChange('near_me');
+        onExecuteSearch();
+      },
+      (err) => {
+        setIsLocating(false);
+        console.warn('Geolocation denied or failed', err);
+        alert('No pudimos acceder a tu ubicación. Por favor selecciona tu zona manualmente.');
+      },
+      { timeout: 10000 }
+    );
+  };
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -129,21 +153,37 @@ export function PortalHero({
               </div>
 
               {/* Location selector */}
-              <div className="w-full md:w-52 relative flex items-center">
-                <MapPin className="absolute left-3.5 w-4 h-4 text-indigo-400 pointer-events-none" />
-                <select
-                  id="hero-select-location"
-                  value={selectedLocation}
-                  onChange={(e) => onLocationChange(e.target.value)}
-                  className="w-full pl-10 pr-8 py-3 bg-slate-800/60 hover:bg-slate-800 focus:bg-slate-800 rounded-xl border border-slate-700/60 text-slate-200 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 transition-colors cursor-pointer appearance-none"
-                >
-                  {locations.map((loc) => (
-                    <option key={loc.value} value={loc.value} className="bg-slate-900 text-white">
-                      {loc.label}
+              <div className="w-full md:w-56 relative flex items-center gap-1.5">
+                <div className="relative flex-1 flex items-center min-w-0">
+                  <MapPin className="absolute left-3.5 w-4 h-4 text-indigo-400 pointer-events-none" />
+                  <select
+                    id="hero-select-location"
+                    value={selectedLocation}
+                    onChange={(e) => onLocationChange(e.target.value)}
+                    className="w-full pl-10 pr-8 py-3 bg-slate-800/60 hover:bg-slate-800 focus:bg-slate-800 rounded-xl border border-slate-700/60 text-slate-200 text-xs sm:text-sm focus:outline-none focus:ring-2 focus:ring-teal-500 transition-colors cursor-pointer appearance-none truncate"
+                  >
+                    <option value="near_me" className="bg-slate-900 text-teal-300 font-semibold">
+                      📍 Usar mi ubicación actual
                     </option>
-                  ))}
-                </select>
-                <span className="absolute right-3.5 text-slate-400 pointer-events-none text-xs">▼</span>
+                    {dynamicLocations.map((loc) => (
+                      <option key={loc.value} value={loc.value} className="bg-slate-900 text-white">
+                        {loc.label}
+                      </option>
+                    ))}
+                  </select>
+                  <span className="absolute right-3 text-slate-400 pointer-events-none text-xs">▼</span>
+                </div>
+
+                <button
+                  type="button"
+                  id="hero-btn-geolocation"
+                  title="Detectar mi ubicación cercana"
+                  onClick={handleDetectLocation}
+                  disabled={isLocating}
+                  className="p-3 bg-slate-800/80 hover:bg-slate-700 text-teal-400 hover:text-teal-300 rounded-xl border border-slate-700/60 transition-colors flex items-center justify-center flex-shrink-0"
+                >
+                  <Navigation className={`w-4 h-4 ${isLocating ? 'animate-spin text-amber-400' : ''}`} />
+                </button>
               </div>
 
               {/* CTA Search Button */}

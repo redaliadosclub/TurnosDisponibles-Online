@@ -1,5 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Business, Service, Professional } from '../../types';
+import { extractLocationsFromBusinesses } from '../../lib/locationUtils';
 import {
   Sparkles,
   MapPin,
@@ -50,6 +51,11 @@ export function PortalDirectory({
 }: PortalDirectoryProps) {
   const [sortBy, setSortBy] = useState<'recommended' | 'rating' | 'name'>('recommended');
   const [quickDetailBiz, setQuickDetailBiz] = useState<Business | null>(null);
+
+  // Extraer automáticamente las zonas y ciudades de los negocios registrados
+  const dynamicLocations = useMemo(() => {
+    return extractLocationsFromBusinesses(businesses);
+  }, [businesses]);
 
   // Category filters configuration
   const categoryFilters = [
@@ -176,38 +182,60 @@ export function PortalDirectory({
           </div>
         </div>
 
-        {/* Category Pills Bar */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-4 mb-8 scrollbar-none">
-          {categoryFilters.map((cat) => {
-            const Icon = cat.icon;
-            const count = categoryCounts[cat.id] || 0;
-            const isSelected = selectedCategory === cat.id;
+        {/* Filters & Controls Bar */}
+        <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-4 mb-8">
+          {/* Category Pills Bar */}
+          <div className="flex items-center gap-2 overflow-x-auto pb-2 lg:pb-0 scrollbar-none flex-1">
+            {categoryFilters.map((cat) => {
+              const Icon = cat.icon;
+              const count = categoryCounts[cat.id] || 0;
+              const isSelected = selectedCategory === cat.id;
 
-            return (
-              <button
-                key={cat.id}
-                id={`category-pill-${cat.id}`}
-                onClick={() => onCategoryChange(cat.id)}
-                className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-semibold flex items-center gap-2.5 whitespace-nowrap transition-all flex-shrink-0 ${
-                  isSelected
-                    ? 'bg-gradient-to-r from-teal-500 to-emerald-500 text-slate-950 shadow-lg shadow-teal-500/20 font-bold scale-[1.02]'
-                    : 'bg-slate-800/80 hover:bg-slate-800 text-slate-300 border border-slate-700/60 hover:text-white'
-                }`}
-              >
-                <Icon className={`w-4 h-4 ${isSelected ? 'text-slate-950' : 'text-teal-400'}`} />
-                <span>{cat.label}</span>
-                {count > 0 && (
-                  <span
-                    className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
-                      isSelected ? 'bg-slate-950/20 text-slate-950' : 'bg-slate-700 text-slate-300'
-                    }`}
-                  >
-                    {count}
-                  </span>
-                )}
-              </button>
-            );
-          })}
+              return (
+                <button
+                  key={cat.id}
+                  id={`category-pill-${cat.id}`}
+                  onClick={() => onCategoryChange(cat.id)}
+                  className={`px-4 py-2.5 rounded-2xl text-xs sm:text-sm font-semibold flex items-center gap-2.5 whitespace-nowrap transition-all flex-shrink-0 ${
+                    isSelected
+                      ? 'bg-gradient-to-r from-teal-500 to-emerald-500 text-slate-950 shadow-lg shadow-teal-500/20 font-bold scale-[1.02]'
+                      : 'bg-slate-800/80 hover:bg-slate-800 text-slate-300 border border-slate-700/60 hover:text-white'
+                  }`}
+                >
+                  <Icon className={`w-4 h-4 ${isSelected ? 'text-slate-950' : 'text-teal-400'}`} />
+                  <span>{cat.label}</span>
+                  {count > 0 && (
+                    <span
+                      className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                        isSelected ? 'bg-slate-950/20 text-slate-950' : 'bg-slate-700 text-slate-300'
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Dynamic Location Filter */}
+          <div className="flex items-center gap-2 bg-slate-800/90 p-1.5 px-3 rounded-2xl border border-slate-700/80 flex-shrink-0">
+            <MapPin className="w-4 h-4 text-indigo-400 flex-shrink-0" />
+            <span className="text-xs text-slate-400 font-medium whitespace-nowrap hidden sm:inline">Zona:</span>
+            <select
+              id="directory-select-location"
+              value={selectedLocation}
+              onChange={(e) => onLocationChange(e.target.value)}
+              className="bg-slate-900 border border-slate-700/80 text-slate-200 text-xs sm:text-sm rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer font-medium max-w-[200px] truncate"
+            >
+              <option value="near_me">📍 Cerca de mí</option>
+              {dynamicLocations.map((loc) => (
+                <option key={loc.value} value={loc.value}>
+                  {loc.label}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
 
         {/* Directory Cards Grid */}

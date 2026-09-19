@@ -117,6 +117,7 @@ export function LandingPortalPage({ onSelectBooking, onOpenAuthModal }: LandingP
           onLocationChange={setSelectedLocation}
           onExecuteSearch={handleExecuteSearch}
           onOpenAuthModal={onOpenAuthModal}
+          businesses={businesses}
         />
 
         {/* 3. Directorio de Negocios y Categorías */}
