@@ -3,6 +3,7 @@ import { Business, BusinessPlan, BusinessTypeKey } from '../types';
 import { api } from '../services/api';
 import { BUSINESS_TYPES } from '../lib/businessTypes';
 import { PlansPricingModal } from './PlansPricingModal';
+import { SuperAdminWhatsAppPricingModal } from './SuperAdminWhatsAppPricingModal';
 import {
   Building2,
   Users,
@@ -23,6 +24,7 @@ import {
   Share2,
   HelpCircle,
   Sparkles,
+  MessageCircle,
 } from 'lucide-react';
 
 interface SuperAdminDashboardProps {
@@ -43,6 +45,7 @@ export function SuperAdminDashboard({
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
   const [showLinksGuide, setShowLinksGuide] = useState(false);
   const [showPlansModal, setShowPlansModal] = useState(false);
+  const [showWhatsAppPricingModal, setShowWhatsAppPricingModal] = useState(false);
 
   const getFullPublicUrl = (slug: string) => {
     const origin = window.location.origin;
@@ -124,15 +127,25 @@ export function SuperAdminDashboard({
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowWhatsAppPricingModal(true)}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-xs font-semibold border border-emerald-500/40 transition cursor-pointer"
+              title="Configurar número de WhatsApp y mensajes automáticos para los Planes Free, Pro y Experiencia AI"
+            >
+              <MessageCircle className="w-4 h-4 text-emerald-300" />
+              <span>WhatsApp & Textos Planes</span>
+            </button>
+
             <button
               type="button"
               onClick={() => setShowPlansModal(true)}
               className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-teal-500/20 hover:bg-teal-500/30 text-teal-300 text-xs font-semibold border border-teal-500/40 transition cursor-pointer"
-              title="Ver tabla de precios y suscripciones SaaS (Free, Pro $29.000, Business $49.000)"
+              title="Ver tabla de precios y suscripciones SaaS (Free, Pro, Experiencia AI)"
             >
               <Sparkles className="w-4 h-4 text-teal-300" />
-              <span>Planes & Precios SaaS</span>
+              <span>Ver Tabla de Planes</span>
             </button>
 
             <button
@@ -142,16 +155,16 @@ export function SuperAdminDashboard({
               title="Ver qué links compartir y cuáles no"
             >
               <Share2 className="w-4 h-4 text-teal-400" />
-              <span>Guía de Links & Promoción</span>
+              <span>Guía de Links</span>
             </button>
 
             <button
               type="button"
               onClick={() => setShowCreateModal(true)}
-              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 text-xs font-bold transition shadow"
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 text-xs font-bold transition shadow cursor-pointer"
             >
               <Plus className="w-4 h-4" />
-              <span>Crear Nuevo Negocio (Tenant)</span>
+              <span>Crear Nuevo Negocio</span>
             </button>
           </div>
         </div>
@@ -263,7 +276,7 @@ export function SuperAdminDashboard({
                       >
                         <option value="free">Free</option>
                         <option value="pro">Pro</option>
-                        <option value="business">Business</option>
+                        <option value="business">Experiencia AI</option>
                       </select>
                     </td>
 
@@ -589,7 +602,7 @@ export function SuperAdminDashboard({
                   <select name="plan" className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white">
                     <option value="pro">Plan Pro</option>
                     <option value="free">Plan Gratis</option>
-                    <option value="business">Plan Business</option>
+                    <option value="business">Plan Experiencia AI</option>
                   </select>
                 </div>
               </div>
@@ -779,6 +792,12 @@ export function SuperAdminDashboard({
       <PlansPricingModal
         isOpen={showPlansModal}
         onClose={() => setShowPlansModal(false)}
+      />
+
+      {/* WHATSAPP & SAAS PLANS TEXT CONFIGURATION MODAL */}
+      <SuperAdminWhatsAppPricingModal
+        isOpen={showWhatsAppPricingModal}
+        onClose={() => setShowWhatsAppPricingModal(false)}
       />
     </div>
   );

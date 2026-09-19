@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react';
 import {
   Check,
   Zap,
@@ -11,19 +12,32 @@ import {
   CreditCard,
   Crown,
 } from 'lucide-react';
+import { getSaasConfig, buildWhatsAppPlanLink, SaasPlanConfig } from '../../lib/saasConfig';
 
 interface PortalPricingProps {
   onOpenAuthModal?: () => void;
 }
 
 export function PortalPricing({ onOpenAuthModal }: PortalPricingProps) {
+  const [config, setConfig] = useState<SaasPlanConfig>(getSaasConfig);
+
+  useEffect(() => {
+    const handleUpdate = () => setConfig(getSaasConfig());
+    window.addEventListener('saas-config-updated', handleUpdate);
+    return () => window.removeEventListener('saas-config-updated', handleUpdate);
+  }, []);
+
+  const freeLink = buildWhatsAppPlanLink(config.whatsappNumber, config.freePlan.whatsappMessage);
+  const proLink = buildWhatsAppPlanLink(config.whatsappNumber, config.proPlan.whatsappMessage);
+  const aiLink = buildWhatsAppPlanLink(config.whatsappNumber, config.aiPlan.whatsappMessage);
+
   const plans = [
     {
       id: 'free',
-      name: 'Plan Free / Inicial',
+      name: config.freePlan.name,
       badge: 'Para 1 Profesional Independiente',
-      price: '$0',
-      period: 'Gratis para siempre',
+      price: config.freePlan.price,
+      period: config.freePlan.pricePeriod,
       popular: false,
       description: 'Ideal para manicuras, barberos, cosmiatras o profesionales independientes que dan sus primeros pasos.',
       features: [
@@ -36,16 +50,16 @@ export function PortalPricing({ onOpenAuthModal }: PortalPricingProps) {
         'Soporte por email y comunidad',
       ],
       ctaText: 'Comenzar Gratis',
-      ctaLink: 'https://wa.me/5492474478646?text=Hola,%20quiero%20activar%20el%20Plan%20Gratis',
+      ctaLink: freeLink,
       ctaStyle: 'bg-slate-800 hover:bg-slate-700 text-white border border-slate-700',
     },
     {
       id: 'pro',
-      name: 'Plan Pro',
+      name: config.proPlan.name,
       badge: 'El más elegido • Centros & Consultorios',
-      price: '$24.900',
+      price: config.proPlan.price,
       currency: 'ARS',
-      period: 'al mes / facturación transparente',
+      period: config.proPlan.pricePeriod,
       popular: true,
       description: 'La solución completa para estéticas, consultorios médicos y salones que buscan automatización profesional.',
       features: [
@@ -59,17 +73,17 @@ export function PortalPricing({ onOpenAuthModal }: PortalPricingProps) {
         'Bloqueo rápido de días libres e imprevistos',
       ],
       ctaText: 'Elegir Plan Pro',
-      ctaLink: 'https://wa.me/5492474478646?text=Hola,%20quiero%20activar%20el%20Plan%20Pro',
+      ctaLink: proLink,
       ctaStyle:
         'bg-gradient-to-r from-teal-400 to-emerald-400 hover:from-teal-300 hover:to-emerald-300 text-slate-950 font-bold shadow-lg shadow-teal-500/25',
     },
     {
       id: 'ai-experience',
-      name: 'Plan Experiencia AI',
+      name: config.aiPlan.name,
       badge: 'Clínicas, Spas Grandes & Franquicias',
-      price: '$49.900',
+      price: config.aiPlan.price,
       currency: 'ARS',
-      period: 'al mes / máxima automatización',
+      period: config.aiPlan.pricePeriod,
       popular: false,
       description: 'Potencia total con Inteligencia Artificial, conexión WAPI desatendida y personalización corporativa.',
       features: [
@@ -83,7 +97,7 @@ export function PortalPricing({ onOpenAuthModal }: PortalPricingProps) {
         'Soporte prioritario 24/7 y puesta en marcha guiada',
       ],
       ctaText: 'Solicitar Plan Experiencia AI',
-      ctaLink: 'https://wa.me/5492474478646?text=Hola,%20quiero%20activar%20el%20Plan%20ExperienciaAI',
+      ctaLink: aiLink,
       ctaStyle:
         'bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white font-bold shadow-lg shadow-indigo-500/25',
     },
@@ -196,7 +210,7 @@ export function PortalPricing({ onOpenAuthModal }: PortalPricingProps) {
 
           <a
             id="btn-pricing-consult-wa"
-            href="https://wa.me/5492474478646?text=Hola,%20tengo%20consultas%20sobre%20los%20planes%20de%20TurnosDisponibles"
+            href={buildWhatsAppPlanLink(config.whatsappNumber, 'Hola, tengo consultas sobre los planes de TurnosDisponibles')}
             target="_blank"
             rel="noopener noreferrer"
             className="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-teal-300 border border-teal-800/40 rounded-xl text-xs font-semibold whitespace-nowrap transition-colors flex items-center gap-2"
