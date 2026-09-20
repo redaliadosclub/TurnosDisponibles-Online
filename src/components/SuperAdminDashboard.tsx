@@ -4,6 +4,7 @@ import { api } from '../services/api';
 import { BUSINESS_TYPES } from '../lib/businessTypes';
 import { PlansPricingModal } from './PlansPricingModal';
 import { SuperAdminWhatsAppPricingModal } from './SuperAdminWhatsAppPricingModal';
+import { SuperAdminLocationModal } from './SuperAdminLocationModal';
 import {
   Building2,
   Users,
@@ -25,6 +26,8 @@ import {
   HelpCircle,
   Sparkles,
   MessageCircle,
+  MapPin,
+  Compass,
 } from 'lucide-react';
 
 interface SuperAdminDashboardProps {
@@ -46,6 +49,14 @@ export function SuperAdminDashboard({
   const [showLinksGuide, setShowLinksGuide] = useState(false);
   const [showPlansModal, setShowPlansModal] = useState(false);
   const [showWhatsAppPricingModal, setShowWhatsAppPricingModal] = useState(false);
+  const [showLocationModal, setShowLocationModal] = useState(false);
+  const [currentDefaultLoc, setCurrentDefaultLoc] = useState<string>(() => {
+    try {
+      return localStorage.getItem('td_platform_default_location') || 'all';
+    } catch {
+      return 'all';
+    }
+  });
 
   const getFullPublicUrl = (slug: string) => {
     const origin = window.location.origin;
@@ -128,6 +139,16 @@ export function SuperAdminDashboard({
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowLocationModal(true)}
+              className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 text-xs font-semibold border border-indigo-500/40 transition cursor-pointer"
+              title="Definir qué Ciudad o Zona se muestra filtrada por defecto cuando un usuario ingresa al portal"
+            >
+              <Compass className="w-4 h-4 text-indigo-300" />
+              <span>Zona Inicial: {currentDefaultLoc === 'all' ? 'Todas' : currentDefaultLoc}</span>
+            </button>
+
             <button
               type="button"
               onClick={() => setShowWhatsAppPricingModal(true)}
@@ -798,6 +819,14 @@ export function SuperAdminDashboard({
       <SuperAdminWhatsAppPricingModal
         isOpen={showWhatsAppPricingModal}
         onClose={() => setShowWhatsAppPricingModal(false)}
+      />
+
+      {/* DEFAULT LOCATION CONFIGURATION MODAL */}
+      <SuperAdminLocationModal
+        isOpen={showLocationModal}
+        onClose={() => setShowLocationModal(false)}
+        businesses={businesses}
+        onConfigUpdated={(newLoc) => setCurrentDefaultLoc(newLoc)}
       />
     </div>
   );

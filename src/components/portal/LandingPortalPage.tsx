@@ -27,7 +27,14 @@ export function LandingPortalPage({ onSelectBooking, onOpenAuthModal }: LandingP
   // Search & Filters state
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('all');
-  const [selectedLocation, setSelectedLocation] = useState('all');
+  const [selectedLocation, setSelectedLocation] = useState(() => {
+    try {
+      const stored = localStorage.getItem('td_platform_default_location');
+      return stored && stored.trim() ? stored : 'all';
+    } catch {
+      return 'all';
+    }
+  });
   const [activeSection, setActiveSection] = useState('hero');
 
   // Modals state
