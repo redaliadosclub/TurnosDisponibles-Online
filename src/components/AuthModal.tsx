@@ -1,7 +1,7 @@
 import React, { useState, FormEvent } from 'react';
 import { User, Role } from '../types';
 import { api } from '../services/api';
-import { Shield, Lock, Mail, User as UserIcon, X } from 'lucide-react';
+import { Shield, Lock, Mail, User as UserIcon, X, Eye, EyeOff } from 'lucide-react';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -25,6 +25,7 @@ export function AuthModal({
   const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState('');
   const [role, setRole] = useState<Role>('business_owner');
   const [loading, setLoading] = useState(false);
@@ -153,62 +154,71 @@ export function AuthModal({
 
           {isRegister && (
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">Nombre Completo</label>
+              <label className="block font-semibold text-slate-800 mb-1">Nombre Completo</label>
               <div className="relative">
-                <UserIcon className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+                <UserIcon className="w-4 h-4 absolute left-3 top-2.5 text-slate-500 pointer-events-none" />
                 <input
                   type="text"
                   required
-                  placeholder="Tu nombre"
+                  placeholder="Tu nombre completo"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-300 text-xs bg-white focus:outline-teal-500"
+                  className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-300 text-xs bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 font-medium transition-all"
                 />
               </div>
             </div>
           )}
 
           <div>
-            <label className="block font-semibold text-slate-700 mb-1">Correo Electrónico</label>
+            <label className="block font-semibold text-slate-800 mb-1">Correo Electrónico</label>
             <div className="relative">
-              <Mail className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+              <Mail className="w-4 h-4 absolute left-3 top-2.5 text-slate-500 pointer-events-none" />
               <input
                 type="email"
                 required
                 placeholder="correo@ejemplo.com"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-300 text-xs bg-white focus:outline-teal-500"
+                className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-300 text-xs bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 font-medium transition-all"
               />
             </div>
           </div>
 
           <div>
-            <label className="block font-semibold text-slate-700 mb-1">Contraseña</label>
+            <label className="block font-semibold text-slate-800 mb-1">Contraseña</label>
             <div className="relative">
-              <Lock className="w-4 h-4 absolute left-3 top-2.5 text-slate-400" />
+              <Lock className="w-4 h-4 absolute left-3 top-2.5 text-slate-500 pointer-events-none" />
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 required
                 placeholder="••••••••"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-300 text-xs bg-white focus:outline-teal-500"
+                className="w-full pl-9 pr-10 py-2 rounded-xl border border-slate-300 text-xs bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 font-medium transition-all"
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                tabIndex={-1}
+                title={showPassword ? 'Ocultar contraseña' : 'Ver contraseña'}
+                className="absolute right-3 top-2 text-slate-400 hover:text-slate-700 cursor-pointer p-0.5 rounded transition-colors"
+              >
+                {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+              </button>
             </div>
           </div>
 
           {isRegister && (
             <div>
-              <label className="block font-semibold text-slate-700 mb-1">Tipo de Cuenta</label>
+              <label className="block font-semibold text-slate-800 mb-1">Tipo de Cuenta</label>
               <select
                 value={role}
                 onChange={(e) => setRole(e.target.value as Role)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs bg-white focus:outline-teal-500"
+                className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-500 font-medium transition-all cursor-pointer"
               >
-                <option value="business_owner">Dueño de Negocio / Prestador</option>
-                <option value="staff">Profesional / Médico / Staff</option>
-                <option value="customer">Paciente / Cliente</option>
+                <option value="business_owner" className="text-slate-900">Dueño de Negocio / Prestador</option>
+                <option value="staff" className="text-slate-900">Profesional / Médico / Staff</option>
+                <option value="customer" className="text-slate-900">Paciente / Cliente</option>
               </select>
             </div>
           )}

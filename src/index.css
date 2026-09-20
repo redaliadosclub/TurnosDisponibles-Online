@@ -1,1 +1,23 @@
 @import "tailwindcss";
+
+/* Ensure all input, select and textarea elements in light containers have high-contrast text and visible password dots */
+input, select, textarea {
+  color: #0f172a;
+}
+
+input::placeholder, textarea::placeholder {
+  color: #94a3b8;
+}
+
+/* Maintain dark mode readability inside slate/dark themed containers */
+.bg-slate-900 input,
+.bg-slate-950 input,
+.bg-slate-800 input {
+  color: #f8fafc;
+}
+
+.bg-white input,
+.bg-white select,
+.bg-white textarea {
+  color: #0f172a !important;
+}
