@@ -31,16 +31,16 @@ export interface SaasPlanConfig {
 export const DEFAULT_SAAS_CONFIG: SaasPlanConfig = {
   whatsappNumber: '5492474478646',
   freePlan: {
-    name: 'Plan Inicial',
-    price: '$14.900',
-    pricePeriod: 'al mes • 15 días de prueba PRO incluidos',
-    whatsappMessage: 'Hola, quiero comenzar la prueba gratuita de 15 días del Plan PRO y consultar sobre el Plan Inicial ($14.900/mes) en TurnosDisponibles.online',
+    name: 'Prueba Pro 15 Días • Sin Tarjeta',
+    price: '$0',
+    pricePeriod: '15 días Pro gratis • luego Plan Free hasta 20 turnos/mes',
+    whatsappMessage: 'Hola, quiero comenzar la Prueba Pro de 15 días gratis (y luego continuar con el Plan Base Free de hasta 20 turnos/mes) en TurnosDisponibles.online',
   },
   proPlan: {
-    name: 'Plan Pro',
+    name: 'Plan Pro Ilimitado',
     price: '$24.900',
-    pricePeriod: 'al mes / facturación transparente',
-    whatsappMessage: 'Hola, quiero activar el Plan Pro ($24.900/mes) para mi consultorio / centro en TurnosDisponibles.online',
+    pricePeriod: 'al mes / turnos ilimitados',
+    whatsappMessage: 'Hola, quiero activar el Plan Pro Ilimitado ($24.900/mes) para mi negocio en TurnosDisponibles.online',
   },
   aiPlan: {
     name: 'Plan Experiencia AI',
@@ -58,7 +58,7 @@ export const DEFAULT_SAAS_CONFIG: SaasPlanConfig = {
   },
 };
 
-const STORAGE_KEY = 'td_saas_pricing_config_v4';
+const STORAGE_KEY = 'td_saas_pricing_config_v5';
 
 export function getSaasConfig(): SaasPlanConfig {
   try {

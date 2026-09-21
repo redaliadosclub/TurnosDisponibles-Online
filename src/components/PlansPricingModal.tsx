@@ -69,7 +69,7 @@ export function PlansPricingModal({
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-teal-500"></span>
             </span>
             <span>
-              <strong>Prueba PRO de 15 Días Incluida:</strong> Todos los negocios inician con 15 días de acceso total al Plan PRO sin costo. Al finalizar, seleccionas tu plan para continuar operando.
+              <strong>Estrategia Híbrida:</strong> Inicias con 15 días de acceso total al Plan PRO sin tarjeta. Si luego no contratas, tu cuenta no se borra: conservas el <strong>Plan Base Free</strong> de hasta 20 turnos/mes. Al superar las 20 reservas mensuales, pasas al Plan Pro Ilimitado ($24.900/mes).
             </span>
           </div>
         </div>
@@ -91,12 +91,20 @@ export function PlansPricingModal({
                 <span className="text-xs text-slate-500 font-normal">/ {config.freePlan.pricePeriod}</span>
               </div>
               <p className="text-xs text-slate-500 mt-2">
-                Ideal para profesionales individuales que dan sus primeros pasos digitales.
+                Ideal para comenzar sin riesgos. 15 días Pro gratis y luego Plan Free hasta 20 turnos/mes.
               </p>
               <ul className="mt-5 space-y-2.5 text-xs text-slate-700">
                 <li className="flex items-center gap-2">
                   <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>15 días de prueba gratuita sin tarjeta</span>
+                  <span>15 días de prueba Pro completa sin tarjeta</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>Turnos ilimitados durante la prueba de 15 días</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>Luego: Plan Free permanente (hasta 20 turnos/mes)</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <Check className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -104,15 +112,15 @@ export function PlansPricingModal({
                 </li>
                 <li className="flex items-center gap-2">
                   <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>Hasta 80 turnos mensuales</span>
-                </li>
-                <li className="flex items-center gap-2">
-                  <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>Página de reservas personalizada básica</span>
+                  <span>Página de reservas personalizada</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <Check className="w-4 h-4 text-emerald-600 shrink-0" />
                   <span>Confirmación directa por WhatsApp</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>Tu cuenta nunca se elimina</span>
                 </li>
               </ul>
             </div>
@@ -129,7 +137,7 @@ export function PlansPricingModal({
                     : 'bg-white hover:bg-slate-100 border-slate-300 text-slate-800 cursor-pointer'
                 }`}
               >
-                {currentPlan === 'free' ? 'Plan Actual' : `Elegir Plan Inicial (${config.freePlan.price})`}
+                {currentPlan === 'free' ? 'Plan Free Activo (Hasta 20 turnos/mes)' : 'Probar 15 Días Gratis'}
               </button>
               <a
                 href={freeLink}
@@ -162,28 +170,40 @@ export function PlansPricingModal({
                 <span className="text-xs text-slate-600 font-semibold">/ mes</span>
               </div>
               <p className="text-xs text-slate-500 mt-2">
-                Para consultorios médicos, estéticas, spas y salones que buscan automatización profesional.
+                Turnos ilimitados, hasta 5 profesionales, cobro de señas integrado por Mercado Pago + CBU/Alias y soporte prioritario.
               </p>
               <ul className="mt-5 space-y-2.5 text-xs text-slate-700">
                 <li className="flex items-center gap-2 font-medium">
                   <Check className="w-4 h-4 text-teal-600 shrink-0" />
-                  <span>Hasta 5 profesionales</span>
+                  <span>Turnos ilimitados mensuales (sin tope de 20)</span>
                 </li>
                 <li className="flex items-center gap-2 font-medium">
                   <Check className="w-4 h-4 text-teal-600 shrink-0" />
-                  <span>Turnos ilimitados mensuales</span>
+                  <span>Hasta 5 profesionales con agendas separadas</span>
                 </li>
                 <li className="flex items-center gap-2 font-medium">
                   <Check className="w-4 h-4 text-teal-600 shrink-0" />
-                  <span>Cobro de señas (Mercado Pago + CBU)</span>
+                  <span>Cobro de señas integrado (Mercado Pago + CBU/Alias)</span>
                 </li>
                 <li className="flex items-center gap-2 font-medium">
                   <Check className="w-4 h-4 text-teal-600 shrink-0" />
-                  <span>Recordatorios automáticos por WhatsApp</span>
+                  <span>Sincronización con Google Calendar e iCal</span>
                 </li>
                 <li className="flex items-center gap-2 font-medium">
                   <Check className="w-4 h-4 text-teal-600 shrink-0" />
-                  <span>Base de datos y panel de métricas</span>
+                  <span>Recordatorios automáticos por WhatsApp con código</span>
+                </li>
+                <li className="flex items-center gap-2 font-medium">
+                  <Check className="w-4 h-4 text-teal-600 shrink-0" />
+                  <span>Cálculo automático de saldo restante en el local</span>
+                </li>
+                <li className="flex items-center gap-2 font-medium">
+                  <Check className="w-4 h-4 text-teal-600 shrink-0" />
+                  <span>Panel de métricas y base de datos de pacientes</span>
+                </li>
+                <li className="flex items-center gap-2 font-medium">
+                  <Check className="w-4 h-4 text-teal-600 shrink-0" />
+                  <span>Soporte prioritario y atención directa</span>
                 </li>
               </ul>
             </div>
@@ -200,7 +220,7 @@ export function PlansPricingModal({
                     : 'bg-teal-600 hover:bg-teal-700 text-white cursor-pointer'
                 }`}
               >
-                {currentPlan === 'pro' ? 'Plan Actual (Activo)' : `Elegir Plan Pro (${config.proPlan.price})`}
+                {currentPlan === 'pro' ? 'Plan Pro Ilimitado Activo' : `Elegir Plan Pro (${config.proPlan.price})`}
               </button>
               <a
                 href={proLink}

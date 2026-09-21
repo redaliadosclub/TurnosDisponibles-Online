@@ -14,6 +14,7 @@ import { getBusinessLabels, BUSINESS_TYPES } from '../lib/businessTypes';
 import { api } from '../services/api';
 import { formatDateSpanish, formatDateShort } from '../utils/dateUtils';
 import { generateWaMeLink } from '../lib/notifications';
+import { getSaasConfig } from '../lib/saasConfig';
 import {
   Calendar as CalendarIcon,
   Users,
@@ -2026,115 +2027,146 @@ export function BusinessDashboard({
         )}
 
         {/* TAB 9: SAAS MONETIZATION PLANS */}
-        {activeTab === 'plans' && (
-          <div className="space-y-6">
-            <div className="text-center max-w-xl mx-auto mb-6">
-              <h3 className="text-2xl font-extrabold text-slate-900">Planes de Suscripción TurnosDisponibles</h3>
-              <p className="text-xs text-slate-500 mt-1">
-                Estructura SaaS comercial lista para monetizar con pasarela de pagos.
-              </p>
+        {activeTab === 'plans' && (() => {
+          const saasConfig = getSaasConfig();
+          return (
+            <div className="space-y-6">
+              <div className="text-center max-w-2xl mx-auto mb-4">
+                <h3 className="text-2xl font-extrabold text-slate-900">Estrategia Comercial & Suscripción</h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  Gestiona tu plan para operar con total flexibilidad y escalar la recepción de turnos de tu negocio.
+                </p>
+              </div>
+
+              {/* Hybrid Strategy explanatory banner */}
+              <div className="max-w-5xl mx-auto p-4 rounded-2xl bg-teal-50 border border-teal-200 flex items-center justify-between gap-3 text-xs">
+                <div className="flex items-center gap-2.5 text-teal-900">
+                  <span className="flex h-2.5 w-2.5 relative">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-teal-500"></span>
+                  </span>
+                  <span>
+                    <strong>Estrategia Híbrida:</strong> Tu cuenta comenzó con 15 días de acceso total al Plan PRO sin tarjeta. Al culminar los 15 días, conservas el <strong>Plan Base Free</strong> de hasta 20 turnos/mes. Si tu negocio supera las 20 reservas mensuales, el sistema te solicitará ascender al Plan Pro Ilimitado ({saasConfig.proPlan.price}/mes) para continuar recibiendo citas sin tope.
+                  </span>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
+                {/* FREE */}
+                <div className={`bg-white rounded-3xl p-6 border flex flex-col justify-between ${
+                  business.plan === 'free' ? 'border-slate-800 ring-2 ring-slate-800/10' : 'border-slate-200'
+                }`}>
+                  <div>
+                    <span className="text-xs font-bold text-slate-500 uppercase">{saasConfig.freePlan.name}</span>
+                    <h4 className="text-xl font-extrabold text-slate-900 mt-1">
+                      {saasConfig.freePlan.price} <span className="text-xs font-normal text-slate-500">/ {saasConfig.freePlan.pricePeriod}</span>
+                    </h4>
+                    <p className="text-xs text-slate-500 mt-2">Para profesionales independientes que dan sus primeros pasos digitales.</p>
+                    <ul className="mt-4 space-y-2 text-xs text-slate-700">
+                      <li className="flex items-center gap-2">✓ 15 días de prueba Pro completa sin tarjeta</li>
+                      <li className="flex items-center gap-2 font-medium text-emerald-700">✓ Hasta 20 turnos mensuales al finalizar prueba</li>
+                      <li className="flex items-center gap-2">✓ 1 Profesional / Especialista</li>
+                      <li className="flex items-center gap-2">✓ Página de reservas personalizada</li>
+                      <li className="flex items-center gap-2">✓ Confirmación directa por WhatsApp</li>
+                      <li className="flex items-center gap-2">✓ Tu cuenta nunca se elimina</li>
+                    </ul>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={business.plan === 'free'}
+                    onClick={async () => {
+                      try {
+                        const updated = await api.updateBusiness(business.id, { plan: 'free' });
+                        onUpdateBusiness(updated);
+                      } catch (e) {
+                        console.error(e);
+                      }
+                    }}
+                    className="mt-6 w-full py-2.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
+                  >
+                    {business.plan === 'free' ? 'Plan Free Activo (Hasta 20 turnos/mes)' : 'Seleccionar Plan Base Free'}
+                  </button>
+                </div>
+
+                {/* PRO */}
+                <div className={`bg-white rounded-3xl p-6 border-2 border-teal-600 shadow-md flex flex-col justify-between relative ${
+                  business.plan === 'pro' ? 'ring-4 ring-teal-500/20' : ''
+                }`}>
+                  <span className="absolute -top-3 right-6 px-3 py-0.5 rounded-full text-[10px] font-extrabold bg-teal-600 text-white uppercase tracking-wider">
+                    Recomendado • Más Elegido
+                  </span>
+                  <div>
+                    <span className="text-xs font-bold text-teal-700 uppercase">{saasConfig.proPlan.name}</span>
+                    <h4 className="text-xl font-extrabold text-slate-900 mt-1">
+                      {saasConfig.proPlan.price} <span className="text-xs font-normal text-slate-500">/ mes</span>
+                    </h4>
+                    <p className="text-xs text-slate-500 mt-2">Para consultorios, estéticas y centros con alta demanda que necesitan agenda sin topes.</p>
+                    <ul className="mt-4 space-y-2 text-xs text-slate-700">
+                      <li className="flex items-center gap-2 font-bold text-teal-800">✓ Turnos ilimitados mensuales (sin tope de 20)</li>
+                      <li className="flex items-center gap-2">✓ Hasta 5 profesionales con agendas separadas</li>
+                      <li className="flex items-center gap-2">✓ Cobro de señas (Mercado Pago + CBU/Alias)</li>
+                      <li className="flex items-center gap-2">✓ Recordatorios automáticos por WhatsApp con código</li>
+                      <li className="flex items-center gap-2">✓ Integración con Google Calendar e iCal</li>
+                      <li className="flex items-center gap-2">✓ Base de datos de pacientes y métricas</li>
+                      <li className="flex items-center gap-2">✓ Soporte prioritario y atención directa</li>
+                    </ul>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={business.plan === 'pro'}
+                    onClick={async () => {
+                      try {
+                        const updated = await api.updateBusiness(business.id, { plan: 'pro' });
+                        onUpdateBusiness(updated);
+                      } catch (e) {
+                        console.error(e);
+                      }
+                    }}
+                    className="mt-6 w-full py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition cursor-pointer shadow-md"
+                  >
+                    {business.plan === 'pro' ? 'Plan Pro Ilimitado Activo' : `Elegir Plan Pro (${saasConfig.proPlan.price})`}
+                  </button>
+                </div>
+
+                {/* AI */}
+                <div className={`bg-slate-900 text-white rounded-3xl p-6 border border-slate-800 shadow-xs flex flex-col justify-between ${
+                  business.plan === 'business' ? 'ring-4 ring-slate-700' : ''
+                }`}>
+                  <div>
+                    <span className="text-xs font-bold text-teal-400 uppercase">{saasConfig.aiPlan.name}</span>
+                    <h4 className="text-xl font-extrabold text-white mt-1">
+                      {saasConfig.aiPlan.price} <span className="text-xs font-normal text-slate-400">/ mes</span>
+                    </h4>
+                    <p className="text-xs text-slate-400 mt-2">Para policonsultorios, clínicas y franquicias que buscan atención automatizada con IA.</p>
+                    <ul className="mt-4 space-y-2 text-xs text-slate-300">
+                      <li className="flex items-center gap-2">✓ Todo lo del Plan Pro Ilimitado</li>
+                      <li className="flex items-center gap-2 font-semibold text-teal-300">✓ Profesionales y sedes ilimitadas</li>
+                      <li className="flex items-center gap-2">✓ WhatsApp Bot con IA (Meta Cloud / WAPI)</li>
+                      <li className="flex items-center gap-2">✓ Cancelación y reagendamiento autónomo 24/7</li>
+                      <li className="flex items-center gap-2">✓ Asignación inteligente por zona o especialista</li>
+                      <li className="flex items-center gap-2">✓ Onboarding dedicado y soporte VIP</li>
+                    </ul>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={business.plan === 'business'}
+                    onClick={async () => {
+                      try {
+                        const updated = await api.updateBusiness(business.id, { plan: 'business' });
+                        onUpdateBusiness(updated);
+                      } catch (e) {
+                        console.error(e);
+                      }
+                    }}
+                    className="mt-6 w-full py-2.5 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 text-xs font-bold cursor-pointer transition shadow-md"
+                  >
+                    {business.plan === 'business' ? 'Plan Experiencia AI Activo' : `Elegir Experiencia AI (${saasConfig.aiPlan.price})`}
+                  </button>
+                </div>
+              </div>
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 max-w-5xl mx-auto">
-              {/* FREE */}
-              <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs flex flex-col justify-between">
-                <div>
-                  <span className="text-xs font-bold text-slate-500 uppercase">Plan Básico</span>
-                  <h4 className="text-xl font-extrabold text-slate-900 mt-1">Gratis</h4>
-                  <p className="text-xs text-slate-500 mt-2">Para profesionales independientes que recién inician.</p>
-                  <ul className="mt-4 space-y-2 text-xs text-slate-700">
-                    <li className="flex items-center gap-2">✓ 1 Profesional</li>
-                    <li className="flex items-center gap-2">✓ 1 Servicio</li>
-                    <li className="flex items-center gap-2">✓ Página de reservas pública</li>
-                    <li className="flex items-center gap-2 text-slate-400">✗ Múltiples profesionales</li>
-                    <li className="flex items-center gap-2 text-slate-400">✗ Estadísticas avanzadas</li>
-                  </ul>
-                </div>
-                <button
-                  type="button"
-                  disabled={business.plan === 'free'}
-                  onClick={async () => {
-                    try {
-                      const updated = await api.updateBusiness(business.id, { plan: 'free' });
-                      onUpdateBusiness(updated);
-                    } catch (e) {
-                      console.error(e);
-                    }
-                  }}
-                  className="mt-6 w-full py-2.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
-                >
-                  {business.plan === 'free' ? 'Plan Actual' : 'Seleccionar Plan Gratis'}
-                </button>
-              </div>
-
-              {/* PRO */}
-              <div className="bg-white rounded-3xl p-6 border-2 border-teal-600 shadow-md flex flex-col justify-between relative">
-                <span className="absolute -top-3 right-6 px-3 py-0.5 rounded-full text-[10px] font-extrabold bg-teal-600 text-white uppercase tracking-wider">
-                  Recomendado
-                </span>
-                <div>
-                  <span className="text-xs font-bold text-teal-700 uppercase">Plan Profesional</span>
-                  <h4 className="text-xl font-extrabold text-slate-900 mt-1">$29.000 ARS <span className="text-xs font-normal text-slate-500">/ mes</span></h4>
-                  <p className="text-xs text-slate-500 mt-2">Para consultorios individuales, profesionales independientes y estéticas.</p>
-                  <ul className="mt-4 space-y-2 text-xs text-slate-700">
-                    <li className="flex items-center gap-2">✓ Hasta 2 profesionales</li>
-                    <li className="flex items-center gap-2">✓ Catálogo de servicios ilimitado</li>
-                    <li className="flex items-center gap-2">✓ Reservas ilimitadas en tiempo real</li>
-                    <li className="flex items-center gap-2">✓ WhatsApp con mensaje pre-armado (wa.me)</li>
-                    <li className="flex items-center gap-2">✓ Integración con Google Calendar e iCal</li>
-                    <li className="flex items-center gap-2">✓ Estadísticas y conversión básica</li>
-                  </ul>
-                </div>
-                <button
-                  type="button"
-                  disabled={business.plan === 'pro'}
-                  onClick={async () => {
-                    try {
-                      const updated = await api.updateBusiness(business.id, { plan: 'pro' });
-                      onUpdateBusiness(updated);
-                    } catch (e) {
-                      console.error(e);
-                    }
-                  }}
-                  className="mt-6 w-full py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition cursor-pointer"
-                >
-                  {business.plan === 'pro' ? 'Plan Actual (Activo)' : 'Elegir Plan Pro ($29.000 ARS)'}
-                </button>
-              </div>
-
-              {/* BUSINESS */}
-              <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs flex flex-col justify-between">
-                <div>
-                  <span className="text-xs font-bold text-slate-500 uppercase">Plan Consultorio / Clínica</span>
-                  <h4 className="text-xl font-extrabold text-slate-900 mt-1">$49.000 ARS <span className="text-xs font-normal text-slate-500">/ mes</span></h4>
-                  <p className="text-xs text-slate-500 mt-2">Para clínicas, policonsultorios y salones con alta demanda y múltiples médicos.</p>
-                  <ul className="mt-4 space-y-2 text-xs text-slate-700">
-                    <li className="flex items-center gap-2">✓ Todo lo del plan Profesional</li>
-                    <li className="flex items-center gap-2">✓ Profesionales y staff ilimitados</li>
-                    <li className="flex items-center gap-2">✓ Automatización FlaxxaWAPI & Flowomatic</li>
-                    <li className="flex items-center gap-2">✓ Recordatorios 24h automáticos</li>
-                    <li className="flex items-center gap-2">✓ Soporte prioritario de configuración</li>
-                  </ul>
-                </div>
-                <button
-                  type="button"
-                  disabled={business.plan === 'business'}
-                  onClick={async () => {
-                    try {
-                      const updated = await api.updateBusiness(business.id, { plan: 'business' });
-                      onUpdateBusiness(updated);
-                    } catch (e) {
-                      console.error(e);
-                    }
-                  }}
-                  className="mt-6 w-full py-2.5 rounded-xl border border-slate-900 bg-slate-900 text-white text-xs font-bold hover:bg-black cursor-pointer"
-                >
-                  {business.plan === 'business' ? 'Plan Actual' : 'Elegir Plan Clínica ($49.000 ARS)'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* TAB 10: PAYMENTS & DEPOSITS (MERCADO PAGO / TRANSFERENCIAS) */}
         {activeTab === 'payments' && (

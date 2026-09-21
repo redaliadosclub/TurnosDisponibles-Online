@@ -38,8 +38,12 @@ export function PortalFaq() {
       a: 'La plataforma genera mensajes inteligentes con formato profesional y enlaces wa.me que incluyen nombre, servicio, código de turno, dirección y mapa. En el Plan Experiencia AI se conecta además mediante Webhooks / WAPI para automatización 100% desatendida.',
     },
     {
-      q: '¿Cómo funciona la prueba gratuita de 15 días?',
-      a: 'Al dar de alta tu consultorio o estética comienzas inmediatamente con 15 días de prueba gratuita del Plan PRO completo (turnos ilimitados, cobro de señas automatizado con Mercado Pago + CBU, recordatorios de WhatsApp y sincronización con Google Calendar) sin ingresar tarjeta de crédito. Al finalizar los 15 días, eliges el plan que mejor se adapte a tu volumen: Plan Inicial a $14.900 ARS/mes, Plan Pro a $24.900 ARS/mes o Plan Experiencia AI a $49.900 ARS/mes.',
+      q: '¿Cómo funciona la prueba gratuita de 15 días y qué pasa al finalizar?',
+      a: 'Al dar de alta tu negocio o consultorio comienzas de inmediato con 15 días de prueba gratuita del Plan PRO completo (turnos ilimitados, cobro de señas automatizado con Mercado Pago + CBU/Alias, recordatorios automáticos por WhatsApp y sincronización con Google Calendar) sin ingresar ninguna tarjeta de crédito.\n\n¿Qué pasa al finalizar los 15 días? Tu cuenta NUNCA se elimina ni pierdes tu historial. Si decides no contratar el plan pago, pasas automáticamente al Plan Base Free con tope de hasta 20 turnos mensuales, 1 profesional y confirmación directa por WhatsApp. En cuanto tu negocio crezca y superes los 20 turnos mensuales, el sistema te invitará a ascender al Plan Pro Ilimitado ($24.900/mes) para continuar recibiendo reservas sin interrupciones.',
+    },
+    {
+      q: '¿Qué sucede si supero los 20 turnos mensuales en el Plan Free?',
+      a: 'El Plan Base Free está pensado para profesionales que están arrancando y cubre hasta 20 citas al mes a costo $0. Cuando tu demanda crezca y alcances ese tope, el sistema te notificará para pasar al Plan Pro Ilimitado ($24.900/mes), desbloqueando agenda ilimitada, hasta 5 profesionales, cobro de señas por Mercado Pago y soporte prioritario.',
     },
     {
       q: '¿Cómo comparto mi agenda con mis pacientes en Instagram o WhatsApp?',

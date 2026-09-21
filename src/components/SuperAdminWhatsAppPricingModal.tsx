@@ -11,6 +11,7 @@ import {
   CheckCircle2,
   Phone,
   HelpCircle,
+  Building2,
 } from 'lucide-react';
 import {
   getSaasConfig,
@@ -57,6 +58,11 @@ export function SuperAdminWhatsAppPricingModal({
   const freeLink = buildWhatsAppPlanLink(config.whatsappNumber, config.freePlan.whatsappMessage);
   const proLink = buildWhatsAppPlanLink(config.whatsappNumber, config.proPlan.whatsappMessage);
   const aiLink = buildWhatsAppPlanLink(config.whatsappNumber, config.aiPlan.whatsappMessage);
+  const whiteLabelLink = buildWhatsAppPlanLink(
+    config.whatsappNumber,
+    config.whiteLabelPlan?.whatsappMessage ||
+      'Hola, me interesa conocer la propuesta de Marca Blanca / SaaS Partner para comercializar la plataforma con mi propia marca en TurnosDisponibles.online'
+  );
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
@@ -77,7 +83,7 @@ export function SuperAdminWhatsAppPricingModal({
                 </span>
               </div>
               <p className="text-xs text-slate-500 mt-0.5">
-                Personaliza el número de WhatsApp de ventas y los mensajes predeterminados para activar <strong>Free</strong>, <strong>Pro</strong> y <strong>Experiencia AI</strong>.
+                Personaliza el WhatsApp comercial y mensajes para <strong>Prueba Pro 15 Días / Plan Free</strong>, <strong>Plan Pro Ilimitado</strong>, <strong>Experiencia AI</strong> y <strong>Marca Blanca</strong>.
               </p>
             </div>
           </div>
@@ -125,7 +131,7 @@ export function SuperAdminWhatsAppPricingModal({
               <div className="flex items-center gap-2">
                 <span className="w-3 h-3 rounded-full bg-slate-400"></span>
                 <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">
-                  1. Plan Free / Inicial
+                  1. Estrategia Híbrida: Prueba Pro 15 Días • Plan Free (Hasta 20 turnos/mes)
                 </h4>
               </div>
               <a
@@ -199,7 +205,7 @@ export function SuperAdminWhatsAppPricingModal({
               <div className="flex items-center gap-2">
                 <Zap className="w-4 h-4 text-teal-600" />
                 <h4 className="text-xs font-bold text-teal-950 uppercase tracking-wider">
-                  2. Plan Pro (Más Popular)
+                  2. Plan Pro Ilimitado ($24.900/mes • Más Popular)
                 </h4>
               </div>
               <a
@@ -334,6 +340,92 @@ export function SuperAdminWhatsAppPricingModal({
                   setConfig({
                     ...config,
                     aiPlan: { ...config.aiPlan, whatsappMessage: e.target.value },
+                  })
+                }
+                className="w-full px-3 py-2 bg-white rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
+              />
+            </div>
+          </div>
+
+          {/* Plan Marca Blanca Section */}
+          <div className="bg-amber-50/50 p-5 rounded-2xl border border-amber-200 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-amber-700" />
+                <h4 className="text-xs font-bold text-amber-950 uppercase tracking-wider">
+                  4. Plan Marca Blanca / SaaS Partner (A Medida)
+                </h4>
+              </div>
+              <a
+                href={whiteLabelLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 text-[11px] text-amber-800 hover:text-amber-900 font-semibold"
+                title="Probar enlace generado en WhatsApp"
+              >
+                <span>Probar link</span>
+                <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  Nombre público del plan
+                </label>
+                <input
+                  type="text"
+                  value={config.whiteLabelPlan?.name || 'Plan Marca Blanca'}
+                  onChange={(e) =>
+                    setConfig({
+                      ...config,
+                      whiteLabelPlan: {
+                        ...(config.whiteLabelPlan || DEFAULT_SAAS_CONFIG.whiteLabelPlan),
+                        name: e.target.value,
+                      },
+                    })
+                  }
+                  className="w-full px-3 py-2 bg-white rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </div>
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                  Etiqueta de Precio
+                </label>
+                <input
+                  type="text"
+                  value={config.whiteLabelPlan?.price || 'A Medida'}
+                  onChange={(e) =>
+                    setConfig({
+                      ...config,
+                      whiteLabelPlan: {
+                        ...(config.whiteLabelPlan || DEFAULT_SAAS_CONFIG.whiteLabelPlan),
+                        price: e.target.value,
+                      },
+                    })
+                  }
+                  className="w-full px-3 py-2 bg-white rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </div>
+            </div>
+
+            <div>
+              <label className="block text-[11px] font-semibold text-slate-600 mb-1">
+                Texto del mensaje predeterminado de WhatsApp (CTA: Comunicate con nuestro equipo)
+              </label>
+              <textarea
+                rows={2}
+                value={
+                  config.whiteLabelPlan?.whatsappMessage ||
+                  'Hola, me interesa conocer la propuesta de Marca Blanca / SaaS Partner para comercializar la plataforma con mi propia marca en TurnosDisponibles.online'
+                }
+                onChange={(e) =>
+                  setConfig({
+                    ...config,
+                    whiteLabelPlan: {
+                      ...(config.whiteLabelPlan || DEFAULT_SAAS_CONFIG.whiteLabelPlan),
+                      whatsappMessage: e.target.value,
+                    },
                   })
                 }
                 className="w-full px-3 py-2 bg-white rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"

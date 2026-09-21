@@ -39,47 +39,53 @@ export function PortalPricing({ onOpenAuthModal }: PortalPricingProps) {
   const plans = [
     {
       id: 'free',
-      name: config.freePlan.name,
-      badge: 'Para 1 Profesional Independiente',
-      price: config.freePlan.price,
+      name: config.freePlan.name || 'Prueba Pro 15 Días • Sin Tarjeta',
+      badge: '15 Días Pro Gratis • Luego Plan Free',
+      price: config.freePlan.price || '$0',
       currency: 'ARS',
-      period: config.freePlan.pricePeriod,
+      period: config.freePlan.pricePeriod || '15 días Pro gratis • luego Plan Free hasta 20 turnos/mes',
       popular: false,
-      description: 'Ideal para manicuras, barberos, cosmiatras o profesionales independientes que dan sus primeros pasos.',
+      description:
+        'Prueba 15 días con todas las funciones Pro sin tarjeta. Luego mantienes tu Plan Free hasta 20 turnos/mes o activas Pro Ilimitado.',
       features: [
-        'Hasta 80 turnos al mes',
+        '15 días de acceso total al Plan Pro sin tarjeta',
+        'Turnos ilimitados durante los primeros 15 días',
+        'Cobro de señas automatizado (Mercado Pago + CBU)',
+        'Recordatorios automáticos por WhatsApp con código',
+        'Sincronización con Google Calendar',
+        'Luego de 15 días: Plan Base Free para siempre',
+        'Hasta 20 turnos mensuales en Plan Free',
         '1 Profesional / Especialista',
-        'Página de reservas personalizada básica',
-        'Confirmación directa vía WhatsApp',
-        'Cobro de señas manual por Alias / CBU',
-        'Horarios y servicios configurables',
-        'Soporte por email y comunidad',
+        'Confirmación directa de reservas por WhatsApp',
+        'Tu cuenta nunca se elimina ni se pierden datos',
       ],
-      ctaText: 'Elegir Plan Inicial',
+      ctaText: 'Probar 15 Días Gratis',
       ctaLink: freeLink,
-      ctaStyle: 'bg-slate-800 hover:bg-slate-700 text-white border border-slate-700',
+      ctaStyle:
+        'bg-teal-500 hover:bg-teal-400 text-slate-950 font-extrabold shadow-lg shadow-teal-500/20',
     },
     {
       id: 'pro',
-      name: config.proPlan.name,
+      name: config.proPlan.name || 'Plan Pro Ilimitado',
       badge: 'El más elegido • Centros & Consultorios',
-      price: config.proPlan.price,
+      price: config.proPlan.price || '$24.900',
       currency: 'ARS',
-      period: config.proPlan.pricePeriod,
+      period: config.proPlan.pricePeriod || 'al mes / turnos ilimitados',
       popular: true,
-      description: 'La solución completa para estéticas, consultorios médicos y salones que buscan automatización profesional.',
+      description:
+        'Turnos ilimitados, hasta 5 profesionales, cobro de señas integrado por Mercado Pago + CBU/Alias y soporte prioritario.',
       features: [
-        'Turnos Ilimitados mensuales',
+        'Turnos Ilimitados mensuales (sin tope)',
         'Hasta 5 Profesionales con agendas separadas',
-        'Horarios y vacaciones individuales por especialista',
-        'Cobro de señas integrado (Mercado Pago + CBU)',
-        'Sincronización con Google Calendar',
+        'Cobro de señas integrado (Mercado Pago + CBU/Alias)',
+        'Sincronización con Google Calendar e iCal',
         'Cálculo de saldo restante a cobrar en el local',
         'Recordatorios automáticos por WhatsApp con código',
         'Panel de estadísticas y base de datos de pacientes',
         'Bloqueo rápido de días libres e imprevistos',
+        'Soporte prioritario y atención directa',
       ],
-      ctaText: 'Elegir Plan Pro',
+      ctaText: 'Elegir Plan Pro Ilimitado',
       ctaLink: proLink,
       ctaStyle:
         'bg-gradient-to-r from-teal-400 to-emerald-400 hover:from-teal-300 hover:to-emerald-300 text-slate-950 font-bold shadow-lg shadow-teal-500/25',
@@ -159,14 +165,14 @@ export function PortalPricing({ onOpenAuthModal }: PortalPricingProps) {
                 <div>
                   <div className="flex items-center gap-2">
                     <span className="text-xs sm:text-sm font-extrabold text-white">
-                      ¡Comienza 15 días gratis con todas las funciones del Plan PRO!
+                      Estrategia Híbrida: Prueba Pro 15 Días • Sin Tarjeta + Plan Base Free
                     </span>
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-teal-400 text-slate-950 uppercase tracking-wider">
                       Sin Tarjeta
                     </span>
                   </div>
                   <p className="text-xs text-slate-300 mt-0.5">
-                    Al registrar tu negocio disfrutas 15 días de agenda ilimitada, señas por Mercado Pago y WhatsApp. Al finalizar, eliges el plan que mejor se adapte a tu crecimiento.
+                    Comienza con 15 días de funciones Pro (turnos ilimitados, señas MP/CBU y Google Calendar). Si luego no contratas Pro, tu cuenta <strong>no se elimina</strong>: pasas al Plan Free de hasta 20 turnos/mes.
                   </p>
                 </div>
               </div>
@@ -176,7 +182,7 @@ export function PortalPricing({ onOpenAuthModal }: PortalPricingProps) {
                   onClick={onOpenAuthModal}
                   className="px-4 py-2.5 rounded-xl bg-teal-400 hover:bg-teal-300 text-slate-950 font-extrabold text-xs transition shadow-md whitespace-nowrap shrink-0 cursor-pointer"
                 >
-                  Empezar Prueba Pro Gratis
+                  Probar 15 Días Gratis
                 </button>
               )}
             </div>
@@ -242,17 +248,40 @@ export function PortalPricing({ onOpenAuthModal }: PortalPricingProps) {
               </div>
 
               {/* Action Button */}
-              <div className="pt-8 mt-auto">
-                <a
-                  id={`btn-plan-${plan.id}`}
-                  href={plan.ctaLink}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={`w-full py-3.5 px-4 rounded-2xl text-xs sm:text-sm text-center font-bold flex items-center justify-center gap-2 transition-all hover:scale-[1.02] ${plan.ctaStyle}`}
-                >
-                  <MessageCircle className="w-4 h-4" />
-                  <span>{plan.ctaText}</span>
-                </a>
+              <div className="pt-8 mt-auto space-y-2">
+                {plan.id === 'free' && onOpenAuthModal ? (
+                  <button
+                    id={`btn-plan-${plan.id}`}
+                    type="button"
+                    onClick={onOpenAuthModal}
+                    className={`w-full py-3.5 px-4 rounded-2xl text-xs sm:text-sm text-center font-extrabold flex items-center justify-center gap-2 transition-all hover:scale-[1.02] cursor-pointer ${plan.ctaStyle}`}
+                  >
+                    <Sparkles className="w-4 h-4 text-slate-950" />
+                    <span>{plan.ctaText}</span>
+                  </button>
+                ) : (
+                  <a
+                    id={`btn-plan-${plan.id}`}
+                    href={plan.ctaLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`w-full py-3.5 px-4 rounded-2xl text-xs sm:text-sm text-center font-bold flex items-center justify-center gap-2 transition-all hover:scale-[1.02] ${plan.ctaStyle}`}
+                  >
+                    <MessageCircle className="w-4 h-4" />
+                    <span>{plan.ctaText}</span>
+                  </a>
+                )}
+                {plan.id === 'free' && onOpenAuthModal && (
+                  <a
+                    href={plan.ctaLink}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="w-full py-1 text-center text-[11px] text-slate-400 hover:text-teal-300 flex items-center justify-center gap-1 transition"
+                  >
+                    <MessageCircle className="w-3 h-3 text-emerald-400" />
+                    <span>Consultar por WhatsApp</span>
+                  </a>
+                )}
               </div>
             </div>
           ))}
