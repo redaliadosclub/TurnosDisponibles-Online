@@ -21,7 +21,7 @@ export interface BusinessTypeLabels {
   specialtyLabel: string;
 }
 
-export type BusinessPlan = 'free' | 'pro' | 'business';
+export type BusinessPlan = 'free' | 'pro' | 'business' | 'whitelabel';
 
 export interface Business {
   id: string;
@@ -42,6 +42,15 @@ export interface Business {
   plan: BusinessPlan;
   status: 'active' | 'trial' | 'suspended';
   createdAt: string;
+
+  // White Label / Marca Blanca fields
+  whiteLabelEnabled?: boolean;
+  whiteLabelBrandName?: string;
+  whiteLabelCustomDomain?: string;
+  whiteLabelHidePoweredBy?: boolean;
+  whiteLabelCustomFooterText?: string;
+  whiteLabelSupportEmail?: string;
+  whiteLabelSupportPhone?: string;
 
   // FlaxxaWAPI / Flowomatic Automation
   wapiEnabled?: boolean;

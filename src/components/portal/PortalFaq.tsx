@@ -38,8 +38,8 @@ export function PortalFaq() {
       a: 'La plataforma genera mensajes inteligentes con formato profesional y enlaces wa.me que incluyen nombre, servicio, código de turno, dirección y mapa. En el Plan Experiencia AI se conecta además mediante Webhooks / WAPI para automatización 100% desatendida.',
     },
     {
-      q: '¿Puedo probar el Plan Free y luego actualizar al Plan Pro?',
-      a: 'Totalmente. Puedes iniciar con el Plan Free de forma indefinida para probar el sistema y cuando tu centro incorpore más especialistas o requiera turnos ilimitados, solicitas la activación del Plan Pro en minutos.',
+      q: '¿Cómo funciona la prueba gratuita de 15 días?',
+      a: 'Al dar de alta tu consultorio o estética comienzas inmediatamente con 15 días de prueba gratuita del Plan PRO completo (turnos ilimitados, cobro de señas automatizado con Mercado Pago + CBU, recordatorios de WhatsApp y sincronización con Google Calendar) sin ingresar tarjeta de crédito. Al finalizar los 15 días, eliges el plan que mejor se adapte a tu volumen: Plan Inicial a $14.900 ARS/mes, Plan Pro a $24.900 ARS/mes o Plan Experiencia AI a $49.900 ARS/mes.',
     },
     {
       q: '¿Cómo comparto mi agenda con mis pacientes en Instagram o WhatsApp?',

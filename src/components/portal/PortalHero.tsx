@@ -266,7 +266,7 @@ export function PortalHero({
                 ¿Eres dueño de un centro de estética, consultorio o estudio?
               </p>
               <p className="text-xs text-slate-300">
-                Digitaliza tu agenda en 5 minutos y elimina los turnos plantados con cobro de señas automáticas.
+                Digitaliza tu agenda en 5 minutos: 15 días gratis con todas las funciones del Plan PRO y cobro de señas automático.
               </p>
             </div>
           </div>
@@ -276,7 +276,7 @@ export function PortalHero({
             onClick={onOpenAuthModal}
             className="px-4 py-2 bg-teal-500/20 hover:bg-teal-500/30 text-teal-300 border border-teal-400/30 rounded-xl text-xs font-bold transition-colors flex items-center gap-1.5 whitespace-nowrap shadow-sm"
           >
-            Digitalizar mi Agenda <ArrowRight className="w-3.5 h-3.5" />
+            Probar 15 Días Gratis <ArrowRight className="w-3.5 h-3.5" />
           </button>
         </div>
       </div>

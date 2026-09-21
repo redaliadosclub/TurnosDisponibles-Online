@@ -30,6 +30,11 @@ export function PortalPricing({ onOpenAuthModal }: PortalPricingProps) {
   const freeLink = buildWhatsAppPlanLink(config.whatsappNumber, config.freePlan.whatsappMessage);
   const proLink = buildWhatsAppPlanLink(config.whatsappNumber, config.proPlan.whatsappMessage);
   const aiLink = buildWhatsAppPlanLink(config.whatsappNumber, config.aiPlan.whatsappMessage);
+  const whiteLabelLink = buildWhatsAppPlanLink(
+    config.whatsappNumber,
+    config.whiteLabelPlan?.whatsappMessage ||
+      'Hola, me interesa conocer la propuesta de Marca Blanca / SaaS Partner para comercializar la plataforma con mi propia marca en TurnosDisponibles.online'
+  );
 
   const plans = [
     {
@@ -37,11 +42,12 @@ export function PortalPricing({ onOpenAuthModal }: PortalPricingProps) {
       name: config.freePlan.name,
       badge: 'Para 1 Profesional Independiente',
       price: config.freePlan.price,
+      currency: 'ARS',
       period: config.freePlan.pricePeriod,
       popular: false,
       description: 'Ideal para manicuras, barberos, cosmiatras o profesionales independientes que dan sus primeros pasos.',
       features: [
-        'Hasta 60 turnos al mes',
+        'Hasta 80 turnos al mes',
         '1 Profesional / Especialista',
         'Página de reservas personalizada básica',
         'Confirmación directa vía WhatsApp',
@@ -49,7 +55,7 @@ export function PortalPricing({ onOpenAuthModal }: PortalPricingProps) {
         'Horarios y servicios configurables',
         'Soporte por email y comunidad',
       ],
-      ctaText: 'Comenzar Gratis',
+      ctaText: 'Elegir Plan Inicial',
       ctaLink: freeLink,
       ctaStyle: 'bg-slate-800 hover:bg-slate-700 text-white border border-slate-700',
     },
@@ -67,7 +73,8 @@ export function PortalPricing({ onOpenAuthModal }: PortalPricingProps) {
         'Hasta 5 Profesionales con agendas separadas',
         'Horarios y vacaciones individuales por especialista',
         'Cobro de señas integrado (Mercado Pago + CBU)',
-        'Cálculo de saldo restante en el local',
+        'Sincronización con Google Calendar',
+        'Cálculo de saldo restante a cobrar en el local',
         'Recordatorios automáticos por WhatsApp con código',
         'Panel de estadísticas y base de datos de pacientes',
         'Bloqueo rápido de días libres e imprevistos',
@@ -101,6 +108,30 @@ export function PortalPricing({ onOpenAuthModal }: PortalPricingProps) {
       ctaStyle:
         'bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white font-bold shadow-lg shadow-indigo-500/25',
     },
+    {
+      id: 'white-label',
+      name: config.whiteLabelPlan?.name || 'Plan Marca Blanca / SaaS Partner',
+      badge: config.whiteLabelPlan?.badge || 'Agencias, Redes & Franquicias',
+      price: config.whiteLabelPlan?.price || 'A Medida',
+      currency: '',
+      period: config.whiteLabelPlan?.pricePeriod || 'cotización personalizada',
+      popular: false,
+      description:
+        'Ofrece la plataforma completa con tu propio logo, colores y dominio. Ideal para agencias, consultoras y grandes franquicias.',
+      features: [
+        '100% Marca Blanca: tu logo, nombre y paleta',
+        'Dominio y SSL propio (ej: turnos.tudominio.com)',
+        'Sin atribución "Powered by TurnosDisponibles"',
+        'Panel Multi-Negocio / Sub-Cuentas independientes',
+        'Integración personalizada de pasarelas de pago y WAPI',
+        'Condiciones comerciales flexibles por volumen',
+        'Actualizaciones continuas y soporte directo con fundadores',
+      ],
+      ctaText: config.whiteLabelPlan?.ctaText || 'Comunícate con nuestro equipo',
+      ctaLink: whiteLabelLink,
+      ctaStyle:
+        'bg-gradient-to-r from-amber-400 via-orange-500 to-amber-500 hover:from-amber-300 hover:to-orange-400 text-slate-950 font-extrabold shadow-lg shadow-amber-500/20',
+    },
   ];
 
   return (
@@ -117,10 +148,43 @@ export function PortalPricing({ onOpenAuthModal }: PortalPricingProps) {
           <p className="text-slate-300 text-sm sm:text-base leading-relaxed">
             Sin contratos de permanencia ni comisiones ocultas sobre tus turnos. Activa tu plan y empieza a recibir reservas hoy mismo.
           </p>
+
+          {/* Banner explicativo de inicio con Prueba PRO 15 días */}
+          <div className="pt-2">
+            <div className="p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-teal-950/80 via-slate-900 to-indigo-950/80 border border-teal-500/40 shadow-xl flex flex-col sm:flex-row items-center justify-between gap-4 text-left">
+              <div className="flex items-center gap-3.5">
+                <div className="w-10 h-10 rounded-xl bg-teal-400 text-slate-950 flex items-center justify-center font-extrabold shrink-0 shadow-md">
+                  <Zap className="w-5 h-5 fill-slate-950" />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs sm:text-sm font-extrabold text-white">
+                      ¡Comienza 15 días gratis con todas las funciones del Plan PRO!
+                    </span>
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-teal-400 text-slate-950 uppercase tracking-wider">
+                      Sin Tarjeta
+                    </span>
+                  </div>
+                  <p className="text-xs text-slate-300 mt-0.5">
+                    Al registrar tu negocio disfrutas 15 días de agenda ilimitada, señas por Mercado Pago y WhatsApp. Al finalizar, eliges el plan que mejor se adapte a tu crecimiento.
+                  </p>
+                </div>
+              </div>
+              {onOpenAuthModal && (
+                <button
+                  type="button"
+                  onClick={onOpenAuthModal}
+                  className="px-4 py-2.5 rounded-xl bg-teal-400 hover:bg-teal-300 text-slate-950 font-extrabold text-xs transition shadow-md whitespace-nowrap shrink-0 cursor-pointer"
+                >
+                  Empezar Prueba Pro Gratis
+                </button>
+              )}
+            </div>
+          </div>
         </div>
 
         {/* Pricing Cards Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 items-stretch max-w-7xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-6 lg:gap-8 items-stretch max-w-7xl mx-auto">
           {plans.map((plan) => (
             <div
               key={plan.id}

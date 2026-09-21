@@ -318,9 +318,9 @@ export function PortalB2BValue({ onOpenPricing, onOpenAuthModal }: PortalB2BValu
                   id="btn-calc-start-free"
                   type="button"
                   onClick={onOpenAuthModal}
-                  className="py-3 px-4 bg-slate-800 hover:bg-slate-700 text-white font-semibold text-xs sm:text-sm rounded-xl border border-slate-700 transition-colors"
+                  className="py-3 px-4 bg-slate-800 hover:bg-slate-700 text-teal-300 font-semibold text-xs sm:text-sm rounded-xl border border-teal-500/30 transition-colors"
                 >
-                  Crear Cuenta Gratis
+                  Probar 15 Días Plan PRO
                 </button>
               </div>
             </div>

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { X, Check, Sparkles, Bot, Zap, MessageCircle } from 'lucide-react';
+import { X, Check, Sparkles, Bot, Zap, MessageCircle, Building2, Globe } from 'lucide-react';
 import { BusinessPlan } from '../types';
 import { getSaasConfig, buildWhatsAppPlanLink, SaasPlanConfig } from '../lib/saasConfig';
 
@@ -29,10 +29,15 @@ export function PlansPricingModal({
   const freeLink = buildWhatsAppPlanLink(config.whatsappNumber, config.freePlan.whatsappMessage);
   const proLink = buildWhatsAppPlanLink(config.whatsappNumber, config.proPlan.whatsappMessage);
   const aiLink = buildWhatsAppPlanLink(config.whatsappNumber, config.aiPlan.whatsappMessage);
+  const whiteLabelLink = buildWhatsAppPlanLink(
+    config.whatsappNumber,
+    config.whiteLabelPlan?.whatsappMessage ||
+      'Hola, me interesa conocer la propuesta de Marca Blanca / SaaS Partner para comercializar la plataforma con mi propia marca en TurnosDisponibles.online'
+  );
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
-      <div className="bg-white rounded-3xl max-w-4xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200 max-h-[92vh] overflow-y-auto">
+      <div className="bg-white rounded-3xl max-w-6xl w-full p-6 sm:p-8 shadow-2xl border border-slate-200 max-h-[92vh] overflow-y-auto">
         <div className="flex items-center justify-between border-b border-slate-100 pb-4 mb-6">
           <div>
             <div className="flex items-center gap-2">
@@ -44,7 +49,7 @@ export function PlansPricingModal({
               </h3>
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              Esquema comercial para consultorios, estéticas, médicos y profesionales independientes.
+              Comienzas 15 días gratis con el Plan PRO completo. Luego eliges el plan que mejor se adapte a tu negocio.
             </p>
           </div>
           <button
@@ -56,8 +61,21 @@ export function PlansPricingModal({
           </button>
         </div>
 
+        {/* Banner informativo de prueba PRO 15 días */}
+        <div className="mb-6 p-4 rounded-2xl bg-teal-50 border border-teal-200 flex items-center justify-between gap-3 text-xs">
+          <div className="flex items-center gap-2.5 text-teal-900">
+            <span className="flex h-2.5 w-2.5 relative">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-teal-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-teal-500"></span>
+            </span>
+            <span>
+              <strong>Prueba PRO de 15 Días Incluida:</strong> Todos los negocios inician con 15 días de acceso total al Plan PRO sin costo. Al finalizar, seleccionas tu plan para continuar operando.
+            </span>
+          </div>
+        </div>
+
         {/* Pricing Cards Grid */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {/* FREE */}
           <div
             className={`bg-slate-50 rounded-3xl p-6 border flex flex-col justify-between ${
@@ -78,15 +96,19 @@ export function PlansPricingModal({
               <ul className="mt-5 space-y-2.5 text-xs text-slate-700">
                 <li className="flex items-center gap-2">
                   <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>1 Profesional</span>
+                  <span>15 días de prueba gratuita sin tarjeta</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>Hasta 60 turnos mensuales</span>
+                  <span>1 Profesional / Especialista</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>Página de reservas pública</span>
+                  <span>Hasta 80 turnos mensuales</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className="w-4 h-4 text-emerald-600 shrink-0" />
+                  <span>Página de reservas personalizada básica</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <Check className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -107,7 +129,7 @@ export function PlansPricingModal({
                     : 'bg-white hover:bg-slate-100 border-slate-300 text-slate-800 cursor-pointer'
                 }`}
               >
-                {currentPlan === 'free' ? 'Plan Actual' : 'Seleccionar Gratis'}
+                {currentPlan === 'free' ? 'Plan Actual' : `Elegir Plan Inicial (${config.freePlan.price})`}
               </button>
               <a
                 href={freeLink}
@@ -257,6 +279,74 @@ export function PlansPricingModal({
                 <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
                 <span>Pedir por WhatsApp</span>
               </a>
+            </div>
+          </div>
+
+          {/* MARCA BLANCA / SAAS PARTNER */}
+          <div
+            className={`bg-slate-900 text-white rounded-3xl p-6 border border-amber-500/40 shadow-xl flex flex-col justify-between relative overflow-hidden ${
+              currentPlan === 'whitelabel' ? 'ring-4 ring-amber-400' : ''
+            }`}
+          >
+            <div className="absolute top-0 right-0 transform translate-x-4 -translate-y-4 w-24 h-24 bg-amber-500/10 rounded-full blur-xl pointer-events-none" />
+            <div>
+              <div className="flex items-center gap-1.5 text-amber-400 font-bold text-xs uppercase tracking-wider">
+                <Building2 className="w-4 h-4 text-amber-400" />
+                <span>{config.whiteLabelPlan?.name || 'Marca Blanca'}</span>
+              </div>
+              <div className="mt-2 flex items-baseline gap-1">
+                <span className="text-3xl font-extrabold text-white">
+                  {config.whiteLabelPlan?.price || 'A Medida'}
+                </span>
+              </div>
+              <p className="text-xs text-amber-200/80 mt-1 font-medium">
+                {config.whiteLabelPlan?.pricePeriod || 'cotización personalizada'}
+              </p>
+              <p className="text-xs text-slate-400 mt-2">
+                Tu propia plataforma de reservas: logo, colores y dominio propio para revender o franquicias.
+              </p>
+              <ul className="mt-5 space-y-2.5 text-xs text-slate-300">
+                <li className="flex items-center gap-2">
+                  <Check className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>100% Marca Blanca sin logos de terceros</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>Dominio y SSL propio (ej: turnos.tuempresa.com)</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>Panel Multi-Negocio para gestionar subcuentas</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>Integración a medida de cobros y WAPI</span>
+                </li>
+                <li className="flex items-center gap-2">
+                  <Check className="w-4 h-4 text-amber-400 shrink-0" />
+                  <span>Soporte prioritario directo con fundadores</span>
+                </li>
+              </ul>
+            </div>
+            <div className="mt-6 space-y-2">
+              <a
+                href={whiteLabelLink}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-400 via-orange-500 to-amber-500 hover:from-amber-300 hover:to-orange-400 text-slate-950 font-extrabold text-xs shadow-lg shadow-amber-500/20 flex items-center justify-center gap-1.5 transition text-center"
+              >
+                <MessageCircle className="w-4 h-4 text-slate-950" />
+                <span>{config.whiteLabelPlan?.ctaText || 'Comunícate con nuestro equipo'}</span>
+              </a>
+              {onSelectPlan && (
+                <button
+                  type="button"
+                  onClick={() => onSelectPlan('whitelabel')}
+                  className="w-full py-1.5 text-[10px] text-slate-400 hover:text-slate-200 transition text-center"
+                >
+                  {currentPlan === 'whitelabel' ? '✓ Plan asignado' : 'Asignar como SuperAdmin'}
+                </button>
+              )}
             </div>
           </div>
         </div>
