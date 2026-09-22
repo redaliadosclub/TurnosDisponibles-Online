@@ -1428,7 +1428,15 @@ export class ApiService {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      return await res.json();
+      const text = await res.text();
+      if (!text || !text.trim()) {
+        return { success: false, error: `El servidor devolvió respuesta vacía (HTTP ${res.status})` };
+      }
+      try {
+        return JSON.parse(text);
+      } catch (parseErr) {
+        return { success: false, error: `Respuesta no válida del servidor: ${text.slice(0, 100)}` };
+      }
     } catch (err: any) {
       return { success: false, error: err.message || 'Error al conectar con Evolution API' };
     }
@@ -1442,7 +1450,15 @@ export class ApiService {
     try {
       const url = `/api/evolution/state/${encodeURIComponent(instanceId)}?webhookUrl=${encodeURIComponent(webhookUrl)}&apiKey=${encodeURIComponent(apiKey)}`;
       const res = await fetch(url);
-      return await res.json();
+      const text = await res.text();
+      if (!text || !text.trim()) {
+        return { success: false, state: 'unknown', connected: false };
+      }
+      try {
+        return JSON.parse(text);
+      } catch {
+        return { success: false, state: 'unknown', connected: false };
+      }
     } catch {
       return { success: false, state: 'unknown', connected: false };
     }
