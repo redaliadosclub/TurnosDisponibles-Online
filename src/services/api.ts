@@ -1415,6 +1415,39 @@ export class ApiService {
     }
   }
 
+  async getEvolutionQr(payload: { webhookUrl: string; apiKey: string; instanceId: string }): Promise<{
+    success: boolean;
+    qrcode?: string;
+    state?: string;
+    message?: string;
+    error?: string;
+  }> {
+    try {
+      const res = await fetch('/api/evolution/qr', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: err.message || 'Error al conectar con Evolution API' };
+    }
+  }
+
+  async getEvolutionState(instanceId: string, webhookUrl: string, apiKey: string): Promise<{
+    success: boolean;
+    state: string;
+    connected: boolean;
+  }> {
+    try {
+      const url = `/api/evolution/state/${encodeURIComponent(instanceId)}?webhookUrl=${encodeURIComponent(webhookUrl)}&apiKey=${encodeURIComponent(apiKey)}`;
+      const res = await fetch(url);
+      return await res.json();
+    } catch {
+      return { success: false, state: 'unknown', connected: false };
+    }
+  }
+
   // Plan Experiencia AI Methods
   async chatWithAi(businessId: string, message: string): Promise<{ reply: string; source?: string }> {
     try {

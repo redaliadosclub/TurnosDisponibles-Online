@@ -64,6 +64,8 @@ import {
   Download,
   Zap,
   Award,
+  QrCode,
+  CheckCircle,
 } from 'lucide-react';
 
 interface BusinessDashboardProps {
@@ -156,6 +158,13 @@ export function BusinessDashboard({
   const [wapiStatusMessage, setWapiStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [wapiSaving, setWapiSaving] = useState<boolean>(false);
 
+  // Evolution QR Code State
+  const [evolutionQrModalOpen, setEvolutionQrModalOpen] = useState<boolean>(false);
+  const [evolutionQrLoading, setEvolutionQrLoading] = useState<boolean>(false);
+  const [evolutionQrCode, setEvolutionQrCode] = useState<string | null>(null);
+  const [evolutionState, setEvolutionState] = useState<'open' | 'connecting' | 'close' | 'unknown'>('unknown');
+  const [evolutionStatusText, setEvolutionStatusText] = useState<string>('');
+
   const handleSaveWapi = async () => {
     try {
       setWapiSaving(true);
@@ -203,6 +212,52 @@ export function BusinessDashboard({
     } finally {
       setWapiTesting(false);
     }
+  };
+
+  const handleOpenEvolutionQr = async () => {
+    setEvolutionQrModalOpen(true);
+    setEvolutionQrLoading(true);
+    setEvolutionQrCode(null);
+    setEvolutionStatusText('Contactando Evolution API y generando código QR...');
+
+    try {
+      const res = await api.getEvolutionQr({
+        webhookUrl: wapiWebhookUrl,
+        apiKey: wapiApiKey,
+        instanceId: wapiInstanceId || business.slug || 'dermatocosmiatria_spa',
+      });
+
+      if (res.success) {
+        if (res.qrcode) {
+          setEvolutionQrCode(res.qrcode);
+          setEvolutionState('connecting');
+          setEvolutionStatusText('¡Código QR listo! Abrí WhatsApp en tu celular y escanealo ahora.');
+        } else if (res.state === 'open') {
+          setEvolutionState('open');
+          setEvolutionStatusText('¡Esta instancia de WhatsApp ya está conectada y activa!');
+        }
+      } else {
+        setEvolutionStatusText(res.error || 'No se pudo generar el código QR.');
+      }
+    } catch (err: any) {
+      setEvolutionStatusText(`Error: ${err.message}`);
+    } finally {
+      setEvolutionQrLoading(false);
+    }
+  };
+
+  const checkEvolutionState = async () => {
+    try {
+      const stateRes = await api.getEvolutionState(
+        wapiInstanceId || business.slug || 'dermatocosmiatria_spa',
+        wapiWebhookUrl,
+        wapiApiKey
+      );
+      if (stateRes.connected) {
+        setEvolutionState('open');
+        setEvolutionStatusText('🎉 ¡WhatsApp Conectado Exitosamente!');
+      }
+    } catch {}
   };
 
   // Payment / Deposit Configuration State
@@ -2254,14 +2309,27 @@ export function BusinessDashboard({
               </div>
 
               <div className="flex flex-wrap items-center justify-between gap-3 pt-3 border-t border-slate-100">
-                <button
-                  type="button"
-                  disabled={wapiTesting}
-                  onClick={handleTestWapi}
-                  className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs border border-slate-300 transition flex items-center gap-2 cursor-pointer"
-                >
-                  {wapiTesting ? 'Enviando prueba...' : '⚡ Probar Conexión (Disparar Webhook)'}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    disabled={wapiTesting}
+                    onClick={handleTestWapi}
+                    className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs border border-slate-300 transition flex items-center gap-2 cursor-pointer"
+                  >
+                    {wapiTesting ? 'Enviando prueba...' : '⚡ Probar Conexión (Disparar Webhook)'}
+                  </button>
+
+                  {wapiProvider === 'evolution' && (
+                    <button
+                      type="button"
+                      onClick={handleOpenEvolutionQr}
+                      className="px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition flex items-center gap-2 cursor-pointer"
+                    >
+                      <QrCode className="w-4 h-4" />
+                      Escanear QR WhatsApp
+                    </button>
+                  )}
+                </div>
 
                 <button
                   type="button"
@@ -2297,6 +2365,91 @@ export function BusinessDashboard({
                 </div>
               )}
             </div>
+
+            {/* EVOLUTION API QR MODAL */}
+            {evolutionQrModalOpen && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
+                <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-100 space-y-5 text-center relative">
+                  <button
+                    onClick={() => setEvolutionQrModalOpen(false)}
+                    className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 rounded-full hover:bg-slate-100 transition"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+
+                  <div className="inline-flex p-3 bg-emerald-50 text-emerald-600 rounded-2xl">
+                    <QrCode className="w-8 h-8" />
+                  </div>
+
+                  <div>
+                    <h3 className="text-lg font-black text-slate-900">Vincular WhatsApp Oficial</h3>
+                    <p className="text-xs text-slate-500 mt-1">
+                      Instancia: <span className="font-mono font-bold text-slate-800">{wapiInstanceId || business.slug}</span>
+                    </p>
+                  </div>
+
+                  {evolutionQrLoading ? (
+                    <div className="py-12 flex flex-col items-center justify-center space-y-3">
+                      <div className="w-10 h-10 border-4 border-emerald-600 border-t-transparent rounded-full animate-spin"></div>
+                      <p className="text-xs font-medium text-slate-600">{evolutionStatusText}</p>
+                    </div>
+                  ) : evolutionState === 'open' ? (
+                    <div className="py-8 space-y-4">
+                      <div className="w-16 h-16 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto">
+                        <CheckCircle className="w-10 h-10" />
+                      </div>
+                      <h4 className="text-base font-bold text-slate-900">¡Conexión Exitosa!</h4>
+                      <p className="text-xs text-slate-600">
+                        Tu WhatsApp ya está vinculado y enviará notificaciones y responderá con IA en tiempo real.
+                      </p>
+                    </div>
+                  ) : evolutionQrCode ? (
+                    <div className="space-y-4">
+                      <div className="p-3 bg-white border-2 border-dashed border-emerald-300 rounded-2xl inline-block shadow-inner">
+                        <img
+                          src={evolutionQrCode}
+                          alt="Código QR WhatsApp"
+                          className="w-56 h-56 mx-auto rounded-xl object-contain"
+                        />
+                      </div>
+                      <div className="text-xs text-slate-600 space-y-1">
+                        <p className="font-semibold text-slate-800">1. Abrí WhatsApp en tu celular</p>
+                        <p>2. Tocá los 3 puntos o Configuración ➔ Dispositivos vinculados</p>
+                        <p>3. Tocá "Vincular un dispositivo" y apuntá la cámara aquí</p>
+                      </div>
+
+                      <div className="pt-2 flex justify-center gap-2">
+                        <button
+                          type="button"
+                          onClick={checkEvolutionState}
+                          className="px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 font-bold text-xs rounded-xl border border-emerald-200 transition"
+                        >
+                          Verificar si ya conectó
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleOpenEvolutionQr}
+                          className="px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs rounded-xl border border-slate-200 transition"
+                        >
+                          Generar Nuevo QR
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="py-6 space-y-3">
+                      <p className="text-xs text-rose-600 font-medium">{evolutionStatusText}</p>
+                      <button
+                        type="button"
+                        onClick={handleOpenEvolutionQr}
+                        className="px-4 py-2 bg-slate-900 text-white font-bold text-xs rounded-xl transition"
+                      >
+                        Reintentar
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* PLAN EXPERIENCIA AI: ASISTENTE VIRTUAL WHATSAPP BOT 24/7 & PROMPT CONFIG */}
             <AIConfigPanel

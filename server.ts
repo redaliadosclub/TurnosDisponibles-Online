@@ -435,35 +435,77 @@ async function startServer() {
       const businessAlertText = formatBusinessWhatsAppAlert(payload);
       const businessAlertUrl = generateWaMeLink(payload.customerPhone, businessAlertText);
 
-      // Trigger background automated webhook if FlaxxaWAPI / Flowomatic is enabled
+      // Trigger background automated webhook if FlaxxaWAPI / Flowomatic / Evolution API is enabled
       if (business?.wapiEnabled && business?.wapiWebhookUrl) {
-        const webhookHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
-        if (business.wapiApiKey) {
-          webhookHeaders['Authorization'] = `Bearer ${business.wapiApiKey}`;
-          webhookHeaders['x-api-key'] = business.wapiApiKey;
-        }
+        const isEvolution = business.wapiProvider === 'evolution' || business.wapiWebhookUrl.includes('railway') || business.wapiWebhookUrl.includes('evolution');
+        const cleanBaseUrl = business.wapiWebhookUrl.trim().replace(/\/+$/, '');
+        const instance = business.wapiInstanceId || business.slug || 'dermatocosmiatria_spa';
+        const apiKey = business.wapiApiKey || 'turnosdisponibles_secret_2026';
 
-        fetch(business.wapiWebhookUrl, {
-          method: 'POST',
-          headers: webhookHeaders,
-          body: JSON.stringify({
-            event: 'appointment.created',
-            timestamp: new Date().toISOString(),
-            businessId: business.id,
-            businessName: business.name,
-            instanceId: business.wapiInstanceId || undefined,
-            appointment: result.appointment,
-            customer: result.customer,
-            professional: professional ? { id: professional.id, name: professional.name, specialty: professional.specialty } : undefined,
-            service: service ? { id: service.id, name: service.name, duration: service.durationMinutes, price: service.price } : undefined,
-            formattedMessages: {
-              customerMessage: customerWhatsAppText,
-              businessAlert: businessAlertText,
-            },
-          }),
-        }).catch((wapiErr) => {
-          console.warn('[WAPI Trigger Warning] External webhook failed:', wapiErr.message);
-        });
+        if (isEvolution) {
+          // Direct Evolution API v2 sending
+          const sendEvolutionMsg = async (destinationPhone: string, text: string) => {
+            const cleanPhone = destinationPhone.replace(/\D/g, '');
+            if (!cleanPhone) return;
+            try {
+              await fetch(`${cleanBaseUrl}/message/sendText/${instance}`, {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'apikey': apiKey,
+                },
+                body: JSON.stringify({
+                  number: cleanPhone,
+                  text: text,
+                  options: {
+                    delay: 1200,
+                    presence: 'composing',
+                  },
+                }),
+              });
+            } catch (err: any) {
+              console.warn('[Evolution Send Warning]:', err.message);
+            }
+          };
+
+          // 1. Send confirmation to Customer
+          if (payload.customerPhone) {
+            sendEvolutionMsg(payload.customerPhone, customerWhatsAppText);
+          }
+          // 2. Send instant alert to Business Owner
+          if (payload.businessPhone) {
+            sendEvolutionMsg(payload.businessPhone, businessAlertText);
+          }
+        } else {
+          // Generic Webhook (Flaxxa / Flowomatic / n8n)
+          const webhookHeaders: Record<string, string> = { 'Content-Type': 'application/json' };
+          if (business.wapiApiKey) {
+            webhookHeaders['Authorization'] = `Bearer ${business.wapiApiKey}`;
+            webhookHeaders['x-api-key'] = business.wapiApiKey;
+          }
+
+          fetch(business.wapiWebhookUrl, {
+            method: 'POST',
+            headers: webhookHeaders,
+            body: JSON.stringify({
+              event: 'appointment.created',
+              timestamp: new Date().toISOString(),
+              businessId: business.id,
+              businessName: business.name,
+              instanceId: business.wapiInstanceId || undefined,
+              appointment: result.appointment,
+              customer: result.customer,
+              professional: professional ? { id: professional.id, name: professional.name, specialty: professional.specialty } : undefined,
+              service: service ? { id: service.id, name: service.name, duration: service.durationMinutes, price: service.price } : undefined,
+              formattedMessages: {
+                customerMessage: customerWhatsAppText,
+                businessAlert: businessAlertText,
+              },
+            }),
+          }).catch((wapiErr) => {
+            console.warn('[WAPI Trigger Warning] External webhook failed:', wapiErr.message);
+          });
+        }
       }
 
       res.status(201).json({
@@ -664,6 +706,141 @@ ${business.aiBotSystemPrompt ? `INSTRUCCIONES ESPECÍFICAS Y REGLAS ADICIONALES 
     }
 
     res.json({ reply: fallbackReply, source: 'fallback' });
+  });
+
+  // Evolution API: QR Code Generator & Connection Manager
+  app.post('/api/evolution/qr', async (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    const { webhookUrl, apiKey, instanceId } = req.body || {};
+
+    if (!webhookUrl || !instanceId) {
+      return res.status(400).json({ success: false, error: 'Faltan parámetros: webhookUrl e instanceId son obligatorios.' });
+    }
+
+    try {
+      let cleanBaseUrl = webhookUrl.trim().replace(/\/+$/, '');
+      if (!cleanBaseUrl.startsWith('http://') && !cleanBaseUrl.startsWith('https://')) {
+        cleanBaseUrl = `https://${cleanBaseUrl}`;
+      }
+      const cleanKey = (apiKey || 'turnosdisponibles_secret_2026').trim();
+      const instanceName = instanceId.trim();
+
+      const headers: Record<string, string> = {
+        'Content-Type': 'application/json',
+        'apikey': cleanKey,
+      };
+
+      // 1. Try to connect existing instance to get QR
+      let connectRes = await fetch(`${cleanBaseUrl}/instance/connect/${instanceName}`, {
+        method: 'GET',
+        headers,
+      });
+
+      let connectData: any = null;
+      try {
+        connectData = await connectRes.json();
+      } catch {}
+
+      let qrCode = connectData?.base64 || connectData?.qrcode?.base64 || connectData?.code;
+
+      // 2. If instance doesn't exist (404 or not found), create it!
+      if (!connectRes.ok || !qrCode) {
+        const createRes = await fetch(`${cleanBaseUrl}/instance/create`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            instanceName,
+            qrcode: true,
+            integration: 'WHATSAPP-BAILEYS',
+          }),
+        });
+
+        const createData: any = await createRes.json().catch(() => ({}));
+        qrCode = createData?.qrcode?.base64 || createData?.base64 || createData?.instance?.qrcode;
+
+        // If create succeeded but didn't return direct base64, request connect once more
+        if (!qrCode && createRes.ok) {
+          const secondConnect = await fetch(`${cleanBaseUrl}/instance/connect/${instanceName}`, {
+            method: 'GET',
+            headers,
+          });
+          const secondData: any = await secondConnect.json().catch(() => ({}));
+          qrCode = secondData?.base64 || secondData?.qrcode?.base64 || secondData?.code;
+        }
+      }
+
+      if (qrCode) {
+        // Ensure standard data:image/png;base64 prefix
+        const finalBase64 = qrCode.startsWith('data:image') ? qrCode : `data:image/png;base64,${qrCode}`;
+        return res.json({
+          success: true,
+          instanceName,
+          state: 'connecting',
+          qrcode: finalBase64,
+          message: 'Código QR generado correctamente. Escanealo con WhatsApp.',
+        });
+      }
+
+      // Check if instance is already connected
+      const statusRes = await fetch(`${cleanBaseUrl}/instance/connectionState/${instanceName}`, {
+        method: 'GET',
+        headers,
+      }).catch(() => null);
+
+      if (statusRes && statusRes.ok) {
+        const statusData: any = await statusRes.json().catch(() => ({}));
+        if (statusData?.instance?.state === 'open' || statusData?.state === 'open') {
+          return res.json({
+            success: true,
+            instanceName,
+            state: 'open',
+            message: '¡Esta instancia ya está conectada y activa en WhatsApp!',
+          });
+        }
+      }
+
+      return res.json({
+        success: false,
+        error: connectData?.message || 'No se pudo obtener el QR. Verificá los permisos o reiniciá la instancia.',
+      });
+    } catch (err: any) {
+      console.error('[Evolution API QR Error]:', err);
+      return res.status(500).json({ success: false, error: err.message || 'Error de conexión con Evolution API' });
+    }
+  });
+
+  // Evolution API: Instance Connection State Check
+  app.get('/api/evolution/state/:instanceId', async (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    const { instanceId } = req.params;
+    const webhookUrl = (req.query.webhookUrl as string) || 'https://evoapicloudevolution-apiv236-production-0197.up.railway.app';
+    const apiKey = (req.query.apiKey as string) || 'turnosdisponibles_secret_2026';
+
+    try {
+      let cleanBaseUrl = webhookUrl.trim().replace(/\/+$/, '');
+      if (!cleanBaseUrl.startsWith('http://') && !cleanBaseUrl.startsWith('https://')) {
+        cleanBaseUrl = `https://${cleanBaseUrl}`;
+      }
+
+      const response = await fetch(`${cleanBaseUrl}/instance/connectionState/${instanceId.trim()}`, {
+        method: 'GET',
+        headers: {
+          'apikey': apiKey.trim(),
+        },
+      });
+
+      const data: any = await response.json().catch(() => ({}));
+      const state = data?.instance?.state || data?.state || 'close';
+
+      return res.json({
+        success: true,
+        instanceName: instanceId,
+        state,
+        connected: state === 'open',
+      });
+    } catch (err: any) {
+      return res.json({ success: false, state: 'unknown', connected: false });
+    }
   });
 
   // AI Gap Filler: Generate automated marketing campaign for empty slots
