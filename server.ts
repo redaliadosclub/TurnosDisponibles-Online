@@ -533,9 +533,9 @@ async function startServer() {
 
   // --- Plan Experiencia AI Endpoints ---
 
-  // AI WhatsApp Bot Live Chat
+  // AI WhatsApp Bot Live Chat (Enhanced Conversational Booking & Operations)
   app.post('/api/ai/chat', async (req, res) => {
-    const { businessId, message } = req.body;
+    const { businessId, message, conversationHistory } = req.body;
     if (!businessId || !message) {
       return res.status(400).json({ error: 'businessId y message requeridos' });
     }
@@ -547,11 +547,34 @@ async function startServer() {
 
     const services = db.getServices(business.id);
     const professionals = db.getProfessionals(business.id);
+    const todayStr = new Date().toISOString().split('T')[0];
 
-    const botName = business.aiBotName || 'Asistente Virtual';
-    const botTone = business.aiBotTone || 'professional';
+    // Check available slots for today & next 3 days for live suggestion
+    let realTimeSlotsPreview: string[] = [];
+    try {
+      if (professionals.length > 0 && services.length > 0) {
+        const nextDays = [0, 1, 2, 3].map(offset => {
+          const d = new Date();
+          d.setDate(d.getDate() + offset);
+          return d.toISOString().split('T')[0];
+        });
 
-    const systemInstruction = `Sos ${botName}, el asistente virtual oficial de WhatsApp para "${business.name}".
+        for (const dateCheck of nextDays) {
+          const avail = db.getAvailability(business.id, professionals[0].id, services[0].id, dateCheck);
+          const freeSlots = avail.slots.filter(s => s.available).slice(0, 3).map(s => s.time);
+          if (freeSlots.length > 0) {
+            realTimeSlotsPreview.push(`${dateCheck}: ${freeSlots.join(', ')} hs`);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Could not compute real-time slot preview:', e);
+    }
+
+    const botName = business.aiBotName || 'Sofía';
+    const botTone = business.aiBotTone || 'warm';
+
+    const systemInstruction = `Sos ${botName}, la asistente virtual inteligente y oficial de WhatsApp para "${business.name}".
 Tipo de negocio: ${business.category || business.businessType}.
 Dirección: ${business.address || 'Consultar con recepción'}.
 WhatsApp de contacto: ${business.whatsappNumber || business.phone}.
@@ -560,7 +583,7 @@ Política de cancelación: ${business.cancellationPolicy || 'Avisar con anticipa
 Servicios disponibles y precios:
 ${services.map((s) => `- ${s.name} (${s.durationMinutes} min): $${s.price.toLocaleString('es-AR')} ARS. ${s.description || ''}`).join('\n')}
 
-Especialistas / Profesionales:
+Especialistas / Profesionales del equipo:
 ${professionals.map((p) => `- ${p.name}: ${p.specialty || p.title}`).join('\n')}
 
 Condiciones de Seña y Pagos:
@@ -570,16 +593,27 @@ ${
     : 'No se exige seña previa, se abona al finalizar en el establecimiento.'
 }
 
-Link para reservar online: https://turnosdisponibles.online/book/${business.slug}
+Disponibilidad en tiempo real detectada:
+${realTimeSlotsPreview.length > 0 ? realTimeSlotsPreview.join('\n') : 'Consultar horarios en la web.'}
 
-Instrucciones de respuesta:
-1. Respondé siempre en español argentino / rioplatense o neutro, con tono ${
-      botTone === 'warm' ? 'cálido, cercano y cordial' : botTone === 'commercial' ? 'ágil, persuasivo y comercial' : 'profesional, respetuoso y claro'
+Link para agendar online: https://turnosdisponibles.online/book/${business.slug}
+
+DIRECTIVAS PARA EL FLUJO DE CONVERSACIÓN:
+1. Tu rol es responder consultas, brindar precios exactos y GUIAR EL AGENDAMIENTO en 1 minuto.
+2. Si el usuario quiere reservar un turno o pregunta qué horarios hay libres:
+   - Ofrecele los horarios reales más próximos que figuran arriba o invitalo a seleccionar su día favorito en el link oficial.
+   - Podes pedirle amablemente: Nombre completo, servicio deseado y horario de preferencia.
+3. Si el usuario pide CANCELAR o MODIFICAR su turno:
+   - Explicale que con su Código de Reserva (ej: *TD-1234*) se puede liberar el turno de forma inmediata, o que deje su nombre para gestionarlo.
+4. Formato de WhatsApp:
+   - Usá emojis amigables acordes al rubro.
+   - Usá negrita (*palabra*) para resaltar datos importantes (precios, horarios, links).
+   - Respuestas directas, empáticas y de 2 a 4 párrafos cortos.
+5. Tono: ${
+      botTone === 'warm' ? 'muy cálido, empático y servicial' : botTone === 'commercial' ? 'ágil, comercial y enfocado en cerrar el turno' : 'formal, pulcro y profesional'
     }.
-2. Formato tipo WhatsApp: usá negrita (*texto*) para resaltar nombres, precios o códigos.
-3. Respuestas concisas (máximo 2 a 3 párrafos cortos).
-4. Si preguntan por turnos o cómo agendar, bríndales el link para elegir fecha y hora en tiempo real, o explícales los pasos.
-5. Si piden cancelar o consultar un turno, pediles el código de reserva (formato TD-XXXX) para derivarlo o gestionarlo.`;
+
+${business.aiBotSystemPrompt ? `INSTRUCCIONES ESPECÍFICAS Y REGLAS ADICIONALES DEL NEGOCIO:\n${business.aiBotSystemPrompt}\n` : ''}`;
 
     const ai = getGenAI();
 
@@ -596,11 +630,11 @@ Instrucciones de respuesta:
         const reply = response.text || 'Hola! ¿En qué puedo ayudarte hoy con tu turno?';
         return res.json({ reply, source: 'gemini' });
       } catch (err: any) {
-        console.warn('[Gemini Error, falling back to heuristic engine]:', err.message);
+        console.warn('[Gemini Error, falling back to enhanced heuristic engine]:', err.message);
       }
     }
 
-    // Heuristic Fallback Engine if Gemini API Key is not set or network error
+    // Enhanced Heuristic Fallback Engine with Live Slot Recommendation
     const lower = message.toLowerCase();
     let fallbackReply = '';
 
@@ -609,20 +643,24 @@ Instrucciones de respuesta:
       fallbackReply = `¡Hola! Con gusto te paso los valores de nuestros servicios principales en *${business.name}*:\n\n` +
         topServices.map(s => `• *${s.name}*: $${s.price.toLocaleString('es-AR')} ARS (${s.durationMinutes} min)`).join('\n') +
         `\n\nPodés ver la lista completa y reservar tu lugar aquí: https://turnosdisponibles.online/book/${business.slug}`;
-    } else if (lower.includes('turno') || lower.includes('horario') || lower.includes('disponible') || lower.includes('agendar') || lower.includes('cuando') || lower.includes('cuándo')) {
-      fallbackReply = `¡Hola! Podés consultar los días y horarios libres en tiempo real y elegir a tu profesional favorito directamente desde nuestra agenda online:\n\n👉 *Reservá acá en 1 minuto:* https://turnosdisponibles.online/book/${business.slug}\n\n¡Seleccionás el día que mejor te quede y te llega la confirmación instantánea!`;
+    } else if (lower.includes('turno') || lower.includes('horario') || lower.includes('disponible') || lower.includes('agendar') || lower.includes('cuando') || lower.includes('cuándo') || lower.includes('mañana') || lower.includes('hoy')) {
+      const slotText = realTimeSlotsPreview.length > 0 
+        ? `\n\n🕒 *Próximos horarios sugeridos:*\n${realTimeSlotsPreview.slice(0, 2).map(s => `• ${s}`).join('\n')}\n`
+        : '';
+
+      fallbackReply = `¡Hola! Tengo disponibilidad para coordinar tu turno en *${business.name}*.${slotText}\n👉 *Elegí tu día y horario favorito en 1 minuto:* https://turnosdisponibles.online/book/${business.slug}\n\nO si preferís, decime qué servicio querés y qué día te queda cómodo para reservártelo.`;
     } else if (lower.includes('seña') || lower.includes('pagar') || lower.includes('mercado pago') || lower.includes('transferencia') || lower.includes('alias')) {
       if (business.depositRequired) {
         fallbackReply = `Para confirmar tu cita solicitamos una seña previa de *${business.depositType === 'fixed' ? `$${business.depositAmount} ARS` : `${business.depositAmount}%`}*.\n\nPodés abonarla por:\n• *Mercado Pago / CVU:* \`${business.mpAlias || 'consultorio.mp'}\`\n• *Alias Bancario:* \`${business.bankAlias || 'CONSULTORIO.BANCO'}\`\n\nUna vez transferido, el sistema procesa tu turno de inmediato.`;
       } else {
         fallbackReply = `En *${business.name}* no exigimos seña previa. Podés abonar tu atención directamente al finalizar en nuestro local en efectivo, débito o transferencia. ¡Te esperamos!`;
       }
-    } else if (lower.includes('cancelar') || lower.includes('reprogramar') || lower.includes('cambiar')) {
-      fallbackReply = `Para reprogramar o cancelar tu turno, podés ingresar tu código de reserva (ej: *TD-1234*) en nuestra página web o respondernos con tu código y nombre completo para que una recepcionista te asista. Recordá que nuestra política es: *${business.cancellationPolicy || 'avisar con al menos 2 horas de anticipación'}*.`;
+    } else if (lower.includes('cancelar') || lower.includes('reprogramar') || lower.includes('cambiar') || lower.includes('no puedo ir')) {
+      fallbackReply = `Lamentamos que no puedas asistir. Para cancelar o reprogramar tu turno:\n\n1. Ingresá a https://turnosdisponibles.online/book/${business.slug} y colocá tu código de reserva (ej: *TD-1234*).\n2. O respondeme con tu *Código de reserva* y nombre completo para liberar el turno de la agenda.\n\nPolítica de cancelación: *${business.cancellationPolicy || 'avisar con anticipación'}*.`;
     } else if (lower.includes('donde') || lower.includes('dónde') || lower.includes('direccion') || lower.includes('dirección') || lower.includes('queda')) {
-      fallbackReply = `Estamos ubicados en: 📍 *${business.address}*.\n\nAtendemos de lunes a sábados con turno previo. Reservá el tuyo en: https://turnosdisponibles.online/book/${business.slug}`;
+      fallbackReply = `Estamos ubicados en: 📍 *${business.address}*.\n\nAtendemos con turno previo. Reservá el tuyo en: https://turnosdisponibles.online/book/${business.slug}`;
     } else {
-      fallbackReply = `¡Hola! Soy el asistente virtual de *${business.name}* 🤖.\n\n¿En qué puedo ayudarte hoy?\n• Consultar precios y tratamientos\n• Reservar un turno online\n• Datos de ubicación y horarios\n• Medios de pago y señas\n\nTambién podés ingresar directamente a nuestra agenda digital: https://turnosdisponibles.online/book/${business.slug}`;
+      fallbackReply = `¡Hola! Soy ${botName}, tu asistente virtual de *${business.name}* 🤖.\n\n¿En qué puedo ayudarte hoy?\n• Consultar precios y tratamientos\n• Reservar un turno online en 1 minuto\n• Datos de ubicación y horarios\n• Medios de pago y señas\n\nTambién podés ingresar directamente a nuestra agenda digital: https://turnosdisponibles.online/book/${business.slug}`;
     }
 
     res.json({ reply: fallbackReply, source: 'fallback' });

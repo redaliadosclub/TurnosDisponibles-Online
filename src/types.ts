@@ -82,8 +82,11 @@ export interface Business {
   aiBotName?: string;
   aiBotTone?: 'professional' | 'warm' | 'commercial';
   aiBotWelcomeMessage?: string;
+  aiBotSystemPrompt?: string; // Custom instructions / tone prompt
   aiBotAutoReschedule?: boolean;
   aiBotAutoCancel?: boolean;
+  aiBotShowPrices?: boolean;
+  aiBotAllowBookingLink?: boolean;
 }
 
 export interface Professional {
