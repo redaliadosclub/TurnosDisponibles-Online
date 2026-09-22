@@ -221,13 +221,17 @@ export function BusinessDashboard({
     setEvolutionStatusText('Contactando Evolution API y generando código QR...');
 
     try {
+      const targetUrl = wapiWebhookUrl || 'https://evoapicloudevolution-apiv236-production-0197.up.railway.app';
+      const targetKey = wapiApiKey || 'turnosdisponibles_secret_2026';
+      const targetInstance = wapiInstanceId || business.slug || 'dermatocosmiatria_spa';
+
       const res = await api.getEvolutionQr({
-        webhookUrl: wapiWebhookUrl,
-        apiKey: wapiApiKey,
-        instanceId: wapiInstanceId || business.slug || 'dermatocosmiatria_spa',
+        webhookUrl: targetUrl,
+        apiKey: targetKey,
+        instanceId: targetInstance,
       });
 
-      if (res.success) {
+      if (res && res.success) {
         if (res.qrcode) {
           setEvolutionQrCode(res.qrcode);
           setEvolutionState('connecting');
@@ -235,12 +239,15 @@ export function BusinessDashboard({
         } else if (res.state === 'open') {
           setEvolutionState('open');
           setEvolutionStatusText('¡Esta instancia de WhatsApp ya está conectada y activa!');
+        } else {
+          setEvolutionStatusText(res.message || 'Código QR generado. Actualizá si no carga la imagen.');
         }
       } else {
-        setEvolutionStatusText(res.error || 'No se pudo generar el código QR.');
+        setEvolutionStatusText(res?.error || 'No se pudo generar el código QR.');
       }
     } catch (err: any) {
-      setEvolutionStatusText(`Error: ${err.message}`);
+      console.error('Error fetching QR:', err);
+      setEvolutionStatusText(`Error de conexión: ${err.message || 'Reintentá en unos segundos'}`);
     } finally {
       setEvolutionQrLoading(false);
     }
