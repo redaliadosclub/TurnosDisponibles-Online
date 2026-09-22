@@ -1422,24 +1422,70 @@ export class ApiService {
     message?: string;
     error?: string;
   }> {
+    // 1. Try local Express backend proxy
     try {
       const res = await fetch('/api/evolution/qr', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
-      const text = await res.text();
-      if (!text || !text.trim()) {
-        return { success: false, error: `El servidor devolvió respuesta vacía (HTTP ${res.status})` };
+
+      if (res.ok) {
+        const text = await res.text();
+        if (text && text.trim()) {
+          try {
+            const data = JSON.parse(text);
+            if (data.success) return data;
+          } catch {}
+        }
       }
-      try {
-        return JSON.parse(text);
-      } catch (parseErr) {
-        return { success: false, error: `Respuesta no válida del servidor: ${text.slice(0, 100)}` };
+    } catch {}
+
+    // 2. Direct Railway fallback (in case proxy throws 405 or iframe gateway intercepts)
+    try {
+      const cleanBase = (payload.webhookUrl || 'https://evoapicloudevolution-apiv236-production-0197.up.railway.app')
+        .trim()
+        .replace(/\/+$/, '');
+      const instance = payload.instanceId || 'dermatocosmiatria_spa';
+      const key = payload.apiKey || 'turnosdisponibles_secret_2026';
+
+      // Direct connect attempt
+      const directRes = await fetch(`${cleanBase}/instance/connect/${instance}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': key,
+        },
+      });
+
+      if (directRes.ok) {
+        const data = await directRes.json();
+        const qr = data.base64 || data.qrcode?.base64 || data.code;
+        if (qr) {
+          const finalQr = qr.startsWith('data:image') ? qr : `data:image/png;base64,${qr}`;
+          return {
+            success: true,
+            qrcode: finalQr,
+            state: 'connecting',
+            message: 'Código QR obtenido exitosamente.',
+          };
+        }
+        if (data.instance?.state === 'open' || data.state === 'open') {
+          return {
+            success: true,
+            state: 'open',
+            message: 'Instancia ya conectada.',
+          };
+        }
       }
-    } catch (err: any) {
-      return { success: false, error: err.message || 'Error al conectar con Evolution API' };
+    } catch (directErr: any) {
+      console.warn('Direct Railway fetch failed:', directErr);
     }
+
+    return {
+      success: false,
+      error: 'No se pudo generar el código QR. Verifica que la URL de Railway esté activa.',
+    };
   }
 
   async getEvolutionState(instanceId: string, webhookUrl: string, apiKey: string): Promise<{
