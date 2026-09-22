@@ -1401,7 +1401,15 @@ export class ApiService {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ businessId, ...payload }),
       });
-      return await res.json();
+      const text = await res.text();
+      if (!text || !text.trim()) {
+        return { success: res.ok, message: res.ok ? 'Servidor contactado exitosamente' : `Error HTTP ${res.status}` };
+      }
+      try {
+        return JSON.parse(text);
+      } catch {
+        return { success: res.ok, message: text.slice(0, 150) };
+      }
     } catch (err: any) {
       return { success: false, error: err.message || 'No se pudo contactar el servidor de prueba' };
     }

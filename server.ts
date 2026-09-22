@@ -668,63 +668,73 @@ ${business.aiBotSystemPrompt ? `INSTRUCCIONES ESPECÍFICAS Y REGLAS ADICIONALES 
 
   // AI Gap Filler: Generate automated marketing campaign for empty slots
   app.post('/api/wapi/test', async (req, res) => {
-    const { webhookUrl, apiKey, instanceId, testPhone, businessId } = req.body;
-    if (!webhookUrl) {
+    res.setHeader('Content-Type', 'application/json');
+    const { webhookUrl, apiKey, instanceId } = req.body || {};
+    if (!webhookUrl || typeof webhookUrl !== 'string' || !webhookUrl.trim()) {
       return res.status(400).json({ success: false, error: 'Por favor ingresa la URL de Evolution API o Webhook.' });
     }
 
     try {
-      // Normalise URL to prevent double slashes
-      const cleanBaseUrl = webhookUrl.replace(/\/+$/, '');
-      const testEndpoint = instanceId
-        ? `${cleanBaseUrl}/message/sendText/${instanceId}`
-        : cleanBaseUrl;
-
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (apiKey) {
-        headers['apikey'] = apiKey;
-        headers['Authorization'] = `Bearer ${apiKey}`;
-        headers['x-api-key'] = apiKey;
+      let cleanBaseUrl = webhookUrl.trim().replace(/\/+$/, '');
+      if (!cleanBaseUrl.startsWith('http://') && !cleanBaseUrl.startsWith('https://')) {
+        cleanBaseUrl = `https://${cleanBaseUrl}`;
       }
 
-      // Try sending a probe ping or inspecting instance status
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000);
+      const headers: Record<string, string> = {
+        'Accept': 'application/json, text/plain, */*',
+      };
+      if (apiKey && typeof apiKey === 'string' && apiKey.trim()) {
+        const cleanKey = apiKey.trim();
+        headers['apikey'] = cleanKey;
+        headers['Authorization'] = `Bearer ${cleanKey}`;
+        headers['x-api-key'] = cleanKey;
+      }
 
-      // Try fetching instance status or health check
-      const pingUrl = `${cleanBaseUrl}/instance/fetchInstances`;
-      const pingRes = await fetch(pingUrl, {
-        method: 'GET',
-        headers,
-        signal: controller.signal,
-      }).catch(async () => {
-        // Fallback to checking root or instance status
-        return await fetch(cleanBaseUrl, { method: 'GET', signal: controller.signal });
-      });
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 8000);
+
+      let probeRes: Response;
+      try {
+        probeRes = await fetch(`${cleanBaseUrl}/instance/fetchInstances`, {
+          method: 'GET',
+          headers,
+          signal: controller.signal,
+        });
+      } catch (errFirst) {
+        // Fallback to base root URL
+        probeRes = await fetch(cleanBaseUrl, {
+          method: 'GET',
+          headers,
+          signal: controller.signal,
+        });
+      }
 
       clearTimeout(timeoutId);
 
-      if (pingRes.ok || pingRes.status === 200 || pingRes.status === 401 || pingRes.status === 403) {
-        if (pingRes.status === 401 || pingRes.status === 403) {
-          return res.json({
-            success: false,
-            error: 'Servidor alcanzado, pero la API Key es inválida o no tiene permisos. Verifica el AUTHENTICATION_API_KEY en Railway.',
-          });
-        }
+      const status = probeRes.status;
+      if (status === 401 || status === 403) {
+        return res.json({
+          success: false,
+          error: 'Servidor alcanzado en Railway, pero la API Key fue rechazada (código HTTP 401/403). Verifica que AUTHENTICATION_API_KEY en Railway coincida exactamente con la clave ingresada.',
+        });
+      }
+
+      if (status >= 200 && status < 300) {
         return res.json({
           success: true,
-          message: '¡Conexión con Evolution API exitosa! El servidor en Railway respondió correctamente.',
+          message: '¡Conexión con Evolution API exitosa! El servidor en Railway respondió correctamente (HTTP 200).',
         });
       }
 
       return res.json({
         success: true,
-        message: `Servidor contactado en Railway (código HTTP ${pingRes.status}). Conexión verificada.`,
+        message: `Servidor contactado en Railway (HTTP ${status}). La URL responde correctamente.`,
       });
     } catch (err: any) {
+      console.error('[Evolution API Test Error]:', err);
       return res.json({
         success: false,
-        error: `No se pudo conectar con el servidor: ${err.message || 'Error de red o timeout.'}`,
+        error: `No se pudo conectar con el servidor: ${err.message || 'Error de conexión o timeout.'}`,
       });
     }
   });
