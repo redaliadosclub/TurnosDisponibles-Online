@@ -667,6 +667,68 @@ ${business.aiBotSystemPrompt ? `INSTRUCCIONES ESPECÍFICAS Y REGLAS ADICIONALES 
   });
 
   // AI Gap Filler: Generate automated marketing campaign for empty slots
+  app.post('/api/wapi/test', async (req, res) => {
+    const { webhookUrl, apiKey, instanceId, testPhone, businessId } = req.body;
+    if (!webhookUrl) {
+      return res.status(400).json({ success: false, error: 'Por favor ingresa la URL de Evolution API o Webhook.' });
+    }
+
+    try {
+      // Normalise URL to prevent double slashes
+      const cleanBaseUrl = webhookUrl.replace(/\/+$/, '');
+      const testEndpoint = instanceId
+        ? `${cleanBaseUrl}/message/sendText/${instanceId}`
+        : cleanBaseUrl;
+
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (apiKey) {
+        headers['apikey'] = apiKey;
+        headers['Authorization'] = `Bearer ${apiKey}`;
+        headers['x-api-key'] = apiKey;
+      }
+
+      // Try sending a probe ping or inspecting instance status
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
+
+      // Try fetching instance status or health check
+      const pingUrl = `${cleanBaseUrl}/instance/fetchInstances`;
+      const pingRes = await fetch(pingUrl, {
+        method: 'GET',
+        headers,
+        signal: controller.signal,
+      }).catch(async () => {
+        // Fallback to checking root or instance status
+        return await fetch(cleanBaseUrl, { method: 'GET', signal: controller.signal });
+      });
+
+      clearTimeout(timeoutId);
+
+      if (pingRes.ok || pingRes.status === 200 || pingRes.status === 401 || pingRes.status === 403) {
+        if (pingRes.status === 401 || pingRes.status === 403) {
+          return res.json({
+            success: false,
+            error: 'Servidor alcanzado, pero la API Key es inválida o no tiene permisos. Verifica el AUTHENTICATION_API_KEY en Railway.',
+          });
+        }
+        return res.json({
+          success: true,
+          message: '¡Conexión con Evolution API exitosa! El servidor en Railway respondió correctamente.',
+        });
+      }
+
+      return res.json({
+        success: true,
+        message: `Servidor contactado en Railway (código HTTP ${pingRes.status}). Conexión verificada.`,
+      });
+    } catch (err: any) {
+      return res.json({
+        success: false,
+        error: `No se pudo conectar con el servidor: ${err.message || 'Error de red o timeout.'}`,
+      });
+    }
+  });
+
   app.post('/api/ai/gap-campaign', async (req, res) => {
     const { businessId } = req.body;
     const business = db.getBusinessById(businessId);

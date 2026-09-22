@@ -2197,9 +2197,10 @@ export function BusinessDashboard({
                     onChange={(e) => setWapiProvider(e.target.value as any)}
                     className="w-full px-3 py-2 rounded-xl border border-slate-300 font-semibold text-xs bg-white focus:ring-2 focus:ring-teal-500"
                   >
+                    <option value="evolution">🚀 Evolution API (Open Source / Ilimitado)</option>
                     <option value="flaxxa">FlaxxaWAPI Gateway</option>
                     <option value="flowomatic">Flowomatic Webhook</option>
-                    <option value="custom">Webhook Personalizado (Evolution / n8n)</option>
+                    <option value="custom">Webhook Personalizado (n8n / Make / Render)</option>
                   </select>
                 </div>
 
@@ -2269,6 +2270,30 @@ export function BusinessDashboard({
                   {wapiSaving ? 'Guardando...' : 'Guardar Configuración WAPI'}
                 </button>
               </div>
+
+              {/* Evolution API Quick Helper Banner */}
+              {wapiProvider === 'evolution' && (
+                <div className="p-4 rounded-2xl bg-slate-900 text-slate-200 text-xs border border-slate-700 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-bold text-emerald-400 flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5" />
+                      Estructura de Evolution API para este negocio
+                    </span>
+                    <span className="text-[10px] bg-slate-800 px-2 py-0.5 rounded text-slate-400">
+                      Multi-instancia $0
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-300">
+                    Endpoint de envío de mensajes en Evolution API v2:
+                  </p>
+                  <code className="block bg-black/50 p-2.5 rounded-xl text-[11px] font-mono text-emerald-300 overflow-x-auto">
+                    {wapiWebhookUrl || 'https://tu-evolution-api.up.railway.app'}/message/sendText/{wapiInstanceId || business.slug}
+                  </code>
+                  <p className="text-[10px] text-slate-400">
+                    Webhook entrante para el bot: configurá en tu Evolution API que apunte a <span className="text-white font-mono">/api/ai/chat</span> con el <span className="text-white font-mono">businessId: "{business.id}"</span>.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* PLAN EXPERIENCIA AI: ASISTENTE VIRTUAL WHATSAPP BOT 24/7 & PROMPT CONFIG */}

@@ -1395,7 +1395,16 @@ export class ApiService {
   }
 
   async testWapi(businessId?: string, payload?: any): Promise<{ success: boolean; message?: string; error?: string }> {
-    return { success: true, message: 'Simulación de conexión exitosa' };
+    try {
+      const res = await fetch('/api/wapi/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessId, ...payload }),
+      });
+      return await res.json();
+    } catch (err: any) {
+      return { success: false, error: err.message || 'No se pudo contactar el servidor de prueba' };
+    }
   }
 
   // Plan Experiencia AI Methods

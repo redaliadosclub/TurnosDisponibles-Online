@@ -52,9 +52,9 @@ export interface Business {
   whiteLabelSupportEmail?: string;
   whiteLabelSupportPhone?: string;
 
-  // FlaxxaWAPI / Flowomatic Automation
+  // FlaxxaWAPI / Flowomatic / Evolution API Automation
   wapiEnabled?: boolean;
-  wapiProvider?: 'flaxxa' | 'flowomatic' | 'custom';
+  wapiProvider?: 'evolution' | 'flaxxa' | 'flowomatic' | 'custom';
   wapiWebhookUrl?: string;
   wapiApiKey?: string;
   wapiInstanceId?: string;
