@@ -16,6 +16,17 @@ import { formatDateSpanish, formatDateShort } from '../utils/dateUtils';
 import { generateWaMeLink } from '../lib/notifications';
 import { getSaasConfig } from '../lib/saasConfig';
 import {
+  getBusinessTrialStatus,
+  getMonthlyAppointmentsCount,
+  checkAppointmentCreationLimit,
+  checkProfessionalLimit,
+} from '../lib/planLimits';
+import {
+  generateGoogleCalendarUrl,
+  generateAgendaIcsContent,
+  downloadIcsFile,
+} from '../lib/calendarExport';
+import {
   Calendar as CalendarIcon,
   Users,
   Briefcase,
@@ -46,6 +57,12 @@ import {
   Copy,
   CreditCard,
   Building,
+  Bot,
+  Send,
+  CalendarPlus,
+  Download,
+  Zap,
+  Award,
 } from 'lucide-react';
 
 interface BusinessDashboardProps {
@@ -240,6 +257,108 @@ export function BusinessDashboard({
       setPaymentStatusMessage({ type: 'error', text: err.message || 'Error al guardar la configuración de pagos.' });
     } finally {
       setPaymentSaving(false);
+    }
+  };
+
+  // AI Bot & WhatsApp 24/7 Simulator State (Plan Experiencia AI)
+  const [aiBotEnabled, setAiBotEnabled] = useState<boolean>(business.aiBotEnabled ?? true);
+  const [aiBotName, setAiBotName] = useState<string>(business.aiBotName || 'Sofía');
+  const [aiBotTone, setAiBotTone] = useState<'professional' | 'warm' | 'commercial'>(business.aiBotTone || 'warm');
+  const [aiBotAutoCancel, setAiBotAutoCancel] = useState<boolean>(business.aiBotAutoCancel ?? true);
+  const [aiBotSaving, setAiBotSaving] = useState(false);
+  const [aiBotSavedMessage, setAiBotSavedMessage] = useState<string | null>(null);
+
+  // Chatbot Live Simulator
+  const [aiChatMessages, setAiChatMessages] = useState<Array<{ id: string; sender: 'user' | 'bot'; text: string; time: string }>>([
+    {
+      id: 'welcome-1',
+      sender: 'bot',
+      text: `👋 ¡Hola! Soy ${business.aiBotName || 'Sofía'}, asistente virtual inteligente de ${business.name}. ¿En qué te puedo ayudar hoy? Podés consultar precios, pedir turnos, o ver información de señas.`,
+      time: '10:00',
+    },
+  ]);
+  const [aiInputText, setAiInputText] = useState('');
+  const [aiSending, setAiSending] = useState(false);
+
+  // Gap Campaign Generator (IA)
+  const [gapCampaignModalOpen, setGapCampaignModalOpen] = useState(false);
+  const [gapCampaignLoading, setGapCampaignLoading] = useState(false);
+  const [gapCampaignResult, setGapCampaignResult] = useState<{
+    success?: boolean;
+    campaignMessage: string;
+    targetBusiness?: string;
+    suggestedChannels?: string[];
+  } | null>(null);
+  const [gapCampaignCopied, setGapCampaignCopied] = useState(false);
+  const [profLimitModalOpen, setProfLimitModalOpen] = useState(false);
+
+  const handleSaveAiBot = async () => {
+    try {
+      setAiBotSaving(true);
+      setAiBotSavedMessage(null);
+      const updated = await api.updateBusiness(business.id, {
+        aiBotEnabled,
+        aiBotName,
+        aiBotTone,
+        aiBotAutoCancel,
+      });
+      onUpdateBusiness(updated);
+      setAiBotSavedMessage('¡Configuración del Asistente Virtual guardada exitosamente!');
+      setTimeout(() => setAiBotSavedMessage(null), 3000);
+    } catch (err: any) {
+      alert(err.message || 'Error al guardar configuración de IA');
+    } finally {
+      setAiBotSaving(false);
+    }
+  };
+
+  const handleSendAiChatMessage = async (presetText?: string) => {
+    const textToSend = presetText || aiInputText;
+    if (!textToSend.trim() || aiSending) return;
+
+    const userMsg = {
+      id: 'user-' + Date.now(),
+      sender: 'user' as const,
+      text: textToSend.trim(),
+      time: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
+    };
+
+    setAiChatMessages((prev) => [...prev, userMsg]);
+    if (!presetText) setAiInputText('');
+    setAiSending(true);
+
+    try {
+      const res = await api.chatWithAi(business.id, userMsg.text);
+      const botMsg = {
+        id: 'bot-' + Date.now(),
+        sender: 'bot' as const,
+        text: res.reply,
+        time: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
+      };
+      setAiChatMessages((prev) => [...prev, botMsg]);
+    } catch (err: any) {
+      const errMsg = {
+        id: 'bot-err-' + Date.now(),
+        sender: 'bot' as const,
+        text: 'Lo siento, tuve un problema al procesar tu solicitud. Por favor intenta de nuevo.',
+        time: new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' }),
+      };
+      setAiChatMessages((prev) => [...prev, errMsg]);
+    } finally {
+      setAiSending(false);
+    }
+  };
+
+  const handleGenerateGapCampaign = async () => {
+    try {
+      setGapCampaignLoading(true);
+      setGapCampaignModalOpen(true);
+      const res = await api.generateGapCampaign(business.id);
+      setGapCampaignResult(res);
+    } catch (err: any) {
+      alert(err.message || 'Error al generar campaña de huecos.');
+    } finally {
+      setGapCampaignLoading(false);
     }
   };
 
@@ -499,6 +618,16 @@ export function BusinessDashboard({
     [appointments]
   );
 
+  // Hybrid Strategy status and monthly limits
+  const trialStatus = useMemo(() => getBusinessTrialStatus(business), [business]);
+  const monthlyCount = useMemo(() => getMonthlyAppointmentsCount(appointments, business.id), [appointments, business.id]);
+  const profLimit = useMemo(() => checkProfessionalLimit(business, professionals.length), [business, professionals.length]);
+
+  const handleExportAgendaIcs = () => {
+    const content = generateAgendaIcsContent(appointments, business, services, professionals);
+    downloadIcsFile(`Agenda_${business.slug}_${todayStr}.ics`, content);
+  };
+
   // Status update handler
   const handleUpdateStatus = async (appointmentId: string, newStatus: Appointment['status']) => {
     try {
@@ -742,6 +871,118 @@ export function BusinessDashboard({
 
       {/* Main Container */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
+        {/* Hybrid Commercial Strategy Status Banner */}
+        {business.plan === 'free' && trialStatus.isTrial && (
+          <div className="mb-6 p-4 rounded-3xl bg-gradient-to-r from-teal-500/10 via-emerald-500/10 to-teal-500/5 border border-teal-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 rounded-2xl bg-teal-600 text-white shrink-0 shadow-xs">
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="font-extrabold text-slate-900 text-sm">
+                    Prueba Gratis Pro Activa (Quedan {trialStatus.daysRemaining} días)
+                  </h4>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-100 text-teal-800 border border-teal-200">
+                    Turnos Ilimitados
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  Estás disfrutando de todas las funciones del Plan Pro (turnos ilimitados, cobro de señas por Mercado Pago/CBU y recordatorios automáticos con código). Al culminar los 15 días tu cuenta pasa automáticamente al <strong>Plan Base Free (hasta 20 turnos/mes)</strong> sin perder tus datos.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveTab('plans')}
+              className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition shrink-0 cursor-pointer shadow-xs"
+            >
+              Asegurar Plan Pro ($24.900/mes)
+            </button>
+          </div>
+        )}
+
+        {business.plan === 'free' && !trialStatus.isTrial && (
+          <div className="mb-6 p-4 rounded-3xl bg-white border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-2xl bg-amber-50 text-amber-600 shrink-0 border border-amber-200">
+                <AlertCircle className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="font-extrabold text-slate-900 text-sm">
+                    Plan Base Free • {monthlyCount} de 20 turnos usados este mes
+                  </h4>
+                  {monthlyCount >= 20 ? (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-800 border border-rose-200">
+                      Tope Mensual Alcanzado
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
+                      {Math.max(0, 20 - monthlyCount)} turnos restantes
+                    </span>
+                  )}
+                </div>
+                <div className="w-full max-w-md bg-slate-100 rounded-full h-2 mt-2 overflow-hidden">
+                  <div
+                    className={`h-2 rounded-full transition-all duration-500 ${
+                      monthlyCount >= 20 ? 'bg-rose-500' : monthlyCount >= 15 ? 'bg-amber-500' : 'bg-teal-500'
+                    }`}
+                    style={{ width: `${Math.min(100, (monthlyCount / 20) * 100)}%` }}
+                  />
+                </div>
+                <p className="text-[11px] text-slate-500 mt-1">
+                  Tu negocio creció. Al superar los 20 turnos mensuales, ascendé al Plan Pro Ilimitado para continuar recibiendo reservas automáticas online sin tope.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveTab('plans')}
+              className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white text-xs font-bold transition shrink-0 cursor-pointer shadow-xs flex items-center gap-1.5"
+            >
+              <Sparkles className="w-3.5 h-3.5 text-teal-400" />
+              <span>Subir a Plan Pro Ilimitado ($24.900/mes)</span>
+            </button>
+          </div>
+        )}
+
+        {business.plan === 'pro' && (
+          <div className="mb-6 p-3.5 rounded-3xl bg-teal-50/80 border border-teal-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2.5 text-teal-900">
+              <Award className="w-4 h-4 text-teal-600 shrink-0" />
+              <span>
+                <strong>Plan Pro Ilimitado Activo:</strong> Turnos ilimitados sin tope mensual, hasta 5 profesionales, cobro de señas integrado (Mercado Pago + CBU) y exportación de agenda.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveTab('plans')}
+              className="text-teal-700 hover:text-teal-900 font-bold underline shrink-0 cursor-pointer text-xs"
+            >
+              Ver detalles de suscripción
+            </button>
+          </div>
+        )}
+
+        {business.plan === 'business' && (
+          <div className="mb-6 p-3.5 rounded-3xl bg-slate-900 text-white shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+            <div className="flex items-center gap-2.5 text-slate-200">
+              <Bot className="w-4 h-4 text-teal-400 shrink-0" />
+              <span>
+                <strong>Plan Experiencia AI Activo:</strong> Asistente Virtual WhatsApp Bot 24/7, turnos y profesionales ilimitados, y campañas inteligentes para rellenar huecos.
+              </span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setActiveTab('whatsapp')}
+              className="px-3 py-1 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold shrink-0 cursor-pointer text-xs"
+            >
+              Simulador Asistente IA
+            </button>
+          </div>
+        )}
+
         {/* KPI Summary Cards */}
         <section className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-6">
           <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
@@ -870,13 +1111,37 @@ export function BusinessDashboard({
 
             {/* Appointments Cards / Table */}
             <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden">
-              <div className="p-4 border-b border-slate-100 flex items-center justify-between">
-                <h3 className="font-bold text-slate-900 text-sm sm:text-base">
-                  {calendarView === 'day' ? `Turnos del ${formatDateSpanish(selectedDate)}` : 'Listado Completo de Turnos'}
-                </h3>
-                <span className="text-xs text-slate-500">
-                  {filteredAppointments.length} resultados
-                </span>
+              <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h3 className="font-bold text-slate-900 text-sm sm:text-base">
+                    {calendarView === 'day' ? `Turnos del ${formatDateSpanish(selectedDate)}` : 'Listado Completo de Turnos'}
+                  </h3>
+                  <span className="text-xs text-slate-500">
+                    {filteredAppointments.length} resultados en vista
+                  </span>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={handleExportAgendaIcs}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold border border-slate-200 transition cursor-pointer"
+                    title="Descargar archivo .ics compatible con Google Calendar, Apple Calendar y Outlook"
+                  >
+                    <Download className="w-3.5 h-3.5 text-slate-600" />
+                    <span>Exportar iCal (.ics)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleGenerateGapCampaign}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-800 text-xs font-bold border border-purple-200 transition cursor-pointer shadow-xs"
+                    title="Detectar huecos libres y redactar campaña WhatsApp con IA"
+                  >
+                    <Zap className="w-3.5 h-3.5 text-purple-600" />
+                    <span>Huecos Libres (IA)</span>
+                  </button>
+                </div>
               </div>
 
               {filteredAppointments.length === 0 ? (
@@ -960,6 +1225,19 @@ export function BusinessDashboard({
                               <span className="flex items-center gap-1">
                                 <Phone className="w-3 h-3 text-slate-400" /> {app.customerPhone}
                               </span>
+                              {srv && (
+                                <>
+                                  <span>•</span>
+                                  <span className="text-slate-700 font-medium">
+                                    Total: ${srv.price?.toLocaleString('es-AR')}
+                                  </span>
+                                  {Boolean(app.depositAmount) && (
+                                    <span className="text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                                      Saldo en local: ${Math.max(0, srv.price - (app.depositAmount || 0)).toLocaleString('es-AR')}
+                                    </span>
+                                  )}
+                                </>
+                              )}
                             </div>
 
                             {app.notes && (
@@ -972,15 +1250,31 @@ export function BusinessDashboard({
 
                         {/* Right: Actions */}
                         <div className="flex flex-wrap items-center gap-2 shrink-0 self-end lg:self-center">
-                          {/* WhatsApp Customer Button */}
+                          {/* Google Calendar Link */}
+                          <a
+                            href={generateGoogleCalendarUrl(app, business, srv, prof)}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 text-xs font-semibold flex items-center gap-1 transition"
+                            title="Sincronizar y guardar en Google Calendar"
+                          >
+                            <CalendarPlus className="w-3.5 h-3.5 text-blue-600" />
+                            <span className="hidden sm:inline">Google Cal</span>
+                          </a>
+
+                          {/* WhatsApp Reminder Button with Booking Code */}
                           <button
                             type="button"
-                            onClick={() => handleContactCustomerWhatsApp(app)}
-                            className="p-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 text-xs font-semibold flex items-center gap-1 transition"
-                            title="Contactar al paciente por WhatsApp"
+                            onClick={() => {
+                              const reminderMsg = `Hola ${app.customerName}! 👋 Te recordamos tu turno de ${srv?.name || 'atención'} en ${business.name} con ${prof?.name || 'el profesional'} para el ${formatDateSpanish(app.date)} a las ${app.startTime} hs.\n\n📌 Código de Reserva: ${app.bookingCode}\n📍 Dirección: ${business.address || 'Consultorio'}${app.depositAmount ? `\n💳 Seña: $${app.depositAmount.toLocaleString('es-AR')} (${app.paymentStatus === 'deposit_paid' ? 'Abonada' : 'Pendiente'})` : ''}\n\nPor favor confirma tu asistencia respondiendo a este mensaje. ¡Te esperamos!`;
+                              const url = generateWaMeLink(app.customerPhone, reminderMsg);
+                              window.open(url, '_blank', 'noopener,noreferrer');
+                            }}
+                            className="p-2 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-semibold flex items-center gap-1 transition"
+                            title="Enviar recordatorio automático por WhatsApp con código de turno"
                           >
-                            <MessageCircle className="w-3.5 h-3.5" />
-                            <span className="hidden sm:inline">WhatsApp</span>
+                            <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                            <span>Recordar</span>
                           </button>
 
                           {/* Mark Deposit Paid */}
@@ -1067,17 +1361,44 @@ export function BusinessDashboard({
         {/* TAB 2: PROFESSIONALS */}
         {activeTab === 'professionals' && (
           <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-slate-900">
-                Gestión de {labels.professionalsLabel}
-              </h3>
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="text-base font-bold text-slate-900">
+                    Gestión de {labels.professionalsLabel}
+                  </h3>
+                  <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
+                    profLimit.allowed ? 'bg-slate-100 text-slate-700' : 'bg-rose-100 text-rose-800 border border-rose-200'
+                  }`}>
+                    {business.plan === 'free' && !trialStatus.isTrial
+                      ? `${professionals.length}/1 Profesional (Plan Free)`
+                      : business.plan === 'pro' || trialStatus.isTrial
+                      ? `${professionals.length}/5 Profesionales (Plan Pro)`
+                      : `${professionals.length} Profesionales (Ilimitados)`}
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  {business.plan === 'free' && !trialStatus.isTrial
+                    ? 'El Plan Base Free incluye 1 especialista. Para habilitar agendas de hasta 5 profesionales, ascendé al Plan Pro.'
+                    : 'Cada profesional cuenta con agenda propia, sincronización de turnos y franjas horarias personalizadas.'}
+                </p>
+              </div>
+
               <button
                 type="button"
                 onClick={() => {
-                  setEditingProf(null);
-                  setShowProfModal(true);
+                  if (!profLimit.allowed) {
+                    setProfLimitModalOpen(true);
+                  } else {
+                    setEditingProf(null);
+                    setShowProfModal(true);
+                  }
                 }}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-black transition"
+                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition cursor-pointer ${
+                  profLimit.allowed
+                    ? 'bg-slate-900 text-white hover:bg-black'
+                    : 'bg-amber-100 text-amber-900 hover:bg-amber-200 border border-amber-300'
+                }`}
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>+ Agregar {labels.professionalLabel}</span>
@@ -1948,6 +2269,263 @@ export function BusinessDashboard({
                 </button>
               </div>
             </div>
+
+            {/* PLAN EXPERIENCIA AI: ASISTENTE VIRTUAL WHATSAPP BOT 24/7 */}
+            <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-purple-600 to-indigo-600 flex items-center justify-center text-white shadow-xs">
+                      <Bot className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h4 className="font-extrabold text-slate-900 text-base flex items-center gap-2">
+                        <span>Asistente Virtual IA & WhatsApp Bot 24/7</span>
+                        <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-purple-100 text-purple-800 border border-purple-200">
+                          Plan Experiencia AI
+                        </span>
+                      </h4>
+                    </div>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1">
+                    Atiende consultas en tiempo real por WhatsApp, informa aranceles de servicios, disponibilidad de turnos, datos bancarios para señas y gestiona cancelaciones de forma 100% autónoma.
+                  </p>
+                </div>
+
+                <label className="flex items-center gap-2 cursor-pointer select-none bg-slate-50 px-3.5 py-2 rounded-xl border border-slate-200 shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={aiBotEnabled}
+                    onChange={(e) => setAiBotEnabled(e.target.checked)}
+                    className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500"
+                  />
+                  <span className="text-xs font-bold text-slate-800">
+                    {aiBotEnabled ? 'Asistente IA Activado' : 'Asistente IA Pausado'}
+                  </span>
+                </label>
+              </div>
+
+              {aiBotSavedMessage && (
+                <div className="p-3 rounded-2xl bg-emerald-50 text-emerald-900 border border-emerald-200 text-xs font-semibold flex items-center gap-2">
+                  <Check className="w-4 h-4 text-emerald-600" />
+                  <span>{aiBotSavedMessage}</span>
+                </div>
+              )}
+
+              {/* Bot Configuration Fields */}
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 text-xs">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Nombre del Asistente</label>
+                  <input
+                    type="text"
+                    value={aiBotName}
+                    onChange={(e) => setAiBotName(e.target.value)}
+                    placeholder="ej. Sofía / Asistente Virtual"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white font-medium focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                  />
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">Se presenta ante los pacientes con este nombre.</span>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Tono de Comunicación</label>
+                  <select
+                    value={aiBotTone}
+                    onChange={(e) => setAiBotTone(e.target.value as any)}
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white font-medium focus:ring-2 focus:ring-purple-500 focus:outline-none"
+                  >
+                    <option value="warm">Cálido & Empático (Estética, Bienestar, Psicología)</option>
+                    <option value="professional">Clínico & Formal (Consultorios Médicos, Odontología)</option>
+                    <option value="commercial">Dinámico & Ejecutivo (Barberías, Deportes, Talleres)</option>
+                  </select>
+                  <span className="text-[10px] text-slate-400 mt-0.5 block">Adapta el lenguaje y vocabulario de las respuestas.</span>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Cancelación y Reagendado Autónomo</label>
+                  <div className="pt-1.5">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={aiBotAutoCancel}
+                        onChange={(e) => setAiBotAutoCancel(e.target.checked)}
+                        className="w-4 h-4 rounded text-purple-600 focus:ring-purple-500"
+                      />
+                      <span className="text-xs text-slate-700">Permitir liberar turnos con el código</span>
+                    </label>
+                    <span className="text-[10px] text-slate-400 mt-0.5 block">Libera la agenda de inmediato para otros clientes.</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-2">
+                <button
+                  type="button"
+                  disabled={aiBotSaving}
+                  onClick={handleSaveAiBot}
+                  className="px-5 py-2.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs transition cursor-pointer shadow-xs flex items-center gap-2"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>{aiBotSaving ? 'Guardando...' : 'Guardar Ajustes del Asistente IA'}</span>
+                </button>
+              </div>
+
+              {/* LIVE INTERACTIVE WHATSAPP SIMULATOR */}
+              <div className="mt-6 pt-6 border-t border-slate-100">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-3">
+                  <div>
+                    <h5 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                      <MessageCircle className="w-4 h-4 text-emerald-600" />
+                      <span>Simulador Interactivo de WhatsApp en Tiempo Real</span>
+                    </h5>
+                    <p className="text-xs text-slate-500">
+                      Interactuá con el asistente tal como lo hacen tus pacientes reales para verificar las respuestas automáticas.
+                    </p>
+                  </div>
+                  <span className="text-[11px] text-slate-400">
+                    Potenciado por Gemini Flash & Base de Datos local
+                  </span>
+                </div>
+
+                {/* Simulated Phone Shell */}
+                <div className="max-w-xl mx-auto rounded-3xl overflow-hidden border border-slate-300 shadow-lg bg-[#efeae2]">
+                  {/* WhatsApp Header */}
+                  <div className="bg-[#075e54] text-white px-4 py-3 flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-emerald-700 border border-white/30 flex items-center justify-center font-bold text-sm">
+                        {aiBotName.substring(0, 1).toUpperCase()}
+                      </div>
+                      <div>
+                        <div className="font-bold text-sm leading-tight">{aiBotName} • {business.name}</div>
+                        <div className="text-[11px] text-emerald-200 flex items-center gap-1.5">
+                          <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
+                          <span>en línea (Asistente Oficial)</span>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-md bg-white/10 text-white">
+                      WhatsApp Verified
+                    </div>
+                  </div>
+
+                  {/* Messages Scroll Area */}
+                  <div className="p-4 space-y-3 h-80 overflow-y-auto text-xs">
+                    {aiChatMessages.map((msg) => (
+                      <div
+                        key={msg.id}
+                        className={`flex ${msg.sender === 'user' ? 'justify-end' : 'justify-start'}`}
+                      >
+                        <div
+                          className={`max-w-[85%] rounded-2xl px-3.5 py-2.5 shadow-xs relative ${
+                            msg.sender === 'user'
+                              ? 'bg-[#d9fdd3] text-slate-900 rounded-tr-none'
+                              : 'bg-white text-slate-900 rounded-tl-none border border-slate-200/50'
+                          }`}
+                        >
+                          <p className="leading-relaxed whitespace-pre-line text-[12px]">{msg.text}</p>
+                          <span className="text-[9px] text-slate-400 block text-right mt-1">
+                            {msg.time}
+                          </span>
+                        </div>
+                      </div>
+                    ))}
+
+                    {aiSending && (
+                      <div className="flex justify-start">
+                        <div className="bg-white rounded-2xl rounded-tl-none px-3.5 py-2 shadow-xs border border-slate-200/50 flex items-center gap-1.5 text-slate-500 text-[11px]">
+                          <div className="w-2 h-2 rounded-full bg-slate-400 animate-bounce" />
+                          <div className="w-2 h-2 rounded-full bg-slate-400 animate-bounce [animation-delay:0.2s]" />
+                          <div className="w-2 h-2 rounded-full bg-slate-400 animate-bounce [animation-delay:0.4s]" />
+                          <span className="ml-1 text-[11px]">{aiBotName} está escribiendo...</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Quick Test Prompt Chips */}
+                  <div className="bg-[#f0f2f5] px-3 py-2 border-t border-slate-200 flex items-center gap-1.5 overflow-x-auto scrollbar-none text-[11px]">
+                    <span className="text-slate-400 font-semibold shrink-0">Preguntar:</span>
+                    <button
+                      type="button"
+                      onClick={() => handleSendAiChatMessage('¿Cuánto cuesta la consulta?')}
+                      className="px-2.5 py-1 rounded-full bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-medium shrink-0 cursor-pointer"
+                    >
+                      Precios de servicios
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSendAiChatMessage('¿Tienen turnos disponibles esta semana?')}
+                      className="px-2.5 py-1 rounded-full bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-medium shrink-0 cursor-pointer"
+                    >
+                      Turnos disponibles
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSendAiChatMessage('¿Cómo abono la seña por Mercado Pago o CBU?')}
+                      className="px-2.5 py-1 rounded-full bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-medium shrink-0 cursor-pointer"
+                    >
+                      Datos de señas
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleSendAiChatMessage('Quiero cancelar mi turno')}
+                      className="px-2.5 py-1 rounded-full bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 font-medium shrink-0 cursor-pointer"
+                    >
+                      Cancelar turno
+                    </button>
+                  </div>
+
+                  {/* Input Box */}
+                  <form
+                    onSubmit={(e) => {
+                      e.preventDefault();
+                      handleSendAiChatMessage();
+                    }}
+                    className="bg-[#f0f2f5] p-2.5 border-t border-slate-200 flex items-center gap-2"
+                  >
+                    <input
+                      type="text"
+                      placeholder="Escribí un mensaje de prueba al bot..."
+                      value={aiInputText}
+                      onChange={(e) => setAiInputText(e.target.value)}
+                      disabled={aiSending}
+                      className="flex-1 px-3.5 py-2 rounded-full border border-slate-300 bg-white text-xs focus:outline-none focus:ring-2 focus:ring-[#075e54]"
+                    />
+                    <button
+                      type="submit"
+                      disabled={!aiInputText.trim() || aiSending}
+                      className="w-9 h-9 rounded-full bg-[#075e54] hover:bg-[#128c7e] text-white flex items-center justify-center shrink-0 disabled:opacity-50 transition cursor-pointer"
+                      title="Enviar mensaje"
+                    >
+                      <Send className="w-4 h-4" />
+                    </button>
+                  </form>
+                </div>
+              </div>
+
+              {/* GAP CAMPAIGN LAUNCHER BANNER */}
+              <div className="mt-4 p-4 rounded-2xl bg-purple-50 border border-purple-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-purple-600 text-white shrink-0">
+                    <Zap className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h5 className="font-bold text-slate-900 text-xs sm:text-sm">
+                      Reactivación de Huecos de la Semana con Inteligencia Artificial
+                    </h5>
+                    <p className="text-[11px] text-slate-600 mt-0.5">
+                      Analiza los horarios sin reservar de los próximos días y genera un mensaje listo para publicar en tus historias de WhatsApp e Instagram.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleGenerateGapCampaign}
+                  className="px-4 py-2 rounded-xl bg-purple-700 hover:bg-purple-800 text-white font-bold text-xs shrink-0 cursor-pointer shadow-xs transition"
+                >
+                  Generar Campaña Ahora
+                </button>
+              </div>
+            </div>
           </div>
         )}
 
@@ -2623,8 +3201,22 @@ export function BusinessDashboard({
                   const updated = await api.updateProfessional(business.id, editingProf.id, data);
                   setProfessionals((prev) => prev.map((p) => (p.id === editingProf.id ? updated : p)));
                 } else {
-                  const created = await api.createProfessional(business.id, data);
-                  setProfessionals((prev) => [...prev, created]);
+                  if (!profLimit.allowed) {
+                    setShowProfModal(false);
+                    setProfLimitModalOpen(true);
+                    return;
+                  }
+                  try {
+                    const created = await api.createProfessional(business.id, data);
+                    setProfessionals((prev) => [...prev, created]);
+                  } catch (err: any) {
+                    if (err.message?.includes('PROFESSIONAL_LIMIT_REACHED') || err.message?.includes('Plan')) {
+                      setShowProfModal(false);
+                      setProfLimitModalOpen(true);
+                      return;
+                    }
+                    throw err;
+                  }
                 }
                 setShowProfModal(false);
               }}
@@ -3071,6 +3663,150 @@ export function BusinessDashboard({
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: PROFESSIONAL LIMIT REACHED */}
+      {profLimitModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
+            <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center font-bold">
+                  <AlertCircle className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-base">Límite de Profesionales Alcanzado</h3>
+                  <p className="text-xs text-slate-500">Plan Base Free (1 profesional)</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setProfLimitModalOpen(false)}
+                className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-4">
+              <p className="text-xs text-slate-600 leading-relaxed">
+                Tu cuenta está en el <strong>Plan Base Free</strong>, que permite gestionar la agenda de 1 solo profesional. Para agregar hasta 5 profesionales con agendas independientes y sincronizadas, ascendé al <strong>Plan Pro Ilimitado</strong>.
+              </p>
+
+              <div className="p-4 rounded-2xl bg-teal-50 border border-teal-200 space-y-2 text-xs">
+                <div className="font-bold text-teal-900 flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-teal-600" />
+                  <span>Beneficios del Plan Pro ($24.900/mes):</span>
+                </div>
+                <ul className="list-disc list-inside space-y-1 text-teal-800 text-[11px] pl-1">
+                  <li>Hasta 5 profesionales con agendas independientes</li>
+                  <li>Turnos ilimitados (sin tope mensual de 20)</li>
+                  <li>Cobro de señas integrado por Mercado Pago + CBU/Alias</li>
+                  <li>Sincronización directa con Google Calendar (.ics)</li>
+                </ul>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setProfLimitModalOpen(false)}
+                  className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold cursor-pointer"
+                >
+                  Entendido
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProfLimitModalOpen(false);
+                    setActiveTab('plans');
+                  }}
+                  className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-sm cursor-pointer flex items-center gap-1.5"
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-teal-200" />
+                  <span>Ascender a Plan Pro</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: AI GAP CAMPAIGN GENERATOR */}
+      {gapCampaignModalOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200">
+            <div className="flex items-center justify-between mb-4 pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-purple-50 text-purple-700 flex items-center justify-center font-bold">
+                  <Zap className="w-5 h-5 text-purple-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-900 text-base">Campaña de Relleno de Huecos (IA)</h3>
+                  <p className="text-xs text-slate-500">Detecta turnos vacíos y genera el mensaje de difusión</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setGapCampaignModalOpen(false)}
+                className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {gapCampaignLoading ? (
+              <div className="p-8 text-center space-y-3">
+                <div className="w-8 h-8 rounded-full border-2 border-purple-600 border-t-transparent animate-spin mx-auto" />
+                <p className="text-xs text-slate-600 font-medium">
+                  Analizando tu agenda con IA y redactando una propuesta atractiva...
+                </p>
+              </div>
+            ) : gapCampaignResult ? (
+              <div className="space-y-4">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-500">
+                    Campaña inteligente generada con <strong>Gemini IA</strong>
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-800 font-bold text-[10px]">
+                    Listo para publicar
+                  </span>
+                </div>
+
+                <div className="p-3.5 rounded-2xl bg-[#efeae2] border border-slate-300 font-sans text-xs text-slate-900 whitespace-pre-line leading-relaxed max-h-60 overflow-y-auto">
+                  {gapCampaignResult.campaignMessage}
+                </div>
+
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText(gapCampaignResult.campaignMessage);
+                      setGapCampaignCopied(true);
+                      setTimeout(() => setGapCampaignCopied(false), 2000);
+                    }}
+                    className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-black text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer"
+                  >
+                    {gapCampaignCopied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
+                    <span>{gapCampaignCopied ? '¡Copiado al portapapeles!' : 'Copiar Texto para WhatsApp'}</span>
+                  </button>
+
+                  <a
+                    href={generateWaMeLink(
+                      business.phone,
+                      gapCampaignResult.campaignMessage
+                    )}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center gap-1.5 cursor-pointer shadow-xs"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" />
+                    <span>Enviar a mi WhatsApp</span>
+                  </a>
+                </div>
+              </div>
+            ) : null}
           </div>
         </div>
       )}

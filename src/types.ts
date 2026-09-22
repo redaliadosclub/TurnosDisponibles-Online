@@ -76,6 +76,14 @@ export interface Business {
   bankAccountHolder?: string;
   bankName?: string;
   paymentInstructions?: string;
+
+  // Plan Experiencia AI: WhatsApp Bot & Assistant 24/7
+  aiBotEnabled?: boolean;
+  aiBotName?: string;
+  aiBotTone?: 'professional' | 'warm' | 'commercial';
+  aiBotWelcomeMessage?: string;
+  aiBotAutoReschedule?: boolean;
+  aiBotAutoCancel?: boolean;
 }
 
 export interface Professional {

@@ -1,12 +1,27 @@
 import express from 'express';
 import path from 'path';
 import { createServer as createViteServer } from 'vite';
+import { GoogleGenAI } from '@google/genai';
 import { db } from './server/db';
 import {
   formatCustomerWhatsAppMessage,
   formatBusinessWhatsAppAlert,
   generateWaMeLink,
 } from './src/lib/notifications';
+
+let aiClient: GoogleGenAI | null = null;
+function getGenAI(): GoogleGenAI | null {
+  if (!process.env.GEMINI_API_KEY) return null;
+  if (!aiClient) {
+    try {
+      aiClient = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+    } catch (e) {
+      console.warn('[Gemini Init Warning]:', e);
+      return null;
+    }
+  }
+  return aiClient;
+}
 
 async function startServer() {
   const app = express();
@@ -215,6 +230,25 @@ async function startServer() {
 
   app.post('/api/businesses/:businessId/professionals', (req, res) => {
     try {
+      const biz = db.getBusinessById(req.params.businessId);
+      if (biz) {
+        const currentProfs = db.getProfessionals(biz.id);
+        const createdMs = biz.createdAt ? new Date(biz.createdAt).getTime() : 0;
+        const isTrial = (Date.now() - createdMs) < (15 * 86400000);
+
+        if (biz.plan === 'free' && !isTrial && currentProfs.length >= 1) {
+          return res.status(403).json({
+            error: 'El Plan Base Free incluye 1 profesional. Asciende al Plan Pro para habilitar hasta 5 profesionales con agendas independientes.',
+            code: 'PROFESSIONAL_LIMIT_REACHED',
+          });
+        }
+        if (biz.plan === 'pro' && currentProfs.length >= 5) {
+          return res.status(403).json({
+            error: 'El Plan Pro incluye hasta 5 profesionales. Asciende al Plan Experiencia AI para habilitar profesionales y sucursales ilimitadas.',
+            code: 'PROFESSIONAL_LIMIT_REACHED',
+          });
+        }
+      }
       const created = db.createProfessional(req.params.businessId, req.body);
       res.status(201).json(created);
     } catch (err: any) {
@@ -347,6 +381,24 @@ async function startServer() {
     }
 
     try {
+      const biz = db.getBusinessById(businessId);
+      if (biz && biz.plan === 'free') {
+        const createdMs = biz.createdAt ? new Date(biz.createdAt).getTime() : 0;
+        const isTrial = (Date.now() - createdMs) < (15 * 86400000);
+        if (!isTrial) {
+          const currentYm = date.slice(0, 7);
+          const monthlyApps = db.getAppointments(businessId, {}).filter(
+            (a) => a.date && a.date.startsWith(currentYm) && a.status !== 'cancelled'
+          );
+          if (monthlyApps.length >= 20) {
+            return res.status(403).json({
+              error: 'El negocio ha alcanzado el límite mensual de 20 turnos del Plan Base Free. Por favor contáctalo por WhatsApp o solicita ascender a Plan Pro Ilimitado.',
+              code: 'PLAN_MONTHLY_LIMIT_REACHED',
+            });
+          }
+        }
+      }
+
       const result = db.createAppointmentAtomic({
         businessId,
         professionalId,
@@ -476,6 +528,125 @@ async function startServer() {
       customerUrl,
       businessMsg,
       businessUrl,
+    });
+  });
+
+  // --- Plan Experiencia AI Endpoints ---
+
+  // AI WhatsApp Bot Live Chat
+  app.post('/api/ai/chat', async (req, res) => {
+    const { businessId, message } = req.body;
+    if (!businessId || !message) {
+      return res.status(400).json({ error: 'businessId y message requeridos' });
+    }
+
+    const business = db.getBusinessById(businessId);
+    if (!business) {
+      return res.status(404).json({ error: 'Negocio no encontrado' });
+    }
+
+    const services = db.getServices(business.id);
+    const professionals = db.getProfessionals(business.id);
+
+    const botName = business.aiBotName || 'Asistente Virtual';
+    const botTone = business.aiBotTone || 'professional';
+
+    const systemInstruction = `Sos ${botName}, el asistente virtual oficial de WhatsApp para "${business.name}".
+Tipo de negocio: ${business.category || business.businessType}.
+Dirección: ${business.address || 'Consultar con recepción'}.
+WhatsApp de contacto: ${business.whatsappNumber || business.phone}.
+Política de cancelación: ${business.cancellationPolicy || 'Avisar con anticipación'}.
+
+Servicios disponibles y precios:
+${services.map((s) => `- ${s.name} (${s.durationMinutes} min): $${s.price.toLocaleString('es-AR')} ARS. ${s.description || ''}`).join('\n')}
+
+Especialistas / Profesionales:
+${professionals.map((p) => `- ${p.name}: ${p.specialty || p.title}`).join('\n')}
+
+Condiciones de Seña y Pagos:
+${
+  business.depositRequired
+    ? `Seña requerida: ${business.depositType === 'fixed' ? `$${business.depositAmount} ARS` : `${business.depositAmount}% del servicio`}. Alias MP: ${business.mpAlias || 'consultar'}. CBU/Alias Bancario: ${business.bankAlias || 'consultar'}.`
+    : 'No se exige seña previa, se abona al finalizar en el establecimiento.'
+}
+
+Link para reservar online: https://turnosdisponibles.online/book/${business.slug}
+
+Instrucciones de respuesta:
+1. Respondé siempre en español argentino / rioplatense o neutro, con tono ${
+      botTone === 'warm' ? 'cálido, cercano y cordial' : botTone === 'commercial' ? 'ágil, persuasivo y comercial' : 'profesional, respetuoso y claro'
+    }.
+2. Formato tipo WhatsApp: usá negrita (*texto*) para resaltar nombres, precios o códigos.
+3. Respuestas concisas (máximo 2 a 3 párrafos cortos).
+4. Si preguntan por turnos o cómo agendar, bríndales el link para elegir fecha y hora en tiempo real, o explícales los pasos.
+5. Si piden cancelar o consultar un turno, pediles el código de reserva (formato TD-XXXX) para derivarlo o gestionarlo.`;
+
+    const ai = getGenAI();
+
+    if (ai) {
+      try {
+        const response = await ai.models.generateContent({
+          model: 'gemini-3.8-flash',
+          contents: message,
+          config: {
+            systemInstruction,
+          },
+        });
+
+        const reply = response.text || 'Hola! ¿En qué puedo ayudarte hoy con tu turno?';
+        return res.json({ reply, source: 'gemini' });
+      } catch (err: any) {
+        console.warn('[Gemini Error, falling back to heuristic engine]:', err.message);
+      }
+    }
+
+    // Heuristic Fallback Engine if Gemini API Key is not set or network error
+    const lower = message.toLowerCase();
+    let fallbackReply = '';
+
+    if (lower.includes('precio') || lower.includes('costo') || lower.includes('cuanto sale') || lower.includes('cuánto sale') || lower.includes('valor')) {
+      const topServices = services.slice(0, 4);
+      fallbackReply = `¡Hola! Con gusto te paso los valores de nuestros servicios principales en *${business.name}*:\n\n` +
+        topServices.map(s => `• *${s.name}*: $${s.price.toLocaleString('es-AR')} ARS (${s.durationMinutes} min)`).join('\n') +
+        `\n\nPodés ver la lista completa y reservar tu lugar aquí: https://turnosdisponibles.online/book/${business.slug}`;
+    } else if (lower.includes('turno') || lower.includes('horario') || lower.includes('disponible') || lower.includes('agendar') || lower.includes('cuando') || lower.includes('cuándo')) {
+      fallbackReply = `¡Hola! Podés consultar los días y horarios libres en tiempo real y elegir a tu profesional favorito directamente desde nuestra agenda online:\n\n👉 *Reservá acá en 1 minuto:* https://turnosdisponibles.online/book/${business.slug}\n\n¡Seleccionás el día que mejor te quede y te llega la confirmación instantánea!`;
+    } else if (lower.includes('seña') || lower.includes('pagar') || lower.includes('mercado pago') || lower.includes('transferencia') || lower.includes('alias')) {
+      if (business.depositRequired) {
+        fallbackReply = `Para confirmar tu cita solicitamos una seña previa de *${business.depositType === 'fixed' ? `$${business.depositAmount} ARS` : `${business.depositAmount}%`}*.\n\nPodés abonarla por:\n• *Mercado Pago / CVU:* \`${business.mpAlias || 'consultorio.mp'}\`\n• *Alias Bancario:* \`${business.bankAlias || 'CONSULTORIO.BANCO'}\`\n\nUna vez transferido, el sistema procesa tu turno de inmediato.`;
+      } else {
+        fallbackReply = `En *${business.name}* no exigimos seña previa. Podés abonar tu atención directamente al finalizar en nuestro local en efectivo, débito o transferencia. ¡Te esperamos!`;
+      }
+    } else if (lower.includes('cancelar') || lower.includes('reprogramar') || lower.includes('cambiar')) {
+      fallbackReply = `Para reprogramar o cancelar tu turno, podés ingresar tu código de reserva (ej: *TD-1234*) en nuestra página web o respondernos con tu código y nombre completo para que una recepcionista te asista. Recordá que nuestra política es: *${business.cancellationPolicy || 'avisar con al menos 2 horas de anticipación'}*.`;
+    } else if (lower.includes('donde') || lower.includes('dónde') || lower.includes('direccion') || lower.includes('dirección') || lower.includes('queda')) {
+      fallbackReply = `Estamos ubicados en: 📍 *${business.address}*.\n\nAtendemos de lunes a sábados con turno previo. Reservá el tuyo en: https://turnosdisponibles.online/book/${business.slug}`;
+    } else {
+      fallbackReply = `¡Hola! Soy el asistente virtual de *${business.name}* 🤖.\n\n¿En qué puedo ayudarte hoy?\n• Consultar precios y tratamientos\n• Reservar un turno online\n• Datos de ubicación y horarios\n• Medios de pago y señas\n\nTambién podés ingresar directamente a nuestra agenda digital: https://turnosdisponibles.online/book/${business.slug}`;
+    }
+
+    res.json({ reply: fallbackReply, source: 'fallback' });
+  });
+
+  // AI Gap Filler: Generate automated marketing campaign for empty slots
+  app.post('/api/ai/gap-campaign', async (req, res) => {
+    const { businessId } = req.body;
+    const business = db.getBusinessById(businessId);
+    if (!business) return res.status(404).json({ error: 'Negocio no encontrado' });
+
+    const services = db.getServices(business.id);
+    const profs = db.getProfessionals(business.id);
+
+    const srvNames = services.slice(0, 3).map(s => s.name).join(', ');
+    const profNames = profs.slice(0, 2).map(p => p.name).join(' y ');
+
+    const campaignMessage = `🌟 *¡Huecos de última hora disponibles en ${business.name}!* 🌟\n\nHola 👋 ¿Querés cuidar tu bienestar esta semana? Se liberaron algunos turnos especiales con ${profNames || 'nuestros especialistas'}.\n\n📅 *Tratamientos disponibles:* ${srvNames || 'Consultas y servicios'}\n\n👉 *Asegurá tu lugar en 1 minuto:* https://turnosdisponibles.online/book/${business.slug}\n\n¡O respondé este mensaje para asignarte un horario antes de que se completen!`;
+
+    res.json({
+      success: true,
+      campaignMessage,
+      targetBusiness: business.name,
+      suggestedChannels: ['WhatsApp Broadcast / Estados', 'Instagram Stories', 'Email de Re-enganche'],
     });
   });
 

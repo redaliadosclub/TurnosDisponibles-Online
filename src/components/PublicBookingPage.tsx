@@ -14,6 +14,7 @@ import {
   generateNextDays,
   generateGoogleCalendarUrl,
   downloadIcsFile,
+  generateWaMeLink,
 } from '../utils/dateUtils';
 import {
   CheckCircle,
@@ -233,7 +234,17 @@ export function PublicBookingPage({
 
       setBookingSuccess(result);
     } catch (err: any) {
-      if (err.code === 'SLOT_OCCUPIED' || err.status === 409) {
+      if (
+        err.code === 'PLAN_MONTHLY_LIMIT_REACHED' ||
+        err.status === 402 ||
+        err.message?.includes('PLAN_MONTHLY_LIMIT_REACHED') ||
+        err.message?.includes('tope mensual') ||
+        err.message?.includes('Plan Pro')
+      ) {
+        setBookingError(
+          'El establecimiento ha completado el cupo mensual de turnos online de su plan actual. Para reservar directamente, contáctate por WhatsApp.'
+        );
+      } else if (err.code === 'SLOT_OCCUPIED' || err.status === 409) {
         setBookingError(
           '¡Lo sentimos! Este horario acaba de ser ocupado por otra persona. La disponibilidad se ha actualizado. Por favor elige otro horario disponible.'
         );
@@ -1061,9 +1072,32 @@ export function PublicBookingPage({
                   </div>
 
                   {bookingError && (
-                    <div className="mb-4 p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-start gap-2">
-                      <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
-                      <span>{bookingError}</span>
+                    <div className="mb-4 p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+                      <div className="flex items-start gap-2.5">
+                        <AlertCircle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+                        <div>
+                          <p className="font-semibold text-rose-950">{bookingError}</p>
+                          {bookingError.includes('WhatsApp') && (
+                            <p className="text-[11px] text-rose-700 mt-0.5">
+                              Podés enviar un mensaje directo para que te atiendan personalmente.
+                            </p>
+                          )}
+                        </div>
+                      </div>
+                      {bookingError.includes('WhatsApp') && (
+                        <a
+                          href={generateWaMeLink(
+                            business.phone,
+                            `Hola! Estaba intentando reservar un turno para ${selectedService?.name || 'atención'} con ${selectedProfessional?.name || ''} para el ${selectedDate} a las ${selectedSlot?.time || ''} hs pero el sistema indica cupo mensual completo. ¿Podrán confirmarme si tienen lugar? ¡Muchas gracias!`
+                          )}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shrink-0 flex items-center justify-center gap-1.5 transition shadow-xs cursor-pointer"
+                        >
+                          <MessageCircle className="w-4 h-4" />
+                          <span>Consultar por WhatsApp</span>
+                        </a>
+                      )}
                     </div>
                   )}
 

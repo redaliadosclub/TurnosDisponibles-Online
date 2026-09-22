@@ -113,3 +113,8 @@ export function downloadIcsFile(appointment: {
   link.click();
   document.body.removeChild(link);
 }
+
+export function generateWaMeLink(phone: string, message: string): string {
+  const cleanPhone = phone.replace(/[^0-9]/g, '');
+  return `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message)}`;
+}

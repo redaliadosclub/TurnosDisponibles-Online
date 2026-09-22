@@ -16,6 +16,10 @@ import {
   formatBusinessWhatsAppAlert,
   generateWaMeLink,
 } from '../lib/notifications';
+import {
+  checkAppointmentCreationLimit,
+  checkProfessionalLimit,
+} from '../lib/planLimits';
 import { db } from '../lib/firebase';
 import {
   collection,
@@ -1049,6 +1053,15 @@ export class ApiService {
   }
 
   async createProfessional(businessId: string, data: Omit<Professional, 'id' | 'businessId'>): Promise<Professional> {
+    const biz = this.businesses.find((b) => b.id === businessId);
+    if (biz) {
+      const currentProfs = this.professionals.filter((p) => p.businessId === businessId);
+      const limitCheck = checkProfessionalLimit(biz, currentProfs.length);
+      if (!limitCheck.allowed) {
+        throw new Error(limitCheck.reason || 'Límite de profesionales alcanzado para tu plan actual');
+      }
+    }
+
     const newProf: Professional = {
       ...data,
       id: `prof_${Date.now()}`,
@@ -1238,6 +1251,11 @@ export class ApiService {
       throw new Error('Datos de negocio o servicio inválidos');
     }
 
+    const limitCheck = checkAppointmentCreationLimit(biz, this.appointments);
+    if (!limitCheck.allowed) {
+      throw new Error(limitCheck.reason || 'Límite de turnos alcanzado para el plan actual');
+    }
+
     let cust = this.customers.find(
       (c) => c.businessId === biz.id && c.phone.replace(/\D/g, '') === payload.customer.phone.replace(/\D/g, '')
     );
@@ -1378,6 +1396,53 @@ export class ApiService {
 
   async testWapi(businessId?: string, payload?: any): Promise<{ success: boolean; message?: string; error?: string }> {
     return { success: true, message: 'Simulación de conexión exitosa' };
+  }
+
+  // Plan Experiencia AI Methods
+  async chatWithAi(businessId: string, message: string): Promise<{ reply: string; source?: string }> {
+    try {
+      const res = await fetch('/api/ai/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessId, message }),
+      });
+      if (!res.ok) {
+        throw new Error(`HTTP error ${res.status}`);
+      }
+      return await res.json();
+    } catch (e) {
+      console.warn('AI Chat fallback due to network or server:', e);
+      return {
+        reply: `¡Hola! Gracias por contactarnos. Nuestro equipo responderá a la brevedad. Podés reservar directamente en nuestra agenda online.`,
+        source: 'client-fallback',
+      };
+    }
+  }
+
+  async generateGapCampaign(businessId: string): Promise<{
+    success: boolean;
+    campaignMessage: string;
+    targetBusiness: string;
+    suggestedChannels: string[];
+  }> {
+    try {
+      const res = await fetch('/api/ai/gap-campaign', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ businessId }),
+      });
+      if (!res.ok) throw new Error(`HTTP error ${res.status}`);
+      return await res.json();
+    } catch (e) {
+      const biz = this.businesses.find((b) => b.id === businessId);
+      const bizName = biz?.name || 'nuestro centro';
+      return {
+        success: true,
+        campaignMessage: `🌟 ¡Huecos de última hora disponibles en ${bizName}! 🌟\n\nHola 👋 ¿Querés cuidar tu salud y bienestar esta semana? Tenemos turnos libres disponibles.\n\n👉 Reservá tu turno en 1 minuto: https://turnosdisponibles.online/book/${biz?.slug || ''}`,
+        targetBusiness: bizName,
+        suggestedChannels: ['WhatsApp Broadcast', 'Instagram Stories'],
+      };
+    }
   }
 }
 
