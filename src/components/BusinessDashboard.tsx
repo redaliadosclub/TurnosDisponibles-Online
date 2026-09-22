@@ -144,11 +144,13 @@ export function BusinessDashboard({
   };
 
   // Flaxxa WAPI / Flowomatic Automation State
-  const [wapiEnabled, setWapiEnabled] = useState<boolean>(Boolean(business.wapiEnabled));
-  const [wapiProvider, setWapiProvider] = useState<'flaxxa' | 'flowomatic' | 'custom'>(business.wapiProvider || 'flaxxa');
-  const [wapiWebhookUrl, setWapiWebhookUrl] = useState<string>(business.wapiWebhookUrl || 'https://api.flaxxawapi.com/v1/messages');
-  const [wapiApiKey, setWapiApiKey] = useState<string>(business.wapiApiKey || '');
-  const [wapiInstanceId, setWapiInstanceId] = useState<string>(business.wapiInstanceId || '');
+  const [wapiEnabled, setWapiEnabled] = useState<boolean>(business.wapiEnabled !== undefined ? Boolean(business.wapiEnabled) : true);
+  const [wapiProvider, setWapiProvider] = useState<'evolution' | 'flaxxa' | 'flowomatic' | 'custom'>(business.wapiProvider || 'evolution');
+  const [wapiWebhookUrl, setWapiWebhookUrl] = useState<string>(
+    business.wapiWebhookUrl || 'https://evoapicloudevolution-apiv236-production-0197.up.railway.app'
+  );
+  const [wapiApiKey, setWapiApiKey] = useState<string>(business.wapiApiKey || 'turnosdisponibles_secret_2026');
+  const [wapiInstanceId, setWapiInstanceId] = useState<string>(business.wapiInstanceId || business.slug || 'dermatocosmiatria_spa');
   const [wapiTestPhone, setWapiTestPhone] = useState<string>(business.whatsappNumber || '+5491148219900');
   const [wapiTesting, setWapiTesting] = useState<boolean>(false);
   const [wapiStatusMessage, setWapiStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
