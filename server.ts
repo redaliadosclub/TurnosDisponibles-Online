@@ -708,22 +708,20 @@ ${business.aiBotSystemPrompt ? `INSTRUCCIONES ESPECÍFICAS Y REGLAS ADICIONALES 
     res.json({ reply: fallbackReply, source: 'fallback' });
   });
 
-  // Evolution API: QR Code Generator & Connection Manager
-  app.post('/api/evolution/qr', async (req, res) => {
+  // Evolution API: QR Code Generator & Connection Manager (Supports both POST & GET)
+  const handleEvolutionQrRequest = async (req: any, res: any) => {
     res.setHeader('Content-Type', 'application/json');
-    const { webhookUrl, apiKey, instanceId } = req.body || {};
-
-    if (!webhookUrl || !instanceId) {
-      return res.status(400).json({ success: false, error: 'Faltan parámetros: webhookUrl e instanceId son obligatorios.' });
-    }
+    const webhookUrl = req.body?.webhookUrl || req.query?.webhookUrl || 'https://evoapicloudevolution-apiv236-production-0197.up.railway.app';
+    const apiKey = req.body?.apiKey || req.query?.apiKey || 'turnosdisponibles_secret_2026';
+    const instanceId = req.body?.instanceId || req.query?.instanceId || 'dermatocosmiatria_spa';
 
     try {
-      let cleanBaseUrl = webhookUrl.trim().replace(/\/+$/, '');
+      let cleanBaseUrl = String(webhookUrl).trim().replace(/\/+$/, '');
       if (!cleanBaseUrl.startsWith('http://') && !cleanBaseUrl.startsWith('https://')) {
         cleanBaseUrl = `https://${cleanBaseUrl}`;
       }
-      const cleanKey = (apiKey || 'turnosdisponibles_secret_2026').trim();
-      const instanceName = instanceId.trim();
+      const cleanKey = String(apiKey || 'turnosdisponibles_secret_2026').trim();
+      const instanceName = String(instanceId).trim();
 
       const headers: Record<string, string> = {
         'Content-Type': 'application/json',
@@ -807,7 +805,10 @@ ${business.aiBotSystemPrompt ? `INSTRUCCIONES ESPECÍFICAS Y REGLAS ADICIONALES 
       console.error('[Evolution API QR Error]:', err);
       return res.status(500).json({ success: false, error: err.message || 'Error de conexión con Evolution API' });
     }
-  });
+  };
+
+  app.post('/api/evolution/qr', handleEvolutionQrRequest);
+  app.get('/api/evolution/qr', handleEvolutionQrRequest);
 
   // Evolution API: Instance Connection State Check
   app.get('/api/evolution/state/:instanceId', async (req, res) => {
