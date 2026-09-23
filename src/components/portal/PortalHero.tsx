@@ -26,6 +26,7 @@ interface PortalHeroProps {
   onExecuteSearch: () => void;
   onOpenAuthModal: () => void;
   businesses?: Business[];
+  onSetUserCoords?: (coords: { lat: number; lng: number } | null) => void;
 }
 
 export function PortalHero({
@@ -38,6 +39,7 @@ export function PortalHero({
   onExecuteSearch,
   onOpenAuthModal,
   businesses = [],
+  onSetUserCoords,
 }: PortalHeroProps) {
   const [isLocating, setIsLocating] = useState(false);
 
@@ -64,6 +66,11 @@ export function PortalHero({
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setIsLocating(false);
+        const userLat = pos.coords.latitude;
+        const userLng = pos.coords.longitude;
+        if (onSetUserCoords) {
+          onSetUserCoords({ lat: userLat, lng: userLng });
+        }
         // Filtra por Cerca de mí
         onLocationChange('near_me');
         onExecuteSearch();
@@ -73,7 +80,7 @@ export function PortalHero({
         console.warn('Geolocation denied or failed', err);
         alert('No pudimos acceder a tu ubicación. Por favor selecciona tu zona manualmente.');
       },
-      { timeout: 10000 }
+      { timeout: 10000, enableHighAccuracy: true }
     );
   };
 

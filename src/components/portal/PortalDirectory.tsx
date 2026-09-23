@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react';
 import { Business, Service, Professional } from '../../types';
-import { extractLocationsFromBusinesses } from '../../lib/locationUtils';
+import { extractLocationsFromBusinesses, getBusinessCoordinates, calculateDistanceKm } from '../../lib/locationUtils';
 import {
   Sparkles,
   MapPin,
@@ -22,6 +22,7 @@ import {
   Briefcase,
   CheckCircle2,
   ExternalLink,
+  Navigation,
 } from 'lucide-react';
 
 interface PortalDirectoryProps {
@@ -35,6 +36,8 @@ interface PortalDirectoryProps {
   selectedLocation: string;
   onLocationChange: (val: string) => void;
   onSelectBooking: (slug: string) => void;
+  userCoords?: { lat: number; lng: number } | null;
+  onSetUserCoords?: (coords: { lat: number; lng: number } | null) => void;
 }
 
 export function PortalDirectory({
@@ -48,9 +51,37 @@ export function PortalDirectory({
   selectedLocation,
   onLocationChange,
   onSelectBooking,
+  userCoords,
+  onSetUserCoords,
 }: PortalDirectoryProps) {
   const [sortBy, setSortBy] = useState<'recommended' | 'rating' | 'name'>('recommended');
   const [quickDetailBiz, setQuickDetailBiz] = useState<Business | null>(null);
+  const [isLocating, setIsLocating] = useState(false);
+
+  const handleDetectLocation = () => {
+    if (!navigator.geolocation) {
+      alert('La geolocalización no está disponible en este dispositivo.');
+      return;
+    }
+    setIsLocating(true);
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setIsLocating(false);
+        const userLat = pos.coords.latitude;
+        const userLng = pos.coords.longitude;
+        if (onSetUserCoords) {
+          onSetUserCoords({ lat: userLat, lng: userLng });
+        }
+        onLocationChange('near_me');
+      },
+      (err) => {
+        setIsLocating(false);
+        console.warn('Geolocation error:', err);
+        alert('No pudimos acceder a tu ubicación. Por favor selecciona tu zona manualmente.');
+      },
+      { timeout: 10000, enableHighAccuracy: true }
+    );
+  };
 
   // Extraer automáticamente las zonas y ciudades de los negocios registrados
   const dynamicLocations = useMemo(() => {
@@ -70,7 +101,7 @@ export function PortalDirectory({
 
   // Filter businesses
   const filteredBusinesses = useMemo(() => {
-    return businesses.filter((biz) => {
+    const list = businesses.filter((biz) => {
       // Only show active businesses
       if (biz.status === 'suspended') return false;
 
@@ -79,8 +110,8 @@ export function PortalDirectory({
         return false;
       }
 
-      // Location match
-      if (selectedLocation !== 'all' && biz.address) {
+      // Location match (when not near_me and not all)
+      if (selectedLocation !== 'all' && selectedLocation !== 'near_me' && biz.address) {
         if (!biz.address.toLowerCase().includes(selectedLocation.toLowerCase())) {
           return false;
         }
@@ -109,7 +140,20 @@ export function PortalDirectory({
 
       return true;
     });
-  }, [businesses, selectedCategory, selectedLocation, searchQuery, servicesMap, professionalsMap]);
+
+    // Si el filtro es "Cerca de mí" y tenemos coordenadas del usuario, ordenar por proximidad real (km)
+    if (selectedLocation === 'near_me' && userCoords) {
+      return [...list].sort((a, b) => {
+        const coordsA = getBusinessCoordinates(a.address);
+        const coordsB = getBusinessCoordinates(b.address);
+        const distA = coordsA ? calculateDistanceKm(userCoords.lat, userCoords.lng, coordsA.lat, coordsA.lng) : 99999;
+        const distB = coordsB ? calculateDistanceKm(userCoords.lat, userCoords.lng, coordsB.lat, coordsB.lng) : 99999;
+        return distA - distB;
+      });
+    }
+
+    return list;
+  }, [businesses, selectedCategory, selectedLocation, searchQuery, servicesMap, professionalsMap, userCoords]);
 
   // Count items per category
   const categoryCounts = useMemo(() => {
@@ -219,7 +263,7 @@ export function PortalDirectory({
           </div>
 
           {/* Dynamic Location Filter */}
-          <div className="flex items-center gap-2 bg-slate-800/90 p-1.5 px-3 rounded-2xl border border-slate-700/80 flex-shrink-0">
+          <div className="flex items-center gap-1.5 bg-slate-800/90 p-1.5 px-3 rounded-2xl border border-slate-700/80 flex-shrink-0">
             <MapPin className="w-4 h-4 text-indigo-400 flex-shrink-0" />
             <span className="text-xs text-slate-400 font-medium whitespace-nowrap hidden sm:inline">Zona:</span>
             <select
@@ -228,13 +272,25 @@ export function PortalDirectory({
               onChange={(e) => onLocationChange(e.target.value)}
               className="bg-slate-900 border border-slate-700/80 text-slate-200 text-xs sm:text-sm rounded-xl px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-teal-500 cursor-pointer font-medium max-w-[200px] truncate"
             >
-              <option value="near_me">📍 Cerca de mí</option>
+              <option value="near_me" className="text-teal-300 font-semibold bg-slate-900">
+                📍 Usar mi ubicación actual
+              </option>
               {dynamicLocations.map((loc) => (
-                <option key={loc.value} value={loc.value}>
+                <option key={loc.value} value={loc.value} className="bg-slate-900 text-white">
                   {loc.label}
                 </option>
               ))}
             </select>
+            <button
+              type="button"
+              id="directory-btn-geolocation"
+              title="Detectar mi ubicación actual"
+              onClick={handleDetectLocation}
+              disabled={isLocating}
+              className="p-1.5 bg-slate-700/60 hover:bg-slate-700 text-teal-400 hover:text-teal-300 rounded-lg transition-colors flex items-center justify-center flex-shrink-0"
+            >
+              <Navigation className={`w-3.5 h-3.5 ${isLocating ? 'animate-spin text-amber-400' : ''}`} />
+            </button>
           </div>
         </div>
 

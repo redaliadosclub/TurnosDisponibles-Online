@@ -35,6 +35,7 @@ export function LandingPortalPage({ onSelectBooking, onOpenAuthModal }: LandingP
       return 'all';
     }
   });
+  const [userCoords, setUserCoords] = useState<{ lat: number; lng: number } | null>(null);
   const [activeSection, setActiveSection] = useState('hero');
 
   // Modals state
@@ -125,6 +126,7 @@ export function LandingPortalPage({ onSelectBooking, onOpenAuthModal }: LandingP
           onExecuteSearch={handleExecuteSearch}
           onOpenAuthModal={onOpenAuthModal}
           businesses={businesses}
+          onSetUserCoords={setUserCoords}
         />
 
         {/* 3. Directorio de Negocios y Categorías */}
@@ -139,6 +141,8 @@ export function LandingPortalPage({ onSelectBooking, onOpenAuthModal }: LandingP
           selectedLocation={selectedLocation}
           onLocationChange={setSelectedLocation}
           onSelectBooking={onSelectBooking}
+          userCoords={userCoords}
+          onSetUserCoords={setUserCoords}
         />
 
         {/* 4. Propuesta de Valor B2B */}
