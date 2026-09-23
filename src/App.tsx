@@ -103,7 +103,14 @@ export default function App() {
   const initialBizs = getCleanSavedBusinesses();
   const matchedInitialBiz = initialSlug ? findBusinessBySlug(initialBizs, initialSlug) : undefined;
 
-  const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [currentUser, setCurrentUser] = useState<User | null>(() => {
+    try {
+      const raw = localStorage.getItem('td_auth_user');
+      return raw ? JSON.parse(raw) : null;
+    } catch {
+      return null;
+    }
+  });
   const [businesses, setBusinesses] = useState<Business[]>(initialBizs);
   const [currentBusiness, setCurrentBusiness] = useState<Business>(
     matchedInitialBiz || initialBizs[0] || INITIAL_BUSINESSES[0]

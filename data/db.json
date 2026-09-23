@@ -247,7 +247,7 @@
       "email": "lucia.benitez@example.com",
       "notes": "Tratamiento de piel sensible / rosácea.",
       "totalAppointments": 2,
-      "lastAppointmentDate": "2026-09-18",
+      "lastAppointmentDate": "2026-09-23",
       "createdAt": "2026-03-01T10:00:00.000Z"
     },
     {
@@ -259,7 +259,7 @@
       "email": "florencia.h@example.com",
       "notes": "Seguimiento de peeling mandélico.",
       "totalAppointments": 1,
-      "lastAppointmentDate": "2026-09-18",
+      "lastAppointmentDate": "2026-09-23",
       "createdAt": "2026-03-02T14:30:00.000Z"
     }
   ],
@@ -275,7 +275,7 @@
       "customerPhone": "+5491155443322",
       "customerEmail": "lucia.benitez@example.com",
       "notes": "Limpieza facial profunda con microdermoabrasión",
-      "date": "2026-09-18",
+      "date": "2026-09-23",
       "startTime": "09:00",
       "endTime": "10:00",
       "status": "confirmed",
@@ -293,7 +293,7 @@
       "customerPhone": "+5491166778899",
       "customerEmail": "florencia.h@example.com",
       "notes": "Dermo-Nutrición y drenaje facial",
-      "date": "2026-09-18",
+      "date": "2026-09-23",
       "startTime": "11:00",
       "endTime": "11:50",
       "status": "confirmed",
@@ -306,13 +306,13 @@
       "id": "evt_1",
       "businessId": "biz_dermatocosmiatria_spa",
       "type": "page_view",
-      "timestamp": "2026-09-18T12:00:00.000Z"
+      "timestamp": "2026-09-23T01:15:21.187Z"
     },
     {
       "id": "evt_2",
       "businessId": "biz_dermatocosmiatria_spa",
       "type": "booking_completed",
-      "timestamp": "2026-09-18T12:00:00.000Z"
+      "timestamp": "2026-09-23T01:15:21.187Z"
     }
   ],
   "users": [
@@ -331,7 +331,7 @@
     {
       "id": "usr_owner_dermato",
       "name": "Lic. Mariana Gómez",
-      "email: "mariana@dermatocosmiatria.com",
+      "email": "mariana@dermatocosmiatria.com",
       "role": "business_owner",
       "businessId": "biz_dermatocosmiatria_spa"
     }
