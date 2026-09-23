@@ -103,14 +103,7 @@ export default function App() {
   const initialBizs = getCleanSavedBusinesses();
   const matchedInitialBiz = initialSlug ? findBusinessBySlug(initialBizs, initialSlug) : undefined;
 
-  const [currentUser, setCurrentUser] = useState<User | null>(() => {
-    try {
-      const raw = localStorage.getItem('td_auth_user');
-      return raw ? JSON.parse(raw) : null;
-    } catch {
-      return null;
-    }
-  });
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [businesses, setBusinesses] = useState<Business[]>(initialBizs);
   const [currentBusiness, setCurrentBusiness] = useState<Business>(
     matchedInitialBiz || initialBizs[0] || INITIAL_BUSINESSES[0]
@@ -125,7 +118,7 @@ export default function App() {
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [loading, setLoading] = useState(true);
 
-  // Demo bar switch: defaults to FALSE so visitors see a 100% clean page without admin controls
+  // Demo bar switch: only accessible when authenticated as superadmin
   const [showDemoBar, setShowDemoBar] = useState<boolean>(() => {
     try {
       const saved = localStorage.getItem('td_demo_bar_visible');
@@ -135,7 +128,10 @@ export default function App() {
     }
   });
 
+  const isSuperAdmin = Boolean(currentUser && currentUser.role === 'superadmin');
+
   const toggleDemoBar = () => {
+    if (!isSuperAdmin) return;
     setShowDemoBar((prev) => {
       const next = !prev;
       try {
@@ -522,8 +518,8 @@ export default function App() {
         )}
       </div>
 
-      {/* Floating Demo Switcher Button: ONLY visible for logged in SuperAdmin master */}
-      {currentUser?.role === 'superadmin' && (
+      {/* Floating Demo Switcher Button: Strictly rendered ONLY when authenticated as superadmin */}
+      {isSuperAdmin && (
         <div className="fixed bottom-4 right-4 z-50">
           <button
             type="button"
