@@ -1443,6 +1443,39 @@ export function BusinessDashboard({
         {/* TAB 2: PROFESSIONALS */}
         {activeTab === 'professionals' && (
           <div className="space-y-4">
+            {/* Staff Invite & Linking Code Banner */}
+            <div className="p-4 rounded-2xl bg-gradient-to-r from-teal-50 to-emerald-50 border border-teal-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
+              <div className="flex items-start gap-3">
+                <div className="w-9 h-9 rounded-xl bg-teal-600 text-white flex items-center justify-center shrink-0 font-bold">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-bold text-teal-950 flex items-center gap-2">
+                    <span>Código de Vinculación de este Consultorio para Staff / Médicos</span>
+                  </h4>
+                  <p className="text-[11px] text-teal-800 mt-0.5 max-w-xl">
+                    Tus médicos o recepcionistas deben registrarse como <strong>"Staff"</strong> e ingresar este código para vincularse de forma exclusiva e independiente a este consultorio.
+                  </p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 self-start sm:self-center">
+                <div className="px-3 py-1.5 bg-white border border-teal-300 rounded-xl font-mono font-bold text-xs text-teal-900 shadow-xs">
+                  {business.slug}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard.writeText(business.slug);
+                    alert(`¡Código "${business.slug}" copiado al portapapeles!`);
+                  }}
+                  className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-bold text-xs flex items-center gap-1 cursor-pointer transition shadow-xs"
+                >
+                  <Copy className="w-3.5 h-3.5" />
+                  <span>Copiar Código</span>
+                </button>
+              </div>
+            </div>
+
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <div className="flex items-center gap-2">

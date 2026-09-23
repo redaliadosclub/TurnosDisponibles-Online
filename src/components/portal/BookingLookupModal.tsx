@@ -430,15 +430,29 @@ export function BookingLookupModal({ isOpen, onClose, onGoToBooking }: BookingLo
             </div>
           )}
 
-          {/* Quick tips info */}
+          {/* Quick tips info & Patient account explanation */}
           {!searched && (
-            <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 text-xs text-slate-500 space-y-2">
-              <span className="font-semibold text-slate-700 flex items-center gap-1.5">
-                <Sparkles className="w-4 h-4 text-amber-500" /> ¿Dónde encuentro mi código?
-              </span>
-              <p>
-                Al confirmar tu reserva, recibiste un mensaje automático con un código único (ejemplo: <strong>TD-4821</strong>). También puedes buscar ingresando el mismo número de WhatsApp con el que hiciste la reserva.
-              </p>
+            <div className="space-y-3">
+              <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 text-xs text-slate-500 space-y-2">
+                <span className="font-semibold text-slate-700 flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-amber-500" /> ¿Dónde encuentro mi código?
+                </span>
+                <p>
+                  Al confirmar tu reserva, recibiste un mensaje automático con un código único (ejemplo: <strong>TD-4821</strong>). También puedes buscar ingresando el mismo número de WhatsApp con el que hiciste la reserva.
+                </p>
+              </div>
+
+              <div className="bg-teal-50/70 border border-teal-200/80 rounded-2xl p-4 text-xs text-teal-900 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="p-1 rounded-lg bg-teal-600 text-white font-bold text-[10px]">
+                    NUEVO
+                  </span>
+                  <span className="font-bold text-teal-950">¿Por qué registrarte como Paciente?</span>
+                </div>
+                <p className="text-[11px] text-teal-800 leading-relaxed">
+                  No es obligatorio (puedes reservar siempre como invitado), pero con tu <strong>Cuenta de Paciente gratuita</strong> podrás ver el historial completo de todas tus citas, reprogramar en 1 clic y reservar al instante sin volver a escribir tus datos.
+                </p>
+              </div>
             </div>
           )}
         </div>

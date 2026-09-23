@@ -1,7 +1,21 @@
-import React, { useState, FormEvent } from 'react';
-import { User, Role } from '../types';
+import React, { useState, useEffect, FormEvent } from 'react';
+import { User, Role, Business, BusinessTypeKey } from '../types';
 import { api } from '../services/api';
-import { Shield, Lock, Mail, User as UserIcon, X, Eye, EyeOff } from 'lucide-react';
+import {
+  Shield,
+  Lock,
+  Mail,
+  User as UserIcon,
+  X,
+  Eye,
+  EyeOff,
+  Building2,
+  Stethoscope,
+  Phone,
+  KeyRound,
+  Info,
+  CheckCircle2,
+} from 'lucide-react';
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -28,10 +42,32 @@ export function AuthModal({
   const [showPassword, setShowPassword] = useState(false);
   const [name, setName] = useState('');
   const [role, setRole] = useState<Role>('business_owner');
+  
+  // Specific fields for Business Owner
+  const [businessName, setBusinessName] = useState('');
+  const [businessType, setBusinessType] = useState<BusinessTypeKey>('medical');
+  const [phone, setPhone] = useState('');
+
+  // Specific fields for Staff
+  const [specialty, setSpecialty] = useState('');
+  const [businessCode, setBusinessCode] = useState(businessId || currentBusinessId || '');
+  const [availableBusinesses, setAvailableBusinesses] = useState<Business[]>([]);
+
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [secretAdminVisible, setSecretAdminVisible] = useState(false);
   const [clickCount, setClickCount] = useState(0);
+
+  useEffect(() => {
+    if (isOpen) {
+      api.getBusinesses()
+        .then((list) => setAvailableBusinesses(list))
+        .catch(() => {});
+      if (businessId || currentBusinessId) {
+        setBusinessCode(businessId || currentBusinessId || '');
+      }
+    }
+  }, [isOpen, businessId, currentBusinessId]);
 
   if (!isOpen) return null;
 
@@ -55,7 +91,9 @@ export function AuthModal({
     setLoading(true);
 
     const cleanEmail = email.trim();
-    const isSuperAdminEmail = cleanEmail.toLowerCase() === 'agenciaclienteya@gmail.com' || cleanEmail.toLowerCase().includes('admin');
+    const isSuperAdminEmail =
+      cleanEmail.toLowerCase() === 'agenciaclienteya@gmail.com' ||
+      cleanEmail.toLowerCase().includes('admin');
 
     if (isSuperAdminEmail && password && password !== 'admin123') {
       setError('Contraseña incorrecta para SuperAdmin Master.');
@@ -65,12 +103,23 @@ export function AuthModal({
 
     try {
       if (isRegister) {
+        if (role === 'staff' && !businessCode.trim()) {
+          setError('Debes ingresar el Código o Slug de tu Consultorio para vincular tu cuenta.');
+          setLoading(false);
+          return;
+        }
+
         const user = await api.register({
-          name,
+          name: name.trim(),
           email: cleanEmail,
           password,
           role,
-          businessId: role === 'superadmin' ? null : currentBusinessId || businessId || 'biz_turnosmed_demo',
+          businessId: role === 'superadmin' ? null : businessCode.trim() || currentBusinessId || businessId || null,
+          businessName: businessName.trim(),
+          businessType,
+          businessCode: businessCode.trim(),
+          specialty: specialty.trim(),
+          phone: phone.trim(),
         });
         notifySuccess(user);
       } else {
@@ -86,7 +135,7 @@ export function AuthModal({
 
   return (
     <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
-      <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-slate-200">
+      <div className="bg-white rounded-3xl max-w-md w-full p-6 sm:p-7 shadow-2xl border border-slate-200 max-h-[90vh] overflow-y-auto">
         <div className="flex items-center justify-between mb-4">
           <div className="flex items-center gap-2">
             <button
@@ -99,10 +148,12 @@ export function AuthModal({
             </button>
             <div>
               <h3 className="text-base font-extrabold text-slate-900 leading-tight">
-                {isRegister ? 'Crear Cuenta' : 'Acceso Profesional'}
+                {isRegister ? 'Crear Cuenta' : 'Acceso al Sistema'}
               </h3>
               <p className="text-[11px] text-slate-500">
-                {isRegister ? 'Registra tu consultorio o negocio' : 'Ingresa con tu correo y contraseña'}
+                {isRegister
+                  ? 'Registra tu consultorio, staff o cuenta personal'
+                  : 'Ingresa con tu correo y contraseña'}
               </p>
             </div>
           </div>
@@ -152,15 +203,89 @@ export function AuthModal({
             </div>
           )}
 
+          {/* Role selector in Register */}
+          {isRegister && (
+            <div className="space-y-1">
+              <label className="block font-semibold text-slate-800">Tipo de Registro</label>
+              <div className="grid grid-cols-3 gap-1.5 p-1 bg-slate-100 rounded-2xl border border-slate-200">
+                <button
+                  type="button"
+                  onClick={() => setRole('business_owner')}
+                  className={`py-2 px-1.5 rounded-xl font-bold text-[11px] text-center transition cursor-pointer leading-tight ${
+                    role === 'business_owner'
+                      ? 'bg-white text-teal-800 shadow-xs border border-teal-200'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Building2 className="w-3.5 h-3.5 mx-auto mb-1 text-teal-600" />
+                  Dueño / Negocio
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRole('staff')}
+                  className={`py-2 px-1.5 rounded-xl font-bold text-[11px] text-center transition cursor-pointer leading-tight ${
+                    role === 'staff'
+                      ? 'bg-white text-teal-800 shadow-xs border border-teal-200'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <Stethoscope className="w-3.5 h-3.5 mx-auto mb-1 text-teal-600" />
+                  Staff / Médico
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setRole('customer')}
+                  className={`py-2 px-1.5 rounded-xl font-bold text-[11px] text-center transition cursor-pointer leading-tight ${
+                    role === 'customer'
+                      ? 'bg-white text-teal-800 shadow-xs border border-teal-200'
+                      : 'text-slate-600 hover:text-slate-900'
+                  }`}
+                >
+                  <UserIcon className="w-3.5 h-3.5 mx-auto mb-1 text-teal-600" />
+                  Paciente
+                </button>
+              </div>
+
+              {/* Role explanation banner */}
+              <div className="p-2.5 rounded-xl bg-teal-50/70 border border-teal-100 text-[11px] text-teal-900 flex items-start gap-2 mt-2">
+                <Info className="w-4 h-4 text-teal-600 shrink-0 mt-0.5" />
+                <div>
+                  {role === 'business_owner' && (
+                    <span>
+                      <strong>Negocio Independiente:</strong> Se creará tu propio consultorio con link de reservas único, panel de turnos y configuración de señas.
+                    </span>
+                  )}
+                  {role === 'staff' && (
+                    <span>
+                      <strong>Vinculación a Consultorio:</strong> Accederás a tu agenda profesional dentro del consultorio o clínica al que perteneces.
+                    </span>
+                  )}
+                  {role === 'customer' && (
+                    <span>
+                      <strong>Cuenta de Paciente:</strong> Consulta tus reservas activas, cancela o reprograma con un clic sin tener que ingresar tus datos cada vez.
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Full Name */}
           {isRegister && (
             <div>
-              <label className="block font-semibold text-slate-800 mb-1">Nombre Completo</label>
+              <label className="block font-semibold text-slate-800 mb-1">
+                {role === 'business_owner'
+                  ? 'Nombre del Dueño / Titular'
+                  : role === 'staff'
+                  ? 'Nombre del Profesional / Empleado'
+                  : 'Nombre Completo del Paciente'}
+              </label>
               <div className="relative">
                 <UserIcon className="w-4 h-4 absolute left-3 top-2.5 text-slate-500 pointer-events-none" />
                 <input
                   type="text"
                   required
-                  placeholder="Tu nombre completo"
+                  placeholder="Ej: Lic. Mariana Gómez"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-300 text-xs bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 font-medium transition-all"
@@ -169,6 +294,120 @@ export function AuthModal({
             </div>
           )}
 
+          {/* Business Owner specific fields */}
+          {isRegister && role === 'business_owner' && (
+            <>
+              <div>
+                <label className="block font-semibold text-slate-800 mb-1">
+                  Nombre de tu Consultorio o Negocio
+                </label>
+                <div className="relative">
+                  <Building2 className="w-4 h-4 absolute left-3 top-2.5 text-slate-500 pointer-events-none" />
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ej: Centro Odontológico San Martín"
+                    value={businessName}
+                    onChange={(e) => setBusinessName(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-300 text-xs bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 font-medium transition-all"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-800 mb-1">
+                  Rubro / Especialidad Principal
+                </label>
+                <select
+                  value={businessType}
+                  onChange={(e) => setBusinessType(e.target.value as BusinessTypeKey)}
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-500 font-medium transition-all cursor-pointer"
+                >
+                  <option value="medical">Consultorio Médico / Salud</option>
+                  <option value="dental">Odontología / Dental</option>
+                  <option value="beauty">Estética, Belleza & Cosmiatría</option>
+                  <option value="psychology">Psicología & Salud Mental</option>
+                  <option value="veterinary">Veterinaria & Mascotas</option>
+                  <option value="fitness">Fitness & Entrenamiento</option>
+                  <option value="services">Servicios Profesionales</option>
+                </select>
+              </div>
+            </>
+          )}
+
+          {/* Staff specific fields */}
+          {isRegister && role === 'staff' && (
+            <>
+              <div>
+                <label className="block font-semibold text-slate-800 mb-1">
+                  Código o Slug del Consultorio a Vincularse
+                </label>
+                <div className="relative">
+                  <KeyRound className="w-4 h-4 absolute left-3 top-2.5 text-slate-500 pointer-events-none" />
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ej: dermatocosmiatria-spa"
+                    value={businessCode}
+                    onChange={(e) => setBusinessCode(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-300 text-xs bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 font-medium transition-all"
+                  />
+                </div>
+                {availableBusinesses.length > 0 && (
+                  <div className="mt-1.5 flex flex-wrap items-center gap-1">
+                    <span className="text-[10px] text-slate-500">Consultorios registrados:</span>
+                    {availableBusinesses.slice(0, 3).map((b) => (
+                      <button
+                        key={b.id}
+                        type="button"
+                        onClick={() => setBusinessCode(b.slug)}
+                        className="text-[10px] bg-slate-100 hover:bg-teal-50 hover:text-teal-700 px-2 py-0.5 rounded-lg border border-slate-200 transition cursor-pointer font-medium"
+                      >
+                        {b.name} ({b.slug})
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-800 mb-1">
+                  Especialidad o Cargo
+                </label>
+                <div className="relative">
+                  <Stethoscope className="w-4 h-4 absolute left-3 top-2.5 text-slate-500 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder="Ej: Cosmiatra Facial / Recepción / Odontólogo"
+                    value={specialty}
+                    onChange={(e) => setSpecialty(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-300 text-xs bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 font-medium transition-all"
+                  />
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* WhatsApp Phone */}
+          {isRegister && (
+            <div>
+              <label className="block font-semibold text-slate-800 mb-1">
+                Teléfono de WhatsApp {role !== 'customer' ? 'del Consultorio' : 'Personal'}
+              </label>
+              <div className="relative">
+                <Phone className="w-4 h-4 absolute left-3 top-2.5 text-slate-500 pointer-events-none" />
+                <input
+                  type="tel"
+                  placeholder="Ej: +54 9 11 5566-7788"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-300 text-xs bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 font-medium transition-all"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Email */}
           <div>
             <label className="block font-semibold text-slate-800 mb-1">Correo Electrónico</label>
             <div className="relative">
@@ -184,6 +423,7 @@ export function AuthModal({
             </div>
           </div>
 
+          {/* Password */}
           <div>
             <label className="block font-semibold text-slate-800 mb-1">Contraseña</label>
             <div className="relative">
@@ -208,27 +448,20 @@ export function AuthModal({
             </div>
           </div>
 
-          {isRegister && (
-            <div>
-              <label className="block font-semibold text-slate-800 mb-1">Tipo de Cuenta</label>
-              <select
-                value={role}
-                onChange={(e) => setRole(e.target.value as Role)}
-                className="w-full px-3 py-2 rounded-xl border border-slate-300 text-xs bg-white text-slate-900 focus:outline-none focus:ring-2 focus:ring-teal-500 font-medium transition-all cursor-pointer"
-              >
-                <option value="business_owner" className="text-slate-900">Dueño de Negocio / Prestador</option>
-                <option value="staff" className="text-slate-900">Profesional / Médico / Staff</option>
-                <option value="customer" className="text-slate-900">Paciente / Cliente</option>
-              </select>
-            </div>
-          )}
-
           <button
             type="submit"
             disabled={loading}
             className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white font-bold transition mt-2 cursor-pointer shadow-sm"
           >
-            {loading ? 'Validando credenciales...' : isRegister ? 'Crear Cuenta' : 'Entrar al Sistema'}
+            {loading
+              ? 'Procesando...'
+              : isRegister
+              ? role === 'business_owner'
+                ? 'Crear Consultorio & Cuenta'
+                : role === 'staff'
+                ? 'Vincularme & Crear Cuenta Staff'
+                : 'Registrar Cuenta de Paciente'
+              : 'Entrar al Sistema'}
           </button>
         </form>
 
@@ -252,7 +485,7 @@ export function AuthModal({
                 onClick={() => setIsRegister(true)}
                 className="font-bold text-teal-700 hover:underline cursor-pointer"
               >
-                Registrar mi negocio
+                Registrar mi negocio / staff
               </button>
             </span>
           )}

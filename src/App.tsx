@@ -244,14 +244,23 @@ export default function App() {
     setActiveView('portal');
   };
 
-  const handleLoginSuccess = (user: User) => {
+  const handleLoginSuccess = async (user: User) => {
     setCurrentUser(user);
     if (user.role === 'superadmin') {
       setActiveView('superadmin');
       setShowDemoBar(true);
     } else if (user.businessId) {
-      const match = businesses.find((b) => b.id === user.businessId);
-      if (match) setCurrentBusiness(match);
+      try {
+        const freshList = await api.getBusinesses();
+        setBusinesses(freshList);
+        const match = freshList.find((b) => b.id === user.businessId || b.slug === user.businessId);
+        if (match) {
+          setCurrentBusiness(match);
+        } else {
+          const directBiz = await api.getBusinessById(user.businessId).catch(() => null);
+          if (directBiz) setCurrentBusiness(directBiz);
+        }
+      } catch {}
       setActiveView('business');
     } else {
       setActiveView('portal');

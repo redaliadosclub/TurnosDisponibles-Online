@@ -949,6 +949,33 @@ export class ApiService {
       throw new Error('Contraseña de SuperAdmin incorrecta');
     }
 
+    try {
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: cleanEmail, password }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.user) {
+          this.currentUser = data.user;
+          saveStorage(STORAGE_KEYS.USER, data.user);
+          this.notifyAuthChange();
+          // Reload businesses to pick up any changes
+          await this.syncFromCloud().catch(() => {});
+          return data.user;
+        }
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        if (errData.error) throw new Error(errData.error);
+      }
+    } catch (err: any) {
+      if (err.message && err.message.includes('SuperAdmin')) {
+        throw err;
+      }
+      // If network issue, fallback to client-side logic
+    }
+
     let user: User;
     if (isSuperAdminEmail) {
       user = {
@@ -974,11 +1001,52 @@ export class ApiService {
     return user;
   }
 
-  async register(data: { name: string; email: string; password?: string; role: string; businessId?: string | null }): Promise<User> {
+  async register(data: {
+    name: string;
+    email: string;
+    password?: string;
+    role: string;
+    businessId?: string | null;
+    businessName?: string;
+    businessType?: string;
+    businessCode?: string;
+    specialty?: string;
+    phone?: string;
+  }): Promise<User> {
+    try {
+      const res = await fetch('/api/auth/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+
+      if (res.ok) {
+        const resData = await res.json();
+        if (resData && resData.user) {
+          this.currentUser = resData.user;
+          saveStorage(STORAGE_KEYS.USER, resData.user);
+          this.notifyAuthChange();
+          // Resync businesses from backend
+          await this.syncFromCloud().catch(() => {});
+          return resData.user;
+        }
+      } else {
+        const errData = await res.json().catch(() => ({}));
+        throw new Error(errData.error || 'Error al procesar el registro.');
+      }
+    } catch (err: any) {
+      if (err.message && !err.message.includes('fetch')) {
+        throw err;
+      }
+    }
+
     return this.login(data.email, data.password);
   }
 
   async logout(): Promise<void> {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+    } catch {}
     this.currentUser = null;
     saveStorage(STORAGE_KEYS.USER, null);
     this.notifyAuthChange();

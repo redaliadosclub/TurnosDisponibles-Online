@@ -7,6 +7,10 @@ export function PortalFaq() {
 
   const clientFaqs = [
     {
+      q: '¿Es obligatorio crearme una cuenta para reservar? ¿Para qué sirve registrarme como Paciente?',
+      a: 'No es obligatorio. Puedes reservar como invitado completando únicamente tu Nombre y WhatsApp en 1 minuto sin contraseñas.\n\nSin embargo, crear tu Cuenta de Paciente gratuita te ofrece grandes beneficios:\n• Historial Centralizado ("Mis Turnos"): Consulta todas tus citas pasadas y futuras en cualquier consultorio de la plataforma sin tener que buscar códigos sueltos.\n• Cancelación y Reprogramación Autónoma: Modifica o cancela tus citas con 1 solo clic.\n• Reserva Rápida (1-Click Booking): Tus datos personales se autocompletan instantáneamente en cualquier centro adherido.',
+    },
+    {
       q: '¿Cómo hago una reserva en cualquiera de los negocios?',
       a: 'Simplemente explora el directorio, elige el centro o especialista de tu preferencia y haz clic en "Reservar Turno". Selecciona el tratamiento, el profesional y el horario disponible que mejor te convenga. Completas tus datos en 1 minuto y recibes la confirmación en tu WhatsApp al instante.',
     },
