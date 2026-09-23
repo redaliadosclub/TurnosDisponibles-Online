@@ -332,7 +332,18 @@ class Database {
       }
       if (fs.existsSync(DB_FILE)) {
         const content = fs.readFileSync(DB_FILE, 'utf-8');
-        return JSON.parse(content);
+        const parsed = JSON.parse(content);
+        return {
+          businesses: Array.isArray(parsed.businesses) ? parsed.businesses : INITIAL_DATA.businesses,
+          professionals: Array.isArray(parsed.professionals) ? parsed.professionals : INITIAL_DATA.professionals,
+          services: Array.isArray(parsed.services) ? parsed.services : INITIAL_DATA.services,
+          workingHours: Array.isArray(parsed.workingHours) ? parsed.workingHours : INITIAL_DATA.workingHours || [],
+          timeOffs: Array.isArray(parsed.timeOffs) ? parsed.timeOffs : INITIAL_DATA.timeOffs || [],
+          customers: Array.isArray(parsed.customers) ? parsed.customers : INITIAL_DATA.customers || [],
+          appointments: Array.isArray(parsed.appointments) ? parsed.appointments : INITIAL_DATA.appointments || [],
+          analytics: Array.isArray(parsed.analytics) ? parsed.analytics : INITIAL_DATA.analytics || [],
+          users: Array.isArray(parsed.users) ? parsed.users : INITIAL_DATA.users || [],
+        };
       }
     } catch (err) {
       console.warn('Could not load existing db.json, initializing default data', err);

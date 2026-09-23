@@ -1032,15 +1032,65 @@ export class ApiService {
         }
       } else {
         const errData = await res.json().catch(() => ({}));
-        throw new Error(errData.error || 'Error al procesar el registro.');
+        if (errData.error) {
+          throw new Error(errData.error);
+        }
       }
     } catch (err: any) {
-      if (err.message && !err.message.includes('fetch')) {
+      if (err.message && !err.message.includes('fetch') && !err.message.includes('Failed to fetch')) {
         throw err;
       }
     }
 
-    return this.login(data.email, data.password);
+    // Client-side fallback if offline
+    const cleanEmail = data.email.trim();
+    let bizId = data.businessId || null;
+
+    if (data.role === 'business_owner') {
+      const bizName = (data.businessName && data.businessName.trim()) || `Consultorio ${data.name}`;
+      let baseSlug = bizName
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+      if (!baseSlug || baseSlug.length < 3) baseSlug = `consultorio-${Date.now().toString(36)}`;
+
+      const newLocalBiz: Business = {
+        id: `biz_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        name: bizName,
+        slug: baseSlug,
+        businessType: (data.businessType as any) || 'medical',
+        description: `Centro de atención profesional y turnos de ${data.name}.`,
+        category: 'Consultorio & Especialidades',
+        address: 'Atención presencial y turnos online',
+        phone: data.phone || '+54 11 0000-0000',
+        whatsappNumber: (data.phone || '5491100000000').replace(/\D/g, ''),
+        primaryColor: '#0d9488',
+        welcomeMessage: `¡Bienvenido a ${bizName}! Agenda tu turno en simples pasos.`,
+        cancellationPolicy: 'Podrás reprogramar o cancelar con al menos 4 horas de anticipación.',
+        bufferMinutes: 10,
+        plan: 'pro',
+        status: 'active',
+        createdAt: new Date().toISOString(),
+      };
+      this.businesses.push(newLocalBiz);
+      saveStorage(STORAGE_KEYS.BUSINESSES, this.businesses);
+      bizId = newLocalBiz.id;
+    }
+
+    const localUser: User = {
+      id: `usr_${Date.now()}`,
+      name: data.name,
+      email: cleanEmail,
+      role: data.role as any,
+      businessId: bizId,
+    };
+
+    this.currentUser = localUser;
+    saveStorage(STORAGE_KEYS.USER, localUser);
+    this.notifyAuthChange();
+    return localUser;
   }
 
   async logout(): Promise<void> {

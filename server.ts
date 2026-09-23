@@ -107,149 +107,154 @@ async function startServer() {
   });
 
   app.post('/api/auth/register', (req, res) => {
-    const {
-      name,
-      email,
-      role,
-      businessId,
-      businessName,
-      businessType,
-      businessCode,
-      specialty,
-      phone,
-    } = req.body;
-
-    if (!email || !name) {
-      return res.status(400).json({ error: 'Nombre y email requeridos' });
-    }
-
-    const selectedRole = role || 'business_owner';
-    let finalBusinessId: string | null = null;
-
-    if (selectedRole === 'business_owner') {
-      // Create a new INDEPENDENT business for this owner
-      const bizName = (businessName && businessName.trim()) || `Consultorio ${name}`;
-      let baseSlug = bizName
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '');
-      if (!baseSlug || baseSlug.length < 3) {
-        baseSlug = `consultorio-${Date.now().toString(36)}`;
-      }
-
-      let uniqueSlug = baseSlug;
-      let counter = 1;
-      while (db.getBusinessBySlug(uniqueSlug)) {
-        uniqueSlug = `${baseSlug}-${counter++}`;
-      }
-
-      const newBiz = db.createBusiness({
-        name: bizName,
-        slug: uniqueSlug,
-        businessType: businessType || 'medical',
-        description: `Centro de atención profesional y turnos de ${name}.`,
-        category: 'Consultorio & Especialidades',
-        address: 'Atención presencial y turnos online',
-        phone: phone || '+54 11 0000-0000',
-        whatsappNumber: (phone || '5491100000000').replace(/\D/g, ''),
-        primaryColor: '#0d9488',
-        welcomeMessage: `¡Bienvenido a ${bizName}! Agenda tu turno en simples pasos.`,
-        cancellationPolicy: 'Podrás reprogramar o cancelar con al menos 4 horas de anticipación.',
-        bufferMinutes: 10,
-        plan: 'pro',
-        status: 'active',
-      });
-
-      // Register owner as the primary professional
-      const prof = db.createProfessional(newBiz.id, {
+    try {
+      const {
         name,
-        title: specialty || 'Profesional Responsable',
         email,
-        phone: phone || '',
-        active: true,
-        specialty: specialty || 'Atención General',
-        serviceIds: [],
-      });
+        role,
+        businessId,
+        businessName,
+        businessType,
+        businessCode,
+        specialty,
+        phone,
+      } = req.body;
 
-      // Register a default service
-      const srv = db.createService(newBiz.id, {
-        name: 'Consulta General / Turno Inicial',
-        description: 'Atención personalizada y diagnóstico inicial.',
-        durationMinutes: 30,
-        price: 0,
-        currency: '$',
-        active: true,
-        assignedProfessionalIds: [prof.id],
-      });
+      if (!email || !name) {
+        return res.status(400).json({ error: 'Nombre y email requeridos' });
+      }
 
-      db.updateProfessional(prof.id, { serviceIds: [srv.id] });
-      finalBusinessId = newBiz.id;
-    } else if (selectedRole === 'staff') {
-      // Must correspond to an existing business/consultorio
-      const codeOrSlug = (businessCode || businessId || '').trim();
-      if (!codeOrSlug) {
-        return res.status(400).json({
-          error: 'Código de consultorio requerido. Pide el código o enlace de consultorio al dueño del consultorio.',
+      const selectedRole = role || 'business_owner';
+      let finalBusinessId: string | null = null;
+
+      if (selectedRole === 'business_owner') {
+        // Create a new INDEPENDENT business for this owner
+        const bizName = (businessName && businessName.trim()) || `Consultorio ${name}`;
+        let baseSlug = bizName
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, '')
+          .replace(/[^a-z0-9]+/g, '-')
+          .replace(/^-+|-+$/g, '');
+        if (!baseSlug || baseSlug.length < 3) {
+          baseSlug = `consultorio-${Date.now().toString(36)}`;
+        }
+
+        let uniqueSlug = baseSlug;
+        let counter = 1;
+        while (db.getBusinessBySlug(uniqueSlug)) {
+          uniqueSlug = `${baseSlug}-${counter++}`;
+        }
+
+        const newBiz = db.createBusiness({
+          name: bizName,
+          slug: uniqueSlug,
+          businessType: businessType || 'medical',
+          description: `Centro de atención profesional y turnos de ${name}.`,
+          category: 'Consultorio & Especialidades',
+          address: 'Atención presencial y turnos online',
+          phone: phone || '+54 11 0000-0000',
+          whatsappNumber: (phone || '5491100000000').replace(/\D/g, ''),
+          primaryColor: '#0d9488',
+          welcomeMessage: `¡Bienvenido a ${bizName}! Agenda tu turno en simples pasos.`,
+          cancellationPolicy: 'Podrás reprogramar o cancelar con al menos 4 horas de anticipación.',
+          bufferMinutes: 10,
+          plan: 'pro',
+          status: 'active',
         });
-      }
 
-      let matchedBiz = db.getBusinessById(codeOrSlug) || db.getBusinessBySlug(codeOrSlug);
-      if (!matchedBiz) {
-        matchedBiz = db.getBusinesses().find(
-          (b) =>
-            b.slug.toLowerCase() === codeOrSlug.toLowerCase() ||
-            b.id.toLowerCase() === codeOrSlug.toLowerCase() ||
-            b.name.toLowerCase() === codeOrSlug.toLowerCase()
-        );
-      }
-
-      if (!matchedBiz) {
-        return res.status(400).json({
-          error: `No se encontró ningún consultorio con el código "${codeOrSlug}". Verifica el código con tu administrador.`,
-        });
-      }
-
-      finalBusinessId = matchedBiz.id;
-
-      // Link or create professional profile in that business
-      const existingProfs = db.getProfessionals(matchedBiz.id);
-      const alreadyProf = existingProfs.find((p) => p.email?.toLowerCase() === email.toLowerCase());
-      if (!alreadyProf) {
-        db.createProfessional(matchedBiz.id, {
+        // Register owner as the primary professional
+        const prof = db.createProfessional(newBiz.id, {
           name,
-          title: specialty || 'Profesional / Staff',
+          title: specialty || 'Profesional Responsable',
           email,
           phone: phone || '',
           active: true,
           specialty: specialty || 'Atención General',
           serviceIds: [],
         });
+
+        // Register a default service
+        const srv = db.createService(newBiz.id, {
+          name: 'Consulta General / Turno Inicial',
+          description: 'Atención personalizada y diagnóstico inicial.',
+          durationMinutes: 30,
+          price: 0,
+          currency: '$',
+          active: true,
+          assignedProfessionalIds: [prof.id],
+        });
+
+        db.updateProfessional(prof.id, { serviceIds: [srv.id] });
+        finalBusinessId = newBiz.id;
+      } else if (selectedRole === 'staff') {
+        // Must correspond to an existing business/consultorio
+        const codeOrSlug = (businessCode || businessId || '').trim();
+        if (!codeOrSlug) {
+          return res.status(400).json({
+            error: 'Código de consultorio requerido. Pide el código o enlace de consultorio al dueño del consultorio.',
+          });
+        }
+
+        let matchedBiz = db.getBusinessById(codeOrSlug) || db.getBusinessBySlug(codeOrSlug);
+        if (!matchedBiz) {
+          matchedBiz = db.getBusinesses().find(
+            (b) =>
+              b.slug.toLowerCase() === codeOrSlug.toLowerCase() ||
+              b.id.toLowerCase() === codeOrSlug.toLowerCase() ||
+              b.name.toLowerCase() === codeOrSlug.toLowerCase()
+          );
+        }
+
+        if (!matchedBiz) {
+          return res.status(400).json({
+            error: `No se encontró ningún consultorio con el código "${codeOrSlug}". Verifica el código con tu administrador.`,
+          });
+        }
+
+        finalBusinessId = matchedBiz.id;
+
+        // Link or create professional profile in that business
+        const existingProfs = db.getProfessionals(matchedBiz.id);
+        const alreadyProf = existingProfs.find((p) => p.email?.toLowerCase() === email.toLowerCase());
+        if (!alreadyProf) {
+          db.createProfessional(matchedBiz.id, {
+            name,
+            title: specialty || 'Profesional / Staff',
+            email,
+            phone: phone || '',
+            active: true,
+            specialty: specialty || 'Atención General',
+            serviceIds: [],
+          });
+        }
+      } else if (selectedRole === 'customer') {
+        finalBusinessId = null;
       }
-    } else if (selectedRole === 'customer') {
-      finalBusinessId = null;
-    }
 
-    const existing = db.getUserByEmail(email);
-    if (existing) {
-      if (finalBusinessId && !existing.businessId) {
-        existing.businessId = finalBusinessId;
+      const existing = db.getUserByEmail(email);
+      if (existing) {
+        if (finalBusinessId && !existing.businessId) {
+          existing.businessId = finalBusinessId;
+        }
+        existing.role = selectedRole;
+        currentSessionUser = existing;
+        return res.json({ user: existing });
       }
-      existing.role = selectedRole;
-      currentSessionUser = existing;
-      return res.json({ user: existing });
+
+      const newUser = db.createUser({
+        name,
+        email,
+        role: selectedRole,
+        businessId: finalBusinessId,
+      });
+
+      currentSessionUser = newUser;
+      res.status(201).json({ user: newUser });
+    } catch (err: any) {
+      console.error('[Register Endpoint Error]:', err);
+      res.status(500).json({ error: err.message || 'Error interno al registrar la cuenta' });
     }
-
-    const newUser = db.createUser({
-      name,
-      email,
-      role: selectedRole,
-      businessId: finalBusinessId,
-    });
-
-    currentSessionUser = newUser;
-    res.status(201).json({ user: newUser });
   });
 
   app.post('/api/auth/logout', (req, res) => {
