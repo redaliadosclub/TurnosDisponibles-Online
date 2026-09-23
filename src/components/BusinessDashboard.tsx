@@ -92,6 +92,7 @@ export function BusinessDashboard({
     | 'customers'
     | 'branding'
     | 'whatsapp'
+    | 'ai'
     | 'analytics'
     | 'plans'
     | 'payments'
@@ -904,6 +905,22 @@ export function BusinessDashboard({
           >
             <MessageCircle className="w-4 h-4" />
             <span>WhatsApp & WAPI</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveTab('ai')}
+            className={`py-3 px-3.5 border-b-2 flex items-center gap-2 whitespace-nowrap transition cursor-pointer ${
+              activeTab === 'ai'
+                ? 'border-teal-600 text-teal-700 font-bold'
+                : 'border-transparent text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            <Sparkles className="w-4 h-4 text-teal-500" />
+            <span>Asistente IA</span>
+            {business.aiBotEnabled && (
+              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Modo Conversacional Activo" />
+            )}
           </button>
 
           <button
@@ -2489,6 +2506,18 @@ export function BusinessDashboard({
                 Generar Campaña Ahora
               </button>
             </div>
+          </div>
+        )}
+
+        {/* TAB 7.5: ASISTENTE IA & MODO CONVERSACIONAL */}
+        {activeTab === 'ai' && (
+          <div className="space-y-6">
+            <AIConfigPanel
+              business={business}
+              services={services}
+              professionals={professionals}
+              onBusinessUpdated={onUpdateBusiness}
+            />
           </div>
         )}
 
