@@ -36,74 +36,91 @@ async function startServer() {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });
   });
 
-  // Current session variable for demo and auth (defaults to null so public visitors are clean)
-  let currentSessionUser: any = null;
+  // In-memory active session tokens mapped to user records for request isolation
+  const activeSessions = new Map<string, any>();
+
+  function sanitizeUser(u: any) {
+    if (!u) return null;
+    const { password, ...safe } = u;
+    return safe;
+  }
+
+  function getAuthUser(req: any): any | null {
+    const auth = req.headers.authorization;
+    if (auth && auth.startsWith('Bearer ')) {
+      const token = auth.substring(7);
+      const user = activeSessions.get(token);
+      if (user) return user;
+    }
+    return null;
+  }
 
   // --- Auth Routes ---
   app.get('/api/auth/me', (req, res) => {
-    res.json({ user: currentSessionUser });
+    const user = getAuthUser(req);
+    res.json({ user: sanitizeUser(user) });
   });
 
   app.post('/api/auth/login', (req, res) => {
     const { email, password } = req.body;
     if (!email) return res.status(400).json({ error: 'Email requerido' });
+    if (!password) return res.status(400).json({ error: 'Contraseña requerida' });
 
-    const lower = email.toLowerCase();
-    const isSuperAdminEmail = lower === 'agenciaclienteya@gmail.com' || lower.includes('admin');
+    const cleanEmail = email.trim().toLowerCase();
+    const isSuperAdminEmail = cleanEmail === 'agenciaclienteya@gmail.com' || cleanEmail.includes('admin');
 
-    // Security check: SuperAdmin always requires correct master password
+    // Security check: SuperAdmin always requires master password
     if (isSuperAdminEmail) {
-      if (!password || password !== 'admin123') {
+      if (password !== 'admin123') {
         return res.status(401).json({ error: 'Contraseña de SuperAdmin Master incorrecta' });
       }
     }
 
     // Look up user in db
-    let user = db.getUserByEmail(email);
+    let user = db.getUserByEmail(cleanEmail);
 
     if (user && user.role === 'superadmin') {
-      if (!password || password !== 'admin123') {
+      if (password !== 'admin123') {
         return res.status(401).json({ error: 'Contraseña de SuperAdmin Master incorrecta' });
       }
     }
 
-    // If demo account not found, create or match fallback
-    if (!user) {
-      if (isSuperAdminEmail) {
-        user = db.createUser({
-          name: lower === 'agenciaclienteya@gmail.com' ? 'Agencia Cliente Ya (SuperAdmin)' : 'Super Admin',
-          email,
-          role: 'superadmin',
-          businessId: undefined,
-        });
-      } else if (lower.includes('dueno') || lower.includes('owner')) {
-        const firstBiz = db.getBusinesses()[0];
-        user = db.createUser({
-          name: 'Dueño del Negocio',
-          email,
-          role: 'business_owner',
-          businessId: firstBiz ? firstBiz.id : 'biz_turnosmed_demo',
-        });
-      } else if (lower.includes('doctor') || lower.includes('staff')) {
-        const firstBiz = db.getBusinesses()[0];
-        user = db.createUser({
-          name: 'Profesional Médico',
-          email,
-          role: 'staff',
-          businessId: firstBiz ? firstBiz.id : 'biz_turnosmed_demo',
-        });
-      } else {
-        user = db.createUser({
-          name: email.split('@')[0],
-          email,
-          role: 'customer',
-          businessId: undefined,
-        });
-      }
+    // If superadmin user does not exist in DB yet, create it on first successful login
+    if (!user && isSuperAdminEmail && password === 'admin123') {
+      user = db.createUser({
+        name: cleanEmail === 'agenciaclienteya@gmail.com' ? 'Agencia Cliente Ya (SuperAdmin)' : 'Super Admin',
+        email: cleanEmail,
+        role: 'superadmin',
+        businessId: null,
+        password: 'admin123',
+      });
     }
 
-    currentSessionUser = user;
-    res.json({ user });
+    if (!user) {
+      return res.status(404).json({
+        error: 'No encontramos una cuenta con este correo electrónico. Por favor regístrate para comenzar.',
+      });
+    }
+
+    // Check password if user has one stored
+    if (user.password && user.password !== password) {
+      return res.status(401).json({ error: 'Contraseña incorrecta. Por favor intenta de nuevo.' });
+    }
+
+    // If existing user had no password saved yet (legacy migration), set it now
+    if (!user.password && password) {
+      db.updateUser(user.id, { password });
+      user.password = password;
+    }
+
+    // Generate isolated session token
+    const token = `td_tok_${user.id}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+    activeSessions.set(token, user);
+
+    res.json({
+      user: sanitizeUser(user),
+      token,
+    });
   });
 
   app.post('/api/auth/register', (req, res) => {
@@ -111,6 +128,7 @@ async function startServer() {
       const {
         name,
         email,
+        password,
         role,
         businessId,
         businessName,
@@ -124,7 +142,27 @@ async function startServer() {
         return res.status(400).json({ error: 'Nombre y email requeridos' });
       }
 
+      if (!password || password.length < 6) {
+        return res.status(400).json({ error: 'La contraseña debe tener al menos 6 caracteres' });
+      }
+
+      const cleanEmail = email.trim().toLowerCase();
       const selectedRole = role || 'business_owner';
+
+      // Check if user already exists
+      const existingUser = db.getUserByEmail(cleanEmail);
+      if (existingUser) {
+        // If credentials match, return session
+        if (existingUser.password && existingUser.password === password) {
+          const token = `td_tok_${existingUser.id}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+          activeSessions.set(token, existingUser);
+          return res.json({ user: sanitizeUser(existingUser), token });
+        }
+        return res.status(409).json({
+          error: 'Ya existe una cuenta con este correo electrónico. Inicia sesión con tu contraseña.',
+        });
+      }
+
       let finalBusinessId: string | null = null;
 
       if (selectedRole === 'business_owner') {
@@ -167,7 +205,8 @@ async function startServer() {
         const prof = db.createProfessional(newBiz.id, {
           name,
           title: specialty || 'Profesional Responsable',
-          email,
+          photoUrl: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=400',
+          email: cleanEmail,
           phone: phone || '',
           active: true,
           specialty: specialty || 'Atención General',
@@ -216,12 +255,13 @@ async function startServer() {
 
         // Link or create professional profile in that business
         const existingProfs = db.getProfessionals(matchedBiz.id);
-        const alreadyProf = existingProfs.find((p) => p.email?.toLowerCase() === email.toLowerCase());
+        const alreadyProf = existingProfs.find((p) => p.email?.toLowerCase() === cleanEmail);
         if (!alreadyProf) {
           db.createProfessional(matchedBiz.id, {
             name,
             title: specialty || 'Profesional / Staff',
-            email,
+            photoUrl: 'https://images.unsplash.com/photo-1594824813629-9e8c3230a13d?auto=format&fit=crop&q=80&w=400',
+            email: cleanEmail,
             phone: phone || '',
             active: true,
             specialty: specialty || 'Atención General',
@@ -232,25 +272,22 @@ async function startServer() {
         finalBusinessId = null;
       }
 
-      const existing = db.getUserByEmail(email);
-      if (existing) {
-        if (finalBusinessId && !existing.businessId) {
-          existing.businessId = finalBusinessId;
-        }
-        existing.role = selectedRole;
-        currentSessionUser = existing;
-        return res.json({ user: existing });
-      }
-
       const newUser = db.createUser({
         name,
-        email,
+        email: cleanEmail,
+        password,
+        phone: phone || undefined,
         role: selectedRole,
         businessId: finalBusinessId,
       });
 
-      currentSessionUser = newUser;
-      res.status(201).json({ user: newUser });
+      const token = `td_tok_${newUser.id}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+      activeSessions.set(token, newUser);
+
+      res.status(201).json({
+        user: sanitizeUser(newUser),
+        token,
+      });
     } catch (err: any) {
       console.error('[Register Endpoint Error]:', err);
       res.status(500).json({ error: err.message || 'Error interno al registrar la cuenta' });
@@ -258,7 +295,11 @@ async function startServer() {
   });
 
   app.post('/api/auth/logout', (req, res) => {
-    currentSessionUser = null;
+    const auth = req.headers.authorization;
+    if (auth && auth.startsWith('Bearer ')) {
+      const token = auth.substring(7);
+      activeSessions.delete(token);
+    }
     res.json({ success: true });
   });
 

@@ -791,6 +791,7 @@ class Database {
         name: 'Agencia Cliente Ya (SuperAdmin)',
         email: 'agenciaclienteya@gmail.com',
         role: 'superadmin',
+        password: 'admin123',
       };
       if (!this.data.users) this.data.users = [];
       this.data.users.push(superAdminUser);
@@ -810,6 +811,15 @@ class Database {
     this.data.users.push(newUser);
     this.save();
     return newUser;
+  }
+
+  public updateUser(id: string, updates: Partial<UserSession>): UserSession | null {
+    if (!this.data.users) this.data.users = [];
+    const index = this.data.users.findIndex((u) => u.id === id);
+    if (index === -1) return null;
+    this.data.users[index] = { ...this.data.users[index], ...updates };
+    this.save();
+    return this.data.users[index];
   }
 }
 

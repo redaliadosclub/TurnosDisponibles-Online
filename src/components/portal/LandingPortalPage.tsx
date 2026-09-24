@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Business, Service, Professional } from '../../types';
+import { Business, Service, Professional, User } from '../../types';
 import { api } from '../../services/api';
 import { BlogArticle } from '../../data/blogArticles';
 import { PortalNavbar } from './PortalNavbar';
@@ -16,9 +16,20 @@ import { BlogArticleModal } from './BlogArticleModal';
 interface LandingPortalPageProps {
   onSelectBooking: (slug: string) => void;
   onOpenAuthModal: () => void;
+  currentUser?: User | null;
+  onLogout?: () => void;
+  onGoToAdmin?: () => void;
+  onGoToSuperAdmin?: () => void;
 }
 
-export function LandingPortalPage({ onSelectBooking, onOpenAuthModal }: LandingPortalPageProps) {
+export function LandingPortalPage({
+  onSelectBooking,
+  onOpenAuthModal,
+  currentUser,
+  onLogout,
+  onGoToAdmin,
+  onGoToSuperAdmin,
+}: LandingPortalPageProps) {
   const [businesses, setBusinesses] = useState<Business[]>([]);
   const [servicesMap, setServicesMap] = useState<Record<string, Service[]>>({});
   const [professionalsMap, setProfessionalsMap] = useState<Record<string, Professional[]>>({});
@@ -111,6 +122,10 @@ export function LandingPortalPage({ onSelectBooking, onOpenAuthModal }: LandingP
         onOpenAuthModal={onOpenAuthModal}
         onNavigateSection={handleNavigateSection}
         activeSection={activeSection}
+        currentUser={currentUser}
+        onLogout={onLogout}
+        onGoToAdmin={onGoToAdmin}
+        onGoToSuperAdmin={onGoToSuperAdmin}
       />
 
       {/* Main Content Sections */}
@@ -172,6 +187,7 @@ export function LandingPortalPage({ onSelectBooking, onOpenAuthModal }: LandingP
       <BookingLookupModal
         isOpen={isLookupOpen}
         onClose={() => setIsLookupOpen(false)}
+        currentUser={currentUser}
         onGoToBooking={(slug) => {
           setIsLookupOpen(false);
           onSelectBooking(slug);

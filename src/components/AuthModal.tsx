@@ -91,11 +91,23 @@ export function AuthModal({
     setLoading(true);
 
     const cleanEmail = email.trim();
+    if (!cleanEmail) {
+      setError('Por favor ingresa tu correo electrónico.');
+      setLoading(false);
+      return;
+    }
+
+    if (!password) {
+      setError('Por favor ingresa tu contraseña.');
+      setLoading(false);
+      return;
+    }
+
     const isSuperAdminEmail =
       cleanEmail.toLowerCase() === 'agenciaclienteya@gmail.com' ||
       cleanEmail.toLowerCase().includes('admin');
 
-    if (isSuperAdminEmail && password && password !== 'admin123') {
+    if (isSuperAdminEmail && password !== 'admin123') {
       setError('Contraseña incorrecta para SuperAdmin Master.');
       setLoading(false);
       return;
@@ -103,6 +115,12 @@ export function AuthModal({
 
     try {
       if (isRegister) {
+        if (password.length < 6) {
+          setError('La contraseña debe tener al menos 6 caracteres.');
+          setLoading(false);
+          return;
+        }
+
         if (role === 'staff' && !businessCode.trim()) {
           setError('Debes ingresar el Código o Slug de tu Consultorio para vincular tu cuenta.');
           setLoading(false);
@@ -123,7 +141,7 @@ export function AuthModal({
         });
         notifySuccess(user);
       } else {
-        const user = await api.login(cleanEmail, password || 'admin123');
+        const user = await api.login(cleanEmail, password);
         notifySuccess(user);
       }
     } catch (err: any) {

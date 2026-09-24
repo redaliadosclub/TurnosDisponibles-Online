@@ -229,6 +229,9 @@ export interface User {
   email: string;
   role: Role;
   businessId?: string | null;
+  password?: string;
+  token?: string;
+  phone?: string;
 }
 
 export type UserSession = User;

@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { Appointment, Business, Service, Professional } from '../../types';
+import React, { useState, useEffect } from 'react';
+import { Appointment, Business, Service, Professional, User as UserType } from '../../types';
 import { api } from '../../services/api';
 import {
   Search,
@@ -23,9 +23,10 @@ interface BookingLookupModalProps {
   isOpen: boolean;
   onClose: () => void;
   onGoToBooking: (slug: string) => void;
+  currentUser?: UserType | null;
 }
 
-export function BookingLookupModal({ isOpen, onClose, onGoToBooking }: BookingLookupModalProps) {
+export function BookingLookupModal({ isOpen, onClose, onGoToBooking, currentUser }: BookingLookupModalProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [loading, setLoading] = useState(false);
   const [searched, setSearched] = useState(false);
@@ -38,11 +39,8 @@ export function BookingLookupModal({ isOpen, onClose, onGoToBooking }: BookingLo
   const [notFoundMessage, setNotFoundMessage] = useState<string | null>(null);
   const [cancelSuccess, setCancelSuccess] = useState(false);
 
-  if (!isOpen) return null;
-
-  const handleSearch = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    const query = searchQuery.trim();
+  const executeSearch = async (queryText: string) => {
+    const query = queryText.trim();
     if (!query) return;
 
     setLoading(true);
@@ -111,6 +109,29 @@ export function BookingLookupModal({ isOpen, onClose, onGoToBooking }: BookingLo
     } finally {
       setLoading(false);
     }
+  };
+
+  useEffect(() => {
+    if (isOpen) {
+      if (currentUser?.email || currentUser?.phone) {
+        const defaultQuery = currentUser.email || currentUser.phone || '';
+        setSearchQuery(defaultQuery);
+        executeSearch(defaultQuery);
+      } else {
+        setSearchQuery('');
+        setSearched(false);
+        setFoundAppointment(null);
+        setNotFoundMessage(null);
+        setCancelSuccess(false);
+      }
+    }
+  }, [isOpen, currentUser]);
+
+  if (!isOpen) return null;
+
+  const handleSearch = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    await executeSearch(searchQuery);
   };
 
   const handleCancelAppointment = async () => {

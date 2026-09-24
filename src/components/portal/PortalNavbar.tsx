@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
+import { User } from '../../types';
 import {
   Calendar,
   Search,
   LogIn,
+  LogOut,
   Menu,
   X,
   Sparkles,
@@ -12,6 +14,8 @@ import {
   HelpCircle,
   ArrowUpRight,
   ShieldCheck,
+  User as UserIcon,
+  LayoutDashboard,
 } from 'lucide-react';
 
 interface PortalNavbarProps {
@@ -19,6 +23,10 @@ interface PortalNavbarProps {
   onOpenAuthModal: () => void;
   onNavigateSection: (sectionId: string) => void;
   activeSection?: string;
+  currentUser?: User | null;
+  onLogout?: () => void;
+  onGoToAdmin?: () => void;
+  onGoToSuperAdmin?: () => void;
 }
 
 export function PortalNavbar({
@@ -26,6 +34,10 @@ export function PortalNavbar({
   onOpenAuthModal,
   onNavigateSection,
   activeSection = 'hero',
+  currentUser,
+  onLogout,
+  onGoToAdmin,
+  onGoToSuperAdmin,
 }: PortalNavbarProps) {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -50,6 +62,22 @@ export function PortalNavbar({
     setMobileMenuOpen(false);
     onNavigateSection(id);
   };
+
+  const getRoleBadge = () => {
+    if (!currentUser) return null;
+    if (currentUser.role === 'superadmin') {
+      return { label: 'SuperAdmin', color: 'bg-amber-950 text-amber-300 border-amber-500/40' };
+    }
+    if (currentUser.role === 'business_owner') {
+      return { label: 'Dueño', color: 'bg-teal-950 text-teal-300 border-teal-500/40' };
+    }
+    if (currentUser.role === 'staff') {
+      return { label: 'Doctor / Staff', color: 'bg-sky-950 text-sky-300 border-sky-500/40' };
+    }
+    return { label: 'Paciente', color: 'bg-emerald-950 text-emerald-300 border-emerald-500/40' };
+  };
+
+  const roleInfo = getRoleBadge();
 
   return (
     <header
@@ -107,27 +135,92 @@ export function PortalNavbar({
 
         {/* Action Buttons */}
         <div className="hidden sm:flex items-center gap-2.5">
-          {/* Consultar mi turno button */}
-          <button
-            id="btn-nav-lookup-appointment"
-            type="button"
-            onClick={onOpenLookupModal}
-            className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-200 bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/80 hover:text-white flex items-center gap-1.5 transition-all shadow-sm"
-          >
-            <Search className="w-3.5 h-3.5 text-teal-400" />
-            <span>Consultar mi Turno</span>
-          </button>
+          {currentUser ? (
+            <div className="flex items-center gap-2">
+              {/* User Profile Pill */}
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-850 border border-slate-750 text-xs">
+                <UserIcon className="w-3.5 h-3.5 text-slate-400" />
+                <span className="font-semibold text-slate-200 max-w-[130px] truncate">{currentUser.name}</span>
+                {roleInfo && (
+                  <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${roleInfo.color}`}>
+                    {roleInfo.label}
+                  </span>
+                )}
+              </div>
 
-          {/* Acceso Profesional CTA */}
-          <button
-            id="btn-nav-professional-access"
-            type="button"
-            onClick={onOpenAuthModal}
-            className="px-4 py-2 rounded-xl text-xs font-bold text-slate-950 bg-gradient-to-r from-teal-400 to-emerald-400 hover:from-teal-300 hover:to-emerald-300 shadow-md shadow-teal-500/20 flex items-center gap-1.5 transition-all hover:scale-[1.02]"
-          >
-            <LogIn className="w-3.5 h-3.5 text-slate-950" />
-            <span>Acceso Profesional</span>
-          </button>
+              {/* Patient: "Mis Turnos" button */}
+              {currentUser.role === 'customer' && (
+                <button
+                  type="button"
+                  onClick={onOpenLookupModal}
+                  className="px-3.5 py-2 rounded-xl text-xs font-semibold text-teal-300 bg-teal-950/60 hover:bg-teal-900/80 border border-teal-700/50 flex items-center gap-1.5 transition-all shadow-xs"
+                >
+                  <Calendar className="w-3.5 h-3.5 text-teal-400" />
+                  <span>Mis Turnos</span>
+                </button>
+              )}
+
+              {/* Business Owner or Staff: "Mi Panel de Gestión" */}
+              {(currentUser.role === 'business_owner' || currentUser.role === 'staff') && onGoToAdmin && (
+                <button
+                  type="button"
+                  onClick={onGoToAdmin}
+                  className="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-950 bg-gradient-to-r from-teal-400 to-emerald-400 hover:from-teal-300 hover:to-emerald-300 shadow-md flex items-center gap-1.5 transition-all hover:scale-[1.02]"
+                >
+                  <LayoutDashboard className="w-3.5 h-3.5" />
+                  <span>Mi Panel</span>
+                </button>
+              )}
+
+              {/* Superadmin: "Panel SuperAdmin" */}
+              {currentUser.role === 'superadmin' && onGoToSuperAdmin && (
+                <button
+                  type="button"
+                  onClick={onGoToSuperAdmin}
+                  className="px-3.5 py-2 rounded-xl text-xs font-bold text-amber-950 bg-gradient-to-r from-amber-400 to-orange-400 hover:from-amber-300 hover:to-orange-300 shadow-md flex items-center gap-1.5 transition-all hover:scale-[1.02]"
+                >
+                  <ShieldCheck className="w-3.5 h-3.5" />
+                  <span>Panel SuperAdmin</span>
+                </button>
+              )}
+
+              {/* Logout button */}
+              {onLogout && (
+                <button
+                  type="button"
+                  onClick={onLogout}
+                  className="p-2 rounded-xl text-slate-400 hover:text-rose-400 hover:bg-slate-800/80 border border-slate-700 transition"
+                  title="Cerrar sesión"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              )}
+            </div>
+          ) : (
+            <>
+              {/* Consultar mi turno button */}
+              <button
+                id="btn-nav-lookup-appointment"
+                type="button"
+                onClick={onOpenLookupModal}
+                className="px-3.5 py-2 rounded-xl text-xs font-semibold text-slate-200 bg-slate-800/80 hover:bg-slate-700/80 border border-slate-700/80 hover:text-white flex items-center gap-1.5 transition-all shadow-sm"
+              >
+                <Search className="w-3.5 h-3.5 text-teal-400" />
+                <span>Consultar mi Turno</span>
+              </button>
+
+              {/* Acceso Profesional CTA */}
+              <button
+                id="btn-nav-professional-access"
+                type="button"
+                onClick={onOpenAuthModal}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-950 bg-gradient-to-r from-teal-400 to-emerald-400 hover:from-teal-300 hover:to-emerald-300 shadow-md shadow-teal-500/20 flex items-center gap-1.5 transition-all hover:scale-[1.02]"
+              >
+                <LogIn className="w-3.5 h-3.5 text-slate-950" />
+                <span>Ingresar / Registro</span>
+              </button>
+            </>
+          )}
         </div>
 
         {/* Mobile menu hamburger */}
@@ -174,31 +267,102 @@ export function PortalNavbar({
           </div>
 
           <div className="pt-3 border-t border-slate-800/80 space-y-2">
-            <button
-              id="btn-mobile-lookup-full"
-              type="button"
-              onClick={() => {
-                setMobileMenuOpen(false);
-                onOpenLookupModal();
-              }}
-              className="w-full py-2.5 px-4 bg-slate-800 text-slate-200 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 border border-slate-700"
-            >
-              <Search className="w-4 h-4 text-teal-400" />
-              Consultar mi Turno por Código
-            </button>
+            {currentUser ? (
+              <div className="space-y-2">
+                <div className="px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between text-xs">
+                  <span className="font-bold text-slate-200">{currentUser.name}</span>
+                  {roleInfo && (
+                    <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded-full border ${roleInfo.color}`}>
+                      {roleInfo.label}
+                    </span>
+                  )}
+                </div>
 
-            <button
-              id="btn-mobile-auth-full"
-              type="button"
-              onClick={() => {
-                setMobileMenuOpen(false);
-                onOpenAuthModal();
-              }}
-              className="w-full py-2.5 px-4 bg-gradient-to-r from-teal-400 to-emerald-400 text-slate-950 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-lg"
-            >
-              <LogIn className="w-4 h-4 text-slate-950" />
-              Acceso Profesional / Dueños
-            </button>
+                {currentUser.role === 'customer' && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      onOpenLookupModal();
+                    }}
+                    className="w-full py-2.5 px-4 bg-teal-950/80 text-teal-300 border border-teal-700/60 rounded-xl text-xs font-bold flex items-center justify-center gap-2"
+                  >
+                    <Calendar className="w-4 h-4 text-teal-400" />
+                    Mis Turnos
+                  </button>
+                )}
+
+                {(currentUser.role === 'business_owner' || currentUser.role === 'staff') && onGoToAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      onGoToAdmin();
+                    }}
+                    className="w-full py-2.5 px-4 bg-gradient-to-r from-teal-400 to-emerald-400 text-slate-950 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-lg"
+                  >
+                    <LayoutDashboard className="w-4 h-4 text-slate-950" />
+                    Ir a mi Panel de Gestión
+                  </button>
+                )}
+
+                {currentUser.role === 'superadmin' && onGoToSuperAdmin && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      onGoToSuperAdmin();
+                    }}
+                    className="w-full py-2.5 px-4 bg-gradient-to-r from-amber-400 to-orange-400 text-amber-950 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-lg"
+                  >
+                    <ShieldCheck className="w-4 h-4" />
+                    Ir a Panel SuperAdmin
+                  </button>
+                )}
+
+                {onLogout && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      onLogout();
+                    }}
+                    className="w-full py-2.5 px-4 bg-rose-950/40 text-rose-300 border border-rose-800/40 rounded-xl text-xs font-bold flex items-center justify-center gap-2"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    Cerrar Sesión
+                  </button>
+                )}
+              </div>
+            ) : (
+              <>
+                <button
+                  id="btn-mobile-lookup-full"
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    onOpenLookupModal();
+                  }}
+                  className="w-full py-2.5 px-4 bg-slate-800 text-slate-200 rounded-xl text-xs font-semibold flex items-center justify-center gap-2 border border-slate-700"
+                >
+                  <Search className="w-4 h-4 text-teal-400" />
+                  Consultar mi Turno por Código
+                </button>
+
+                <button
+                  id="btn-mobile-auth-full"
+                  type="button"
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    onOpenAuthModal();
+                  }}
+                  className="w-full py-2.5 px-4 bg-gradient-to-r from-teal-400 to-emerald-400 text-slate-950 rounded-xl text-xs font-bold flex items-center justify-center gap-2 shadow-lg"
+                >
+                  <LogIn className="w-4 h-4 text-slate-950" />
+                  Ingresar / Registrarse
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}

@@ -937,68 +937,70 @@ export class ApiService {
 
   // Auth methods
   async getCurrentUser(): Promise<User | null> {
-    return this.currentUser;
+    if (this.currentUser) return this.currentUser;
+    const token = typeof window !== 'undefined' ? localStorage.getItem('td_auth_token') : null;
+    if (token) {
+      try {
+        const res = await fetch('/api/auth/me', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.user) {
+            this.currentUser = data.user;
+            saveStorage(STORAGE_KEYS.USER, data.user);
+            return data.user;
+          }
+        }
+      } catch {}
+    }
+    const saved = loadStorage<User | null>(STORAGE_KEYS.USER, null);
+    this.currentUser = saved;
+    return saved;
   }
 
   async login(email: string, password?: string): Promise<User> {
     const cleanEmail = email.trim();
+    if (!cleanEmail) {
+      throw new Error('Por favor ingresa tu correo electrónico.');
+    }
+    if (!password) {
+      throw new Error('Por favor ingresa tu contraseña.');
+    }
+
     const lower = cleanEmail.toLowerCase();
     const isSuperAdminEmail = lower === 'agenciaclienteya@gmail.com' || lower.includes('admin');
 
-    if (isSuperAdminEmail && password && password !== 'admin123') {
+    if (isSuperAdminEmail && password !== 'admin123') {
       throw new Error('Contraseña de SuperAdmin incorrecta');
     }
 
-    try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: cleanEmail, password }),
-      });
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.user) {
-          this.currentUser = data.user;
-          saveStorage(STORAGE_KEYS.USER, data.user);
-          this.notifyAuthChange();
-          // Reload businesses to pick up any changes
-          await this.syncFromCloud().catch(() => {});
-          return data.user;
-        }
-      } else {
-        const errData = await res.json().catch(() => ({}));
-        if (errData.error) throw new Error(errData.error);
-      }
-    } catch (err: any) {
-      if (err.message && err.message.includes('SuperAdmin')) {
-        throw err;
-      }
-      // If network issue, fallback to client-side logic
+    const res = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: cleanEmail, password }),
+    });
+
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || 'Error al iniciar sesión. Verifica tu correo y contraseña.');
     }
 
-    let user: User;
-    if (isSuperAdminEmail) {
-      user = {
-        id: 'usr_superadmin_master',
-        name: lower === 'agenciaclienteya@gmail.com' ? 'Agencia Cliente Ya (SuperAdmin)' : 'Super Admin Master',
-        email: cleanEmail,
-        role: 'superadmin',
-        businessId: null,
-      };
-    } else {
-      user = {
-        id: `usr_${Date.now()}`,
-        name: cleanEmail.split('@')[0],
-        email: cleanEmail,
-        role: 'business_owner',
-        businessId: this.businesses[0]?.id || 'biz_turnosmed_demo',
-      };
+    const data = await res.json();
+    if (!data || !data.user) {
+      throw new Error('Respuesta de inicio de sesión no válida del servidor.');
     }
 
-    this.currentUser = user;
-    saveStorage(STORAGE_KEYS.USER, user);
+    if (data.token) {
+      localStorage.setItem('td_auth_token', data.token);
+    }
+    this.currentUser = data.user;
+    saveStorage(STORAGE_KEYS.USER, data.user);
     this.notifyAuthChange();
-    return user;
+
+    // Reload business data
+    await this.syncFromCloud().catch(() => {});
+    return data.user;
   }
 
   async register(data: {
@@ -1013,90 +1015,55 @@ export class ApiService {
     specialty?: string;
     phone?: string;
   }): Promise<User> {
-    try {
-      const res = await fetch('/api/auth/register', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      });
-
-      if (res.ok) {
-        const resData = await res.json();
-        if (resData && resData.user) {
-          this.currentUser = resData.user;
-          saveStorage(STORAGE_KEYS.USER, resData.user);
-          this.notifyAuthChange();
-          // Resync businesses from backend
-          await this.syncFromCloud().catch(() => {});
-          return resData.user;
-        }
-      } else {
-        const errData = await res.json().catch(() => ({}));
-        if (errData.error) {
-          throw new Error(errData.error);
-        }
-      }
-    } catch (err: any) {
-      if (err.message && !err.message.includes('fetch') && !err.message.includes('Failed to fetch')) {
-        throw err;
-      }
+    if (!data.name || !data.name.trim()) {
+      throw new Error('Por favor ingresa tu nombre completo.');
+    }
+    if (!data.email || !data.email.trim()) {
+      throw new Error('Por favor ingresa un correo electrónico válido.');
+    }
+    if (!data.password || data.password.length < 6) {
+      throw new Error('La contraseña debe tener un mínimo de 6 caracteres.');
     }
 
-    // Client-side fallback if offline
-    const cleanEmail = data.email.trim();
-    let bizId = data.businessId || null;
+    const res = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
 
-    if (data.role === 'business_owner') {
-      const bizName = (data.businessName && data.businessName.trim()) || `Consultorio ${data.name}`;
-      let baseSlug = bizName
-        .toLowerCase()
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '');
-      if (!baseSlug || baseSlug.length < 3) baseSlug = `consultorio-${Date.now().toString(36)}`;
-
-      const newLocalBiz: Business = {
-        id: `biz_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-        name: bizName,
-        slug: baseSlug,
-        businessType: (data.businessType as any) || 'medical',
-        description: `Centro de atención profesional y turnos de ${data.name}.`,
-        category: 'Consultorio & Especialidades',
-        address: 'Atención presencial y turnos online',
-        phone: data.phone || '+54 11 0000-0000',
-        whatsappNumber: (data.phone || '5491100000000').replace(/\D/g, ''),
-        primaryColor: '#0d9488',
-        welcomeMessage: `¡Bienvenido a ${bizName}! Agenda tu turno en simples pasos.`,
-        cancellationPolicy: 'Podrás reprogramar o cancelar con al menos 4 horas de anticipación.',
-        bufferMinutes: 10,
-        plan: 'pro',
-        status: 'active',
-        createdAt: new Date().toISOString(),
-      };
-      this.businesses.push(newLocalBiz);
-      saveStorage(STORAGE_KEYS.BUSINESSES, this.businesses);
-      bizId = newLocalBiz.id;
+    if (!res.ok) {
+      const errData = await res.json().catch(() => ({}));
+      throw new Error(errData.error || 'Error al procesar el registro.');
     }
 
-    const localUser: User = {
-      id: `usr_${Date.now()}`,
-      name: data.name,
-      email: cleanEmail,
-      role: data.role as any,
-      businessId: bizId,
-    };
+    const resData = await res.json();
+    if (!resData || !resData.user) {
+      throw new Error('Respuesta de registro no válida del servidor.');
+    }
 
-    this.currentUser = localUser;
-    saveStorage(STORAGE_KEYS.USER, localUser);
+    if (resData.token) {
+      localStorage.setItem('td_auth_token', resData.token);
+    }
+    this.currentUser = resData.user;
+    saveStorage(STORAGE_KEYS.USER, resData.user);
     this.notifyAuthChange();
-    return localUser;
+
+    // Resync businesses from backend
+    await this.syncFromCloud().catch(() => {});
+    return resData.user;
   }
 
   async logout(): Promise<void> {
+    const token = typeof window !== 'undefined' ? localStorage.getItem('td_auth_token') : null;
     try {
-      await fetch('/api/auth/logout', { method: 'POST' }).catch(() => {});
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      }).catch(() => {});
     } catch {}
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('td_auth_token');
+    }
     this.currentUser = null;
     saveStorage(STORAGE_KEYS.USER, null);
     this.notifyAuthChange();
@@ -1131,6 +1098,14 @@ export class ApiService {
     );
     if (!found) throw new Error('Negocio no encontrado');
     return found;
+  }
+
+  async getBusinessById(id: string): Promise<Business | null> {
+    if (!this.isCloudSynced) {
+      await this.syncFromCloud().catch(() => {});
+    }
+    const found = this.businesses.find((b) => b.id === id || b.slug === id);
+    return found || null;
   }
 
   async createBusiness(data: Omit<Business, 'id' | 'createdAt'>): Promise<Business> {

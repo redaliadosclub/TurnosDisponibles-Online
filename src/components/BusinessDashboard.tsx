@@ -730,6 +730,14 @@ export function BusinessDashboard({
     });
   }, [appointments, calendarView, selectedDate, filterProfId, filterStatus, searchQuery]);
 
+  const isOwnerOrAdmin = userRole === 'business_owner' || userRole === 'superadmin';
+
+  useEffect(() => {
+    if (!isOwnerOrAdmin && ['branding', 'payments', 'whatsapp', 'plans'].includes(activeTab)) {
+      setActiveTab('agenda');
+    }
+  }, [isOwnerOrAdmin, activeTab]);
+
   return (
     <div className="min-h-screen bg-slate-100/70 text-slate-900 pb-20">
       {/* Top Navbar */}
@@ -748,18 +756,25 @@ export function BusinessDashboard({
                 <span className="text-[10px] uppercase font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200">
                   {BUSINESS_TYPES[business.businessType]?.name || business.businessType}
                 </span>
-                <button
-                  type="button"
-                  onClick={() => setActiveTab('plans')}
-                  className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 hover:bg-emerald-200 text-emerald-800 transition cursor-pointer flex items-center gap-1"
-                  title="Haz clic para ver y cambiar planes de suscripción"
-                >
-                  <Sparkles className="w-2.5 h-2.5 text-emerald-600" />
-                  <span>Plan {business.plan.toUpperCase()}</span>
-                </button>
+                {isOwnerOrAdmin ? (
+                  <button
+                    type="button"
+                    onClick={() => setActiveTab('plans')}
+                    className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 hover:bg-emerald-200 text-emerald-800 transition cursor-pointer flex items-center gap-1"
+                    title="Haz clic para ver y cambiar planes de suscripción"
+                  >
+                    <Sparkles className="w-2.5 h-2.5 text-emerald-600" />
+                    <span>Plan {business.plan.toUpperCase()}</span>
+                  </button>
+                ) : (
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 flex items-center gap-1">
+                    <Sparkles className="w-2.5 h-2.5 text-slate-500" />
+                    <span>Plan {business.plan.toUpperCase()}</span>
+                  </span>
+                )}
               </div>
               <p className="text-xs text-slate-500">
-                Panel de Administración • Rol: <span className="font-semibold">{userRole}</span>
+                Panel de Administración • Rol: <span className="font-semibold">{userRole === 'business_owner' ? 'Dueño del Negocio' : userRole === 'staff' ? 'Staff / Profesional Médico' : userRole}</span>
               </p>
             </div>
           </div>
@@ -868,44 +883,50 @@ export function BusinessDashboard({
             <span>{labels.clientsLabel} ({customers.length})</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('branding')}
-            className={`py-3 px-3.5 border-b-2 flex items-center gap-2 whitespace-nowrap transition cursor-pointer ${
-              activeTab === 'branding'
-                ? 'border-slate-900 text-slate-900 font-bold'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <Settings className="w-4 h-4" />
-            <span>Personalización & Nicho</span>
-          </button>
+          {isOwnerOrAdmin && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('branding')}
+              className={`py-3 px-3.5 border-b-2 flex items-center gap-2 whitespace-nowrap transition cursor-pointer ${
+                activeTab === 'branding'
+                  ? 'border-slate-900 text-slate-900 font-bold'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <Settings className="w-4 h-4" />
+              <span>Personalización & Nicho</span>
+            </button>
+          )}
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('payments')}
-            className={`py-3 px-3.5 border-b-2 flex items-center gap-2 whitespace-nowrap transition cursor-pointer ${
-              activeTab === 'payments'
-                ? 'border-slate-900 text-slate-900 font-bold'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <CreditCard className="w-4 h-4" />
-            <span>Señas & Mercado Pago</span>
-          </button>
+          {isOwnerOrAdmin && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('payments')}
+              className={`py-3 px-3.5 border-b-2 flex items-center gap-2 whitespace-nowrap transition cursor-pointer ${
+                activeTab === 'payments'
+                  ? 'border-slate-900 text-slate-900 font-bold'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <CreditCard className="w-4 h-4" />
+              <span>Señas & Mercado Pago</span>
+            </button>
+          )}
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('whatsapp')}
-            className={`py-3 px-3.5 border-b-2 flex items-center gap-2 whitespace-nowrap transition cursor-pointer ${
-              activeTab === 'whatsapp'
-                ? 'border-slate-900 text-slate-900 font-bold'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <MessageCircle className="w-4 h-4" />
-            <span>WhatsApp & WAPI</span>
-          </button>
+          {isOwnerOrAdmin && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('whatsapp')}
+              className={`py-3 px-3.5 border-b-2 flex items-center gap-2 whitespace-nowrap transition cursor-pointer ${
+                activeTab === 'whatsapp'
+                  ? 'border-slate-900 text-slate-900 font-bold'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <MessageCircle className="w-4 h-4" />
+              <span>WhatsApp & WAPI</span>
+            </button>
+          )}
 
           <button
             type="button"
@@ -936,18 +957,20 @@ export function BusinessDashboard({
             <span>Métricas</span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('plans')}
-            className={`py-3 px-3.5 border-b-2 flex items-center gap-2 whitespace-nowrap transition cursor-pointer ${
-              activeTab === 'plans'
-                ? 'border-slate-900 text-slate-900 font-bold'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <Sparkles className="w-4 h-4" />
-            <span>SaaS Planes</span>
-          </button>
+          {isOwnerOrAdmin && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('plans')}
+              className={`py-3 px-3.5 border-b-2 flex items-center gap-2 whitespace-nowrap transition cursor-pointer ${
+                activeTab === 'plans'
+                  ? 'border-slate-900 text-slate-900 font-bold'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <Sparkles className="w-4 h-4" />
+              <span>SaaS Planes</span>
+            </button>
+          )}
         </div>
       </header>
 

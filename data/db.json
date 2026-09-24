@@ -28,6 +28,42 @@
       "bankAccountHolder": "Dermatocosmiatría Spa",
       "bankName": "Banco BBVA",
       "paymentInstructions": "Para confirmar tu turno, se abona una seña de $5.000 mediante Mercado Pago o transferencia bancaria."
+    },
+    {
+      "name": "Clínica Especializada 1790249375489",
+      "slug": "clinica-especializada-1790249375489",
+      "businessType": "medical",
+      "description": "Centro de atención profesional y turnos de Dr. Roberto Dueño.",
+      "category": "Consultorio & Especialidades",
+      "address": "Atención presencial y turnos online",
+      "phone": "+5491144445555",
+      "whatsappNumber": "5491144445555",
+      "primaryColor": "#0d9488",
+      "welcomeMessage": "¡Bienvenido a Clínica Especializada 1790249375489! Agenda tu turno en simples pasos.",
+      "cancellationPolicy": "Podrás reprogramar o cancelar con al menos 4 horas de anticipación.",
+      "bufferMinutes": 10,
+      "plan": "pro",
+      "status": "active",
+      "id": "biz_1790249375523_7dje",
+      "createdAt": "2026-09-24T11:29:35.523Z"
+    },
+    {
+      "name": "Clínica Especializada 1790249402851",
+      "slug": "clinica-especializada-1790249402851",
+      "businessType": "medical",
+      "description": "Centro de atención profesional y turnos de Dr. Roberto Dueño.",
+      "category": "Consultorio & Especialidades",
+      "address": "Atención presencial y turnos online",
+      "phone": "+5491144445555",
+      "whatsappNumber": "5491144445555",
+      "primaryColor": "#0d9488",
+      "welcomeMessage": "¡Bienvenido a Clínica Especializada 1790249402851! Agenda tu turno en simples pasos.",
+      "cancellationPolicy": "Podrás reprogramar o cancelar con al menos 4 horas de anticipación.",
+      "bufferMinutes": 10,
+      "plan": "pro",
+      "status": "active",
+      "id": "biz_1790249402870_9o3y",
+      "createdAt": "2026-09-24T11:30:02.870Z"
     }
   ],
   "professionals": [
@@ -61,6 +97,58 @@
         "srv_dermato_limpieza",
         "srv_dermato_hidra"
       ]
+    },
+    {
+      "name": "Dr. Roberto Dueño",
+      "title": "Traumatología",
+      "photoUrl": "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=400",
+      "email": "test_owner_1790249375489@consultorio.com",
+      "phone": "+5491144445555",
+      "active": true,
+      "specialty": "Traumatología",
+      "serviceIds": [
+        "srv_1790249375524_uw29"
+      ],
+      "id": "prof_1790249375524_5gkw",
+      "businessId": "biz_1790249375523_7dje"
+    },
+    {
+      "name": "Dra. Florencia Médica",
+      "title": "Kinesiología y Rehabilitación",
+      "photoUrl": "https://images.unsplash.com/photo-1594824813629-9e8c3230a13d?auto=format&fit=crop&q=80&w=400",
+      "email": "test_doctor_1790249375489@consultorio.com",
+      "phone": "+5491177778888",
+      "active": true,
+      "specialty": "Kinesiología y Rehabilitación",
+      "serviceIds": [],
+      "id": "prof_1790249375535_dgt6",
+      "businessId": "biz_1790249375523_7dje"
+    },
+    {
+      "name": "Dr. Roberto Dueño",
+      "title": "Traumatología",
+      "photoUrl": "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=400",
+      "email": "test_owner_1790249402851@consultorio.com",
+      "phone": "+5491144445555",
+      "active": true,
+      "specialty": "Traumatología",
+      "serviceIds": [
+        "srv_1790249402871_2yx0"
+      ],
+      "id": "prof_1790249402871_bmzu",
+      "businessId": "biz_1790249402870_9o3y"
+    },
+    {
+      "name": "Dra. Florencia Médica",
+      "title": "Kinesiología y Rehabilitación",
+      "photoUrl": "https://images.unsplash.com/photo-1594824813629-9e8c3230a13d?auto=format&fit=crop&q=80&w=400",
+      "email": "test_doctor_1790249402851@consultorio.com",
+      "phone": "+5491177778888",
+      "active": true,
+      "specialty": "Kinesiología y Rehabilitación",
+      "serviceIds": [],
+      "id": "prof_1790249402878_eomv",
+      "businessId": "biz_1790249402870_9o3y"
     }
   ],
   "services": [
@@ -116,6 +204,32 @@
       "assignedProfessionalIds": [
         "prof_camila_dermato"
       ]
+    },
+    {
+      "name": "Consulta General / Turno Inicial",
+      "description": "Atención personalizada y diagnóstico inicial.",
+      "durationMinutes": 30,
+      "price": 0,
+      "currency": "$",
+      "active": true,
+      "assignedProfessionalIds": [
+        "prof_1790249375524_5gkw"
+      ],
+      "id": "srv_1790249375524_uw29",
+      "businessId": "biz_1790249375523_7dje"
+    },
+    {
+      "name": "Consulta General / Turno Inicial",
+      "description": "Atención personalizada y diagnóstico inicial.",
+      "durationMinutes": 30,
+      "price": 0,
+      "currency": "$",
+      "active": true,
+      "assignedProfessionalIds": [
+        "prof_1790249402871_bmzu"
+      ],
+      "id": "srv_1790249402871_2yx0",
+      "businessId": "biz_1790249402870_9o3y"
     }
   ],
   "workingHours": [
@@ -224,6 +338,176 @@
       "dayOfWeek": 0,
       "shifts": [],
       "enabled": false
+    },
+    {
+      "id": "wh_biz_1790249375523_7dje_1",
+      "businessId": "biz_1790249375523_7dje",
+      "professionalId": null,
+      "dayOfWeek": 1,
+      "shifts": [
+        {
+          "start": "08:00",
+          "end": "12:00"
+        },
+        {
+          "start": "14:00",
+          "end": "18:00"
+        }
+      ],
+      "enabled": true
+    },
+    {
+      "id": "wh_biz_1790249375523_7dje_2",
+      "businessId": "biz_1790249375523_7dje",
+      "professionalId": null,
+      "dayOfWeek": 2,
+      "shifts": [
+        {
+          "start": "08:00",
+          "end": "12:00"
+        },
+        {
+          "start": "14:00",
+          "end": "18:00"
+        }
+      ],
+      "enabled": true
+    },
+    {
+      "id": "wh_biz_1790249375523_7dje_3",
+      "businessId": "biz_1790249375523_7dje",
+      "professionalId": null,
+      "dayOfWeek": 3,
+      "shifts": [
+        {
+          "start": "08:00",
+          "end": "12:00"
+        },
+        {
+          "start": "14:00",
+          "end": "18:00"
+        }
+      ],
+      "enabled": true
+    },
+    {
+      "id": "wh_biz_1790249375523_7dje_4",
+      "businessId": "biz_1790249375523_7dje",
+      "professionalId": null,
+      "dayOfWeek": 4,
+      "shifts": [
+        {
+          "start": "08:00",
+          "end": "12:00"
+        },
+        {
+          "start": "14:00",
+          "end": "18:00"
+        }
+      ],
+      "enabled": true
+    },
+    {
+      "id": "wh_biz_1790249375523_7dje_5",
+      "businessId": "biz_1790249375523_7dje",
+      "professionalId": null,
+      "dayOfWeek": 5,
+      "shifts": [
+        {
+          "start": "08:00",
+          "end": "12:00"
+        },
+        {
+          "start": "14:00",
+          "end": "18:00"
+        }
+      ],
+      "enabled": true
+    },
+    {
+      "id": "wh_biz_1790249402870_9o3y_1",
+      "businessId": "biz_1790249402870_9o3y",
+      "professionalId": null,
+      "dayOfWeek": 1,
+      "shifts": [
+        {
+          "start": "08:00",
+          "end": "12:00"
+        },
+        {
+          "start": "14:00",
+          "end": "18:00"
+        }
+      ],
+      "enabled": true
+    },
+    {
+      "id": "wh_biz_1790249402870_9o3y_2",
+      "businessId": "biz_1790249402870_9o3y",
+      "professionalId": null,
+      "dayOfWeek": 2,
+      "shifts": [
+        {
+          "start": "08:00",
+          "end": "12:00"
+        },
+        {
+          "start": "14:00",
+          "end": "18:00"
+        }
+      ],
+      "enabled": true
+    },
+    {
+      "id": "wh_biz_1790249402870_9o3y_3",
+      "businessId": "biz_1790249402870_9o3y",
+      "professionalId": null,
+      "dayOfWeek": 3,
+      "shifts": [
+        {
+          "start": "08:00",
+          "end": "12:00"
+        },
+        {
+          "start": "14:00",
+          "end": "18:00"
+        }
+      ],
+      "enabled": true
+    },
+    {
+      "id": "wh_biz_1790249402870_9o3y_4",
+      "businessId": "biz_1790249402870_9o3y",
+      "professionalId": null,
+      "dayOfWeek": 4,
+      "shifts": [
+        {
+          "start": "08:00",
+          "end": "12:00"
+        },
+        {
+          "start": "14:00",
+          "end": "18:00"
+        }
+      ],
+      "enabled": true
+    },
+    {
+      "id": "wh_biz_1790249402870_9o3y_5",
+      "businessId": "biz_1790249402870_9o3y",
+      "professionalId": null,
+      "dayOfWeek": 5,
+      "shifts": [
+        {
+          "start": "08:00",
+          "end": "12:00"
+        },
+        {
+          "start": "14:00",
+          "end": "18:00"
+        }
+      ],
+      "enabled": true
     }
   ],
   "timeOffs": [
@@ -334,6 +618,60 @@
       "email": "mariana@dermatocosmiatria.com",
       "role": "business_owner",
       "businessId": "biz_dermatocosmiatria_spa"
+    },
+    {
+      "name": "Dr. Roberto Dueño",
+      "email": "test_owner_1790249375489@consultorio.com",
+      "password": "PasswordSegura123!",
+      "phone": "+5491144445555",
+      "role": "business_owner",
+      "businessId": "biz_1790249375523_7dje",
+      "id": "usr_1790249375525_oba4"
+    },
+    {
+      "name": "Dra. Florencia Médica",
+      "email": "test_doctor_1790249375489@consultorio.com",
+      "password": "PasswordSegura123!",
+      "phone": "+5491177778888",
+      "role": "staff",
+      "businessId": "biz_1790249375523_7dje",
+      "id": "usr_1790249375536_42w3"
+    },
+    {
+      "name": "Juan Paciente",
+      "email": "test_patient_1790249375489@gmail.com",
+      "password": "PasswordSegura123!",
+      "phone": "+5491199990000",
+      "role": "customer",
+      "businessId": null,
+      "id": "usr_1790249375538_26d6"
+    },
+    {
+      "name": "Dr. Roberto Dueño",
+      "email": "test_owner_1790249402851@consultorio.com",
+      "password": "PasswordSegura123!",
+      "phone": "+5491144445555",
+      "role": "business_owner",
+      "businessId": "biz_1790249402870_9o3y",
+      "id": "usr_1790249402871_h2b9"
+    },
+    {
+      "name": "Dra. Florencia Médica",
+      "email": "test_doctor_1790249402851@consultorio.com",
+      "password": "PasswordSegura123!",
+      "phone": "+5491177778888",
+      "role": "staff",
+      "businessId": "biz_1790249402870_9o3y",
+      "id": "usr_1790249402878_rbo1"
+    },
+    {
+      "name": "Juan Paciente",
+      "email": "test_patient_1790249402851@gmail.com",
+      "password": "PasswordSegura123!",
+      "phone": "+5491199990000",
+      "role": "customer",
+      "businessId": null,
+      "id": "usr_1790249402881_62bf"
     }
   ]
 }

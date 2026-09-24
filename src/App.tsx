@@ -448,6 +448,10 @@ export default function App() {
       <div className="flex-1">
         {activeView === 'portal' && (
           <LandingPortalPage
+            currentUser={currentUser}
+            onLogout={handleLogout}
+            onGoToAdmin={() => setActiveView('business')}
+            onGoToSuperAdmin={() => setActiveView('superadmin')}
             onSelectBooking={(slug) => {
               const allAvailable = [...businesses, ...INITIAL_BUSINESSES];
               const match = findBusinessBySlug(allAvailable, slug);
