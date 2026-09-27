@@ -701,6 +701,8 @@ function saveStorage<T>(key: string, data: T): void {
   } catch {}
 }
 
+const LEGACY_DEMO_BIZ_IDS = new Set(['biz_turnosmed_demo', 'biz_estetica_bella', 'turnosmed-demo', 'estetica-bella']);
+
 export const LOCAL_PRESET_USERS: Record<string, { user: User; pass: string }> = {
   'agenciaclienteya@gmail.com': {
     pass: 'admin123',
@@ -743,17 +745,6 @@ export const LOCAL_PRESET_USERS: Record<string, { user: User; pass: string }> = 
       role: 'customer',
       businessId: null,
       phone: '+5491199990000',
-    },
-  },
-  'atcarlosmorandi@gmail.com': {
-    pass: 'nose123',
-    user: {
-      id: 'usr_1790547428825_sqch',
-      name: 'Ariel Martinez',
-      email: 'atcarlosmorandi@gmail.com',
-      role: 'business_owner',
-      businessId: 'biz_1790547428823_37in',
-      phone: '2474674231',
     },
   },
 };
@@ -1242,12 +1233,20 @@ class ApiService {
           if (resData.token) {
             localStorage.setItem('td_auth_token', resData.token);
           }
+          if (resData.business) {
+            const map = new Map<string, Business>();
+            map.set(resData.business.id, resData.business);
+            this.businesses.forEach((b) => map.set(b.id, b));
+            this.businesses = Array.from(map.values());
+            saveStorage(STORAGE_KEYS.BUSINESSES, this.businesses);
+            setDoc(doc(db, 'businesses', resData.business.id), resData.business).catch(() => {});
+          }
           this.currentUser = resData.user;
           saveStorage(STORAGE_KEYS.USER, resData.user);
           this.notifyAuthChange();
 
           // Resync businesses from backend
-          await this.syncFromCloud().catch(() => {});
+          await this.getBusinesses().catch(() => {});
           return resData.user;
         }
       } else {
@@ -1359,6 +1358,22 @@ class ApiService {
 
   // Businesses
   async getBusinesses(): Promise<Business[]> {
+    try {
+      const res = await fetch('/api/businesses');
+      if (res.ok) {
+        const serverBizs: Business[] = await res.json();
+        if (Array.isArray(serverBizs) && serverBizs.length > 0) {
+          const map = new Map<string, Business>();
+          this.businesses.forEach((b) => map.set(b.id, b));
+          serverBizs.forEach((b) => map.set(b.id, b));
+          this.businesses = Array.from(map.values()).filter(
+            (b) => !LEGACY_DEMO_BIZ_IDS.has(b.id) && !LEGACY_DEMO_BIZ_IDS.has(b.slug)
+          );
+          saveStorage(STORAGE_KEYS.BUSINESSES, this.businesses);
+        }
+      }
+    } catch {}
+
     if (!this.isCloudSynced) {
       await this.syncFromCloud().catch(() => {});
     }
@@ -1366,34 +1381,73 @@ class ApiService {
   }
 
   async getAllBusinesses(): Promise<Business[]> {
-    if (!this.isCloudSynced) {
-      await this.syncFromCloud().catch(() => {});
-    }
-    return this.businesses;
+    return this.getBusinesses();
   }
 
   async getBusinessBySlug(slug: string): Promise<Business> {
-    if (!this.isCloudSynced) {
-      await this.syncFromCloud().catch(() => {});
-    }
     const cleanSlug = slug.toLowerCase().trim().replace(/^[#/]+/, '').replace(/^booking-/, '').replace(/^book\//, '');
-    const found = this.businesses.find(
+    let found = this.businesses.find(
       (b) =>
         b.slug.toLowerCase() === cleanSlug ||
         b.id.toLowerCase() === cleanSlug ||
         b.slug.toLowerCase() === slug.toLowerCase() ||
         b.id.toLowerCase() === slug.toLowerCase()
     );
-    if (!found) throw new Error('Negocio no encontrado');
-    return found;
+    if (found) return found;
+
+    try {
+      const res = await fetch(`/api/businesses/${encodeURIComponent(cleanSlug)}`);
+      if (res.ok) {
+        const biz: Business = await res.json();
+        if (biz && biz.id) {
+          this.businesses.unshift(biz);
+          saveStorage(STORAGE_KEYS.BUSINESSES, this.businesses);
+          return biz;
+        }
+      }
+    } catch {}
+
+    if (!this.isCloudSynced) {
+      await this.syncFromCloud().catch(() => {});
+      found = this.businesses.find(
+        (b) =>
+          b.slug.toLowerCase() === cleanSlug ||
+          b.id.toLowerCase() === cleanSlug ||
+          b.slug.toLowerCase() === slug.toLowerCase() ||
+          b.id.toLowerCase() === slug.toLowerCase()
+      );
+      if (found) return found;
+    }
+
+    throw new Error('Negocio no encontrado');
   }
 
   async getBusinessById(id: string): Promise<Business | null> {
+    const cleanId = (id || '').trim();
+    if (!cleanId) return null;
+
+    let found = this.businesses.find((b) => b.id === cleanId || b.slug === cleanId);
+    if (found) return found;
+
+    try {
+      const res = await fetch(`/api/businesses/${encodeURIComponent(cleanId)}`);
+      if (res.ok) {
+        const biz: Business = await res.json();
+        if (biz && biz.id) {
+          this.businesses.unshift(biz);
+          saveStorage(STORAGE_KEYS.BUSINESSES, this.businesses);
+          return biz;
+        }
+      }
+    } catch {}
+
     if (!this.isCloudSynced) {
       await this.syncFromCloud().catch(() => {});
+      found = this.businesses.find((b) => b.id === cleanId || b.slug === cleanId);
+      if (found) return found;
     }
-    const found = this.businesses.find((b) => b.id === id || b.slug === id);
-    return found || null;
+
+    return null;
   }
 
   async createBusiness(data: Omit<Business, 'id' | 'createdAt'>): Promise<Business> {

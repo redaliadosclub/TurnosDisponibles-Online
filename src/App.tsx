@@ -193,7 +193,7 @@ export default function App() {
       } else {
         setNotFoundSlug(null);
         if (user && user.businessId) {
-          const userBiz = currentList.find((b) => b.id === user.businessId);
+          const userBiz = currentList.find((b) => b.id === user.businessId) || (await api.getBusinessById(user.businessId).catch(() => null));
           if (userBiz) setCurrentBusiness(userBiz);
         }
       }
@@ -292,14 +292,12 @@ export default function App() {
       setShowDemoBar(true);
     } else if (user.businessId) {
       try {
+        const directBiz = await api.getBusinessById(user.businessId).catch(() => null);
         const freshList = await api.getBusinesses();
         setBusinesses(freshList);
-        const match = freshList.find((b) => b.id === user.businessId || b.slug === user.businessId);
+        const match = directBiz || freshList.find((b) => b.id === user.businessId || b.slug === user.businessId);
         if (match) {
           setCurrentBusiness(match);
-        } else {
-          const directBiz = await api.getBusinessById(user.businessId).catch(() => null);
-          if (directBiz) setCurrentBusiness(directBiz);
         }
       } catch {}
       setActiveView('business');

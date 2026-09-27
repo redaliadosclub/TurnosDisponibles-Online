@@ -82,24 +82,6 @@
       "status": "active",
       "id": "biz_1790547428823_37in",
       "createdAt": "2026-09-27T22:17:08.823Z"
-    },
-    {
-      "name": "Consultorio Dental Lopez",
-      "slug": "consultorio-dental-lopez",
-      "businessType": "dental",
-      "description": "Centro de atención profesional y turnos de Dra. Sofia Lopez.",
-      "category": "Consultorio & Especialidades",
-      "address": "Atención presencial y turnos online",
-      "phone": "2474998877",
-      "whatsappNumber": "2474998877",
-      "primaryColor": "#0d9488",
-      "welcomeMessage": "¡Bienvenido a Consultorio Dental Lopez! Agenda tu turno en simples pasos.",
-      "cancellationPolicy": "Podrás reprogramar o cancelar con al menos 4 horas de anticipación.",
-      "bufferMinutes": 10,
-      "plan": "pro",
-      "status": "active",
-      "id": "biz_1790547580016_w5ms",
-      "createdAt": "2026-09-27T22:19:40.016Z"
     }
   ],
   "professionals": [
@@ -199,20 +181,6 @@
       ],
       "id": "prof_1790547428824_tryj",
       "businessId": "biz_1790547428823_37in"
-    },
-    {
-      "name": "Dra. Sofia Lopez",
-      "title": "Profesional Responsable",
-      "photoUrl": "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=400",
-      "email": "sofialopez@gmail.com",
-      "phone": "2474998877",
-      "active": true,
-      "specialty": "Atención General",
-      "serviceIds": [
-        "srv_1790547580017_6t2p"
-      ],
-      "id": "prof_1790547580016_bb85",
-      "businessId": "biz_1790547580016_w5ms"
     }
   ],
   "services": [
@@ -307,19 +275,6 @@
       ],
       "id": "srv_1790547428824_3r9m",
       "businessId": "biz_1790547428823_37in"
-    },
-    {
-      "name": "Consulta General / Turno Inicial",
-      "description": "Atención personalizada y diagnóstico inicial.",
-      "durationMinutes": 30,
-      "price": 0,
-      "currency": "$",
-      "active": true,
-      "assignedProfessionalIds": [
-        "prof_1790547580016_bb85"
-      ],
-      "id": "srv_1790547580017_6t2p",
-      "businessId": "biz_1790547580016_w5ms"
     }
   ],
   "workingHours": [
@@ -683,91 +638,6 @@
         }
       ],
       "enabled": true
-    },
-    {
-      "id": "wh_biz_1790547580016_w5ms_1",
-      "businessId": "biz_1790547580016_w5ms",
-      "professionalId": null,
-      "dayOfWeek": 1,
-      "shifts": [
-        {
-          "start": "08:00",
-          "end": "12:00"
-        },
-        {
-          "start": "14:00",
-          "end": "18:00"
-        }
-      ],
-      "enabled": true
-    },
-    {
-      "id": "wh_biz_1790547580016_w5ms_2",
-      "businessId": "biz_1790547580016_w5ms",
-      "professionalId": null,
-      "dayOfWeek": 2,
-      "shifts": [
-        {
-          "start": "08:00",
-          "end": "12:00"
-        },
-        {
-          "start": "14:00",
-          "end": "18:00"
-        }
-      ],
-      "enabled": true
-    },
-    {
-      "id": "wh_biz_1790547580016_w5ms_3",
-      "businessId": "biz_1790547580016_w5ms",
-      "professionalId": null,
-      "dayOfWeek": 3,
-      "shifts": [
-        {
-          "start": "08:00",
-          "end": "12:00"
-        },
-        {
-          "start": "14:00",
-          "end": "18:00"
-        }
-      ],
-      "enabled": true
-    },
-    {
-      "id": "wh_biz_1790547580016_w5ms_4",
-      "businessId": "biz_1790547580016_w5ms",
-      "professionalId": null,
-      "dayOfWeek": 4,
-      "shifts": [
-        {
-          "start": "08:00",
-          "end": "12:00"
-        },
-        {
-          "start": "14:00",
-          "end": "18:00"
-        }
-      ],
-      "enabled": true
-    },
-    {
-      "id": "wh_biz_1790547580016_w5ms_5",
-      "businessId": "biz_1790547580016_w5ms",
-      "professionalId": null,
-      "dayOfWeek": 5,
-      "shifts": [
-        {
-          "start": "08:00",
-          "end": "12:00"
-        },
-        {
-          "start": "14:00",
-          "end": "18:00"
-        }
-      ],
-      "enabled": true
     }
   ],
   "timeOffs": [
@@ -971,15 +841,6 @@
       "role": "business_owner",
       "businessId": "biz_1790547428823_37in",
       "id": "usr_1790547428825_sqch"
-    },
-    {
-      "name": "Dra. Sofia Lopez",
-      "email": "sofialopez@gmail.com",
-      "password": "dental123",
-      "phone": "2474998877",
-      "role": "business_owner",
-      "businessId": "biz_1790547580016_w5ms",
-      "id": "usr_1790547580017_m2x9"
     }
   ]
 }

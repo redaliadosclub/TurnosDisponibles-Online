@@ -95,13 +95,6 @@ async function startServer() {
       businessId: null,
       phone: '+5491199990000',
     },
-    'atcarlosmorandi@gmail.com': {
-      name: 'Ariel Martinez',
-      password: 'nose123',
-      role: 'business_owner',
-      businessId: 'biz_1790547428823_37in',
-      phone: '2474674231',
-    },
   };
 
   app.post('/api/auth/login', (req, res) => {
@@ -222,7 +215,8 @@ async function startServer() {
         if (existingUser.password && existingUser.password === password) {
           const token = `td_tok_${existingUser.id}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
           activeSessions.set(token, existingUser);
-          return res.json({ user: sanitizeUser(existingUser), token });
+          const userBiz = existingUser.businessId ? db.getBusinessById(existingUser.businessId) : null;
+          return res.json({ user: sanitizeUser(existingUser), token, business: userBiz });
         }
         return res.status(409).json({
           error: 'Ya existe una cuenta con este correo electrónico. Inicia sesión con tu contraseña.',
@@ -230,6 +224,7 @@ async function startServer() {
       }
 
       let finalBusinessId: string | null = null;
+      let createdBusiness: any = null;
 
       if (selectedRole === 'business_owner') {
         // Create a new INDEPENDENT business for this owner
@@ -266,6 +261,7 @@ async function startServer() {
           plan: 'pro',
           status: 'active',
         });
+        createdBusiness = newBiz;
 
         // Register owner as the primary professional
         const prof = db.createProfessional(newBiz.id, {
@@ -353,6 +349,7 @@ async function startServer() {
       res.status(201).json({
         user: sanitizeUser(newUser),
         token,
+        business: createdBusiness || (finalBusinessId ? db.getBusinessById(finalBusinessId) : null),
       });
     } catch (err: any) {
       console.error('[Register Endpoint Error]:', err);
