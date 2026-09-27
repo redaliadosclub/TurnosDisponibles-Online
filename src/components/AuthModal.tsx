@@ -15,7 +15,55 @@ import {
   KeyRound,
   Info,
   CheckCircle2,
+  Zap,
 } from 'lucide-react';
+
+const DEMO_ACCOUNTS = [
+  {
+    role: 'superadmin' as const,
+    title: 'SuperAdmin Master',
+    email: 'agenciaclienteya@gmail.com',
+    password: 'admin123',
+    badge: '👑 Master',
+    badgeColor: 'bg-amber-100 text-amber-900 border-amber-300',
+    hoverBorder: 'hover:border-amber-400 hover:bg-amber-50/70',
+    icon: Shield,
+    iconColor: 'text-amber-600',
+  },
+  {
+    role: 'business_owner' as const,
+    title: 'Dueño de Consultorio',
+    email: 'dueno@consultorio.com',
+    password: 'dueno123',
+    badge: '🏥 Dueño',
+    badgeColor: 'bg-teal-100 text-teal-900 border-teal-300',
+    hoverBorder: 'hover:border-teal-400 hover:bg-teal-50/70',
+    icon: Building2,
+    iconColor: 'text-teal-600',
+  },
+  {
+    role: 'staff' as const,
+    title: 'Doctor / Staff',
+    email: 'staff@consultorio.com',
+    password: 'staff123',
+    badge: '🩺 Staff',
+    badgeColor: 'bg-sky-100 text-sky-900 border-sky-300',
+    hoverBorder: 'hover:border-sky-400 hover:bg-sky-50/70',
+    icon: Stethoscope,
+    iconColor: 'text-sky-600',
+  },
+  {
+    role: 'customer' as const,
+    title: 'Paciente de Prueba',
+    email: 'paciente@prueba.com',
+    password: 'paciente123',
+    badge: '👤 Paciente',
+    badgeColor: 'bg-purple-100 text-purple-900 border-purple-300',
+    hoverBorder: 'hover:border-purple-400 hover:bg-purple-50/70',
+    icon: UserIcon,
+    iconColor: 'text-purple-600',
+  },
+];
 
 interface AuthModalProps {
   isOpen: boolean;
@@ -83,6 +131,21 @@ export function AuthModal({
     if (onLoginSuccess) onLoginSuccess(user);
     if (onSuccess) onSuccess(user);
     onClose();
+  };
+
+  const handleQuickLogin = async (acc: (typeof DEMO_ACCOUNTS)[0]) => {
+    setEmail(acc.email);
+    setPassword(acc.password);
+    setError(null);
+    setLoading(true);
+    try {
+      const u = await api.login(acc.email, acc.password);
+      notifySuccess(u);
+    } catch (e: any) {
+      setError(e.message || 'Error al iniciar sesión con cuenta de prueba.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSubmit = async (e: FormEvent) => {
@@ -187,6 +250,54 @@ export function AuthModal({
         {error && (
           <div className="p-3 mb-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold">
             {error}
+          </div>
+        )}
+
+        {/* Quick 1-Click Access for Demo Accounts */}
+        {!isRegister && (
+          <div className="mb-4 p-3 bg-slate-50 border border-slate-200 rounded-2xl">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
+                <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                <span>Accesos Rápidos de Prueba (1-Clic)</span>
+              </div>
+              <span className="text-[10px] text-slate-400 font-medium">Toca para autologuear</span>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {DEMO_ACCOUNTS.map((acc) => {
+                const Icon = acc.icon;
+                return (
+                  <button
+                    key={acc.email}
+                    type="button"
+                    disabled={loading}
+                    onClick={() => handleQuickLogin(acc)}
+                    className={`p-2 rounded-xl bg-white border border-slate-200 transition-all text-left flex items-start gap-2 shadow-xs group cursor-pointer ${acc.hoverBorder}`}
+                  >
+                    <div className="p-1 rounded-lg bg-slate-50 group-hover:bg-white shrink-0 mt-0.5 border border-slate-100">
+                      <Icon className={`w-3.5 h-3.5 ${acc.iconColor}`} />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="font-bold text-slate-800 text-[11px] truncate">
+                          {acc.title}
+                        </span>
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${acc.badgeColor}`}>
+                          {acc.badge}
+                        </span>
+                      </div>
+                      <div className="text-[10px] text-slate-600 truncate font-mono">
+                        {acc.email}
+                      </div>
+                      <div className="text-[9px] text-slate-400 font-mono">
+                        Pass: <strong className="text-slate-700">{acc.password}</strong>
+                      </div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
         )}
 

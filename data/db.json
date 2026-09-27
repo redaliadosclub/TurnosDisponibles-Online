@@ -604,12 +604,42 @@
       "id": "usr_superadmin_agencia",
       "name": "Agencia Cliente Ya (SuperAdmin)",
       "email": "agenciaclienteya@gmail.com",
-      "role": "superadmin"
+      "role": "superadmin",
+      "password": "admin123",
+      "businessId": null
+    },
+    {
+      "id": "usr_dueno_consultorio",
+      "name": "Dr. Roberto Dueño",
+      "email": "dueno@consultorio.com",
+      "role": "business_owner",
+      "password": "dueno123",
+      "businessId": "biz_dermatocosmiatria_spa",
+      "phone": "+5491144445555"
+    },
+    {
+      "id": "usr_staff_consultorio",
+      "name": "Dra. Camila Staff",
+      "email": "staff@consultorio.com",
+      "role": "staff",
+      "password": "staff123",
+      "businessId": "biz_dermatocosmiatria_spa",
+      "phone": "+5491177778888"
+    },
+    {
+      "id": "usr_paciente_prueba",
+      "name": "Juan Paciente Prueba",
+      "email": "paciente@prueba.com",
+      "role": "customer",
+      "password": "paciente123",
+      "businessId": null,
+      "phone": "+5491199990000"
     },
     {
       "id": "usr_superadmin",
       "name": "Super Admin",
       "email": "admin@turnosdisponibles.com",
+      "password": "admin123",
       "role": "superadmin"
     },
     {

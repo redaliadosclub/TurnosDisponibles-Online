@@ -61,40 +61,99 @@ async function startServer() {
     res.json({ user: sanitizeUser(user) });
   });
 
+  const PRESET_CREDENTIALS: Record<string, {
+    name: string;
+    password: string;
+    role: 'superadmin' | 'business_owner' | 'staff' | 'customer';
+    businessId: string | null;
+    phone?: string;
+  }> = {
+    'agenciaclienteya@gmail.com': {
+      name: 'Agencia Cliente Ya (SuperAdmin)',
+      password: 'admin123',
+      role: 'superadmin',
+      businessId: null,
+    },
+    'dueno@consultorio.com': {
+      name: 'Dr. Roberto Dueño',
+      password: 'dueno123',
+      role: 'business_owner',
+      businessId: 'biz_dermatocosmiatria_spa',
+      phone: '+5491144445555',
+    },
+    'staff@consultorio.com': {
+      name: 'Dra. Camila Staff',
+      password: 'staff123',
+      role: 'staff',
+      businessId: 'biz_dermatocosmiatria_spa',
+      phone: '+5491177778888',
+    },
+    'paciente@prueba.com': {
+      name: 'Juan Paciente Prueba',
+      password: 'paciente123',
+      role: 'customer',
+      businessId: null,
+      phone: '+5491199990000',
+    },
+  };
+
   app.post('/api/auth/login', (req, res) => {
     const { email, password } = req.body;
     if (!email) return res.status(400).json({ error: 'Email requerido' });
     if (!password) return res.status(400).json({ error: 'Contraseña requerida' });
 
     const cleanEmail = email.trim().toLowerCase();
-    const isSuperAdminEmail = cleanEmail === 'agenciaclienteya@gmail.com' || cleanEmail.includes('admin');
+    const preset = PRESET_CREDENTIALS[cleanEmail];
 
-    // Security check: SuperAdmin always requires master password
-    if (isSuperAdminEmail) {
-      if (password !== 'admin123') {
-        return res.status(401).json({ error: 'Contraseña de SuperAdmin Master incorrecta' });
+    // Check preset test accounts first
+    if (preset) {
+      if (password !== preset.password) {
+        return res.status(401).json({
+          error: `Contraseña incorrecta. Para ${cleanEmail} la contraseña es: ${preset.password}`,
+        });
       }
-    }
 
-    // Look up user in db
-    let user = db.getUserByEmail(cleanEmail);
-
-    if (user && user.role === 'superadmin') {
-      if (password !== 'admin123') {
-        return res.status(401).json({ error: 'Contraseña de SuperAdmin Master incorrecta' });
+      let user = db.getUserByEmail(cleanEmail);
+      if (!user) {
+        user = db.createUser({
+          name: preset.name,
+          email: cleanEmail,
+          role: preset.role,
+          businessId: preset.businessId,
+          password: preset.password,
+          phone: preset.phone,
+        });
+      } else {
+        // Ensure role, password and businessId are synchronized
+        db.updateUser(user.id, {
+          password: preset.password,
+          role: preset.role,
+          businessId: preset.businessId,
+          name: user.name || preset.name,
+        });
+        user.password = preset.password;
+        user.role = preset.role;
+        user.businessId = preset.businessId;
       }
-    }
 
-    // If superadmin user does not exist in DB yet, create it on first successful login
-    if (!user && isSuperAdminEmail && password === 'admin123') {
-      user = db.createUser({
-        name: cleanEmail === 'agenciaclienteya@gmail.com' ? 'Agencia Cliente Ya (SuperAdmin)' : 'Super Admin',
-        email: cleanEmail,
-        role: 'superadmin',
-        businessId: null,
-        password: 'admin123',
+      const token = `td_tok_${user.id}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+      activeSessions.set(token, user);
+
+      return res.json({
+        user: sanitizeUser(user),
+        token,
       });
     }
+
+    const isSuperAdminEmail = cleanEmail.includes('admin');
+
+    // Security check: Other admin emails require admin123
+    if (isSuperAdminEmail && password !== 'admin123') {
+      return res.status(401).json({ error: 'Contraseña de Administrador incorrecta' });
+    }
+
+    // Look up regular user in db
+    let user = db.getUserByEmail(cleanEmail);
 
     if (!user) {
       return res.status(404).json({

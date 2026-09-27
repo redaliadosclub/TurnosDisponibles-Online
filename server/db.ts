@@ -79,22 +79,22 @@ const INITIAL_DATA: DatabaseSchema = {
     {
       id: 'prof_mariana_dermato',
       businessId: 'biz_dermatocosmiatria_spa',
-      name: 'Lic. Mariana Gómez',
-      title: 'Dermatocosmiatra & Especialista en Estética Facial',
+      name: 'Dr. Roberto Dueño (Dra. Mariana Gómez)',
+      title: 'Director Médico & Dermatocosmiatra',
       photoUrl: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=160&auto=format&fit=crop&q=80',
-      email: 'mariana@dermatocosmiatria.com',
+      email: 'dueno@consultorio.com',
       phone: '+54 11 5566-7789',
       active: true,
-      specialty: 'Dermatocosmiatría Facial',
+      specialty: 'Dermatocosmiatría Facial & Estética',
       serviceIds: ['srv_dermato_limpieza', 'srv_dermato_peeling', 'srv_dermato_antiage'],
     },
     {
       id: 'prof_camila_dermato',
       businessId: 'biz_dermatocosmiatria_spa',
-      name: 'Camila Valenzuela',
-      title: 'Cosmiatra & Masoterapeuta Facial',
+      name: 'Dra. Camila Staff',
+      title: 'Cosmiatra & Especialista Staff',
       photoUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=160&auto=format&fit=crop&q=80',
-      email: 'camila@dermatocosmiatria.com',
+      email: 'staff@consultorio.com',
       phone: '+54 11 5566-7790',
       active: true,
       specialty: 'Cosmiatría & Drenaje Facial',
@@ -299,23 +299,85 @@ const INITIAL_DATA: DatabaseSchema = {
       id: 'usr_superadmin_agencia',
       name: 'Agencia Cliente Ya (SuperAdmin)',
       email: 'agenciaclienteya@gmail.com',
+      password: 'admin123',
       role: 'superadmin',
+      businessId: null,
+    },
+    {
+      id: 'usr_dueno_consultorio',
+      name: 'Dr. Roberto Dueño',
+      email: 'dueno@consultorio.com',
+      password: 'dueno123',
+      role: 'business_owner',
+      businessId: 'biz_dermatocosmiatria_spa',
+      phone: '+5491144445555',
+    },
+    {
+      id: 'usr_staff_consultorio',
+      name: 'Dra. Camila Staff',
+      email: 'staff@consultorio.com',
+      password: 'staff123',
+      role: 'staff',
+      businessId: 'biz_dermatocosmiatria_spa',
+      phone: '+5491177778888',
+    },
+    {
+      id: 'usr_paciente_prueba',
+      name: 'Juan Paciente Prueba',
+      email: 'paciente@prueba.com',
+      password: 'paciente123',
+      role: 'customer',
+      businessId: null,
+      phone: '+5491199990000',
     },
     {
       id: 'usr_superadmin',
       name: 'Super Admin',
       email: 'admin@turnosdisponibles.com',
+      password: 'admin123',
       role: 'superadmin',
-    },
-    {
-      id: 'usr_owner_dermato',
-      name: 'Lic. Mariana Gómez',
-      email: 'mariana@dermatocosmiatria.com',
-      role: 'business_owner',
-      businessId: 'biz_dermatocosmiatria_spa',
+      businessId: null,
     },
   ],
 };
+
+const PRESET_SYSTEM_USERS: UserSession[] = [
+  {
+    id: 'usr_superadmin_agencia',
+    name: 'Agencia Cliente Ya (SuperAdmin)',
+    email: 'agenciaclienteya@gmail.com',
+    password: 'admin123',
+    role: 'superadmin',
+    businessId: null,
+  },
+  {
+    id: 'usr_dueno_consultorio',
+    name: 'Dr. Roberto Dueño',
+    email: 'dueno@consultorio.com',
+    password: 'dueno123',
+    role: 'business_owner',
+    businessId: 'biz_dermatocosmiatria_spa',
+    phone: '+5491144445555',
+  },
+  {
+    id: 'usr_staff_consultorio',
+    name: 'Dra. Camila Staff',
+    email: 'staff@consultorio.com',
+    password: 'staff123',
+    role: 'staff',
+    businessId: 'biz_dermatocosmiatria_spa',
+    phone: '+5491177778888',
+  },
+  {
+    id: 'usr_paciente_prueba',
+    name: 'Juan Paciente Prueba',
+    email: 'paciente@prueba.com',
+    password: 'paciente123',
+    role: 'customer',
+    businessId: null,
+    phone: '+5491199990000',
+  },
+];
 
 class Database {
   private data: DatabaseSchema;
@@ -333,7 +395,24 @@ class Database {
       if (fs.existsSync(DB_FILE)) {
         const content = fs.readFileSync(DB_FILE, 'utf-8');
         const parsed = JSON.parse(content);
-        return {
+        const loadedUsers: UserSession[] = Array.isArray(parsed.users) ? parsed.users : [...INITIAL_DATA.users];
+
+        // Ensure all required system accounts are present and updated with their exact credentials
+        for (const preset of PRESET_SYSTEM_USERS) {
+          const idx = loadedUsers.findIndex(
+            (u) => u.email && u.email.toLowerCase() === preset.email.toLowerCase()
+          );
+          if (idx === -1) {
+            loadedUsers.push({ ...preset });
+          } else {
+            loadedUsers[idx] = {
+              ...loadedUsers[idx],
+              ...preset,
+            };
+          }
+        }
+
+        const schema: DatabaseSchema = {
           businesses: Array.isArray(parsed.businesses) ? parsed.businesses : INITIAL_DATA.businesses,
           professionals: Array.isArray(parsed.professionals) ? parsed.professionals : INITIAL_DATA.professionals,
           services: Array.isArray(parsed.services) ? parsed.services : INITIAL_DATA.services,
@@ -342,8 +421,11 @@ class Database {
           customers: Array.isArray(parsed.customers) ? parsed.customers : INITIAL_DATA.customers || [],
           appointments: Array.isArray(parsed.appointments) ? parsed.appointments : INITIAL_DATA.appointments || [],
           analytics: Array.isArray(parsed.analytics) ? parsed.analytics : INITIAL_DATA.analytics || [],
-          users: Array.isArray(parsed.users) ? parsed.users : INITIAL_DATA.users || [],
+          users: loadedUsers,
         };
+
+        this.saveDataDirect(schema);
+        return schema;
       }
     } catch (err) {
       console.warn('Could not load existing db.json, initializing default data', err);
