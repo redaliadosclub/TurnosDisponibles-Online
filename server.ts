@@ -290,26 +290,39 @@ async function startServer() {
         finalBusinessId = newBiz.id;
       } else if (selectedRole === 'staff') {
         // Must correspond to an existing business/consultorio
-        const codeOrSlug = (businessCode || businessId || '').trim();
-        if (!codeOrSlug) {
+        const rawCode = (businessCode || businessId || '').trim();
+        if (!rawCode) {
           return res.status(400).json({
             error: 'Código de consultorio requerido. Pide el código o enlace de consultorio al dueño del consultorio.',
           });
         }
 
-        let matchedBiz = db.getBusinessById(codeOrSlug) || db.getBusinessBySlug(codeOrSlug);
+        const normalizedSlug = rawCode
+          .toLowerCase()
+          .replace(/^[#/]+/, '')
+          .replace(/^booking-/, '')
+          .replace(/^book\//, '')
+          .trim();
+
+        let matchedBiz =
+          db.getBusinessById(rawCode) ||
+          db.getBusinessById(normalizedSlug) ||
+          db.getBusinessBySlug(rawCode) ||
+          db.getBusinessBySlug(normalizedSlug);
+
         if (!matchedBiz) {
           matchedBiz = db.getBusinesses().find(
             (b) =>
-              b.slug.toLowerCase() === codeOrSlug.toLowerCase() ||
-              b.id.toLowerCase() === codeOrSlug.toLowerCase() ||
-              b.name.toLowerCase() === codeOrSlug.toLowerCase()
+              b.slug.toLowerCase() === normalizedSlug ||
+              b.id.toLowerCase() === rawCode.toLowerCase() ||
+              b.name.toLowerCase() === rawCode.toLowerCase() ||
+              b.name.toLowerCase() === normalizedSlug
           );
         }
 
         if (!matchedBiz) {
           return res.status(400).json({
-            error: `No se encontró ningún consultorio con el código "${codeOrSlug}". Verifica el código con tu administrador.`,
+            error: `No se encontró ningún consultorio con el código o nombre "${rawCode}". Verifica el enlace con el dueño del consultorio.`,
           });
         }
 

@@ -302,7 +302,9 @@ export default function App() {
       } catch {}
       setActiveView('business');
     } else {
-      setActiveView('portal');
+      if (activeView !== 'public') {
+        setActiveView('portal');
+      }
     }
   };
 

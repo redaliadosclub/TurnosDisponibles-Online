@@ -260,8 +260,20 @@ export function AuthModal({
 
     try {
       if (isRegister) {
+        if (!name.trim()) {
+          setError('Por favor ingresa tu nombre completo.');
+          setLoading(false);
+          return;
+        }
+
         if (password.length < 6) {
           setError('La contraseña debe tener al menos 6 caracteres.');
+          setLoading(false);
+          return;
+        }
+
+        if (role === 'business_owner' && !businessName.trim()) {
+          setError('Por favor ingresa el nombre de tu consultorio o negocio.');
           setLoading(false);
           return;
         }
@@ -277,11 +289,11 @@ export function AuthModal({
           email: cleanEmail,
           password,
           role,
-          businessId: role === 'superadmin' ? null : businessCode.trim() || currentBusinessId || businessId || null,
-          businessName: businessName.trim(),
-          businessType,
-          businessCode: businessCode.trim(),
-          specialty: specialty.trim(),
+          businessId: role === 'staff' ? (businessCode.trim() || currentBusinessId || businessId || null) : null,
+          businessName: role === 'business_owner' ? businessName.trim() : undefined,
+          businessType: role === 'business_owner' ? businessType : undefined,
+          businessCode: role === 'staff' ? businessCode.trim() : undefined,
+          specialty: role === 'staff' ? specialty.trim() : undefined,
           phone: phone.trim(),
         });
         notifySuccess(user);

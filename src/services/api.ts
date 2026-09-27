@@ -1484,6 +1484,20 @@ class ApiService {
 
   // Professionals
   async getProfessionals(businessId: string): Promise<Professional[]> {
+    try {
+      const res = await fetch(`/api/businesses/${encodeURIComponent(businessId)}/professionals`);
+      if (res.ok) {
+        const serverProfs: Professional[] = await res.json();
+        if (Array.isArray(serverProfs) && serverProfs.length > 0) {
+          const map = new Map<string, Professional>();
+          this.professionals.forEach((p) => map.set(p.id, p));
+          serverProfs.forEach((p) => map.set(p.id, p));
+          this.professionals = Array.from(map.values());
+          saveStorage(STORAGE_KEYS.PROFESSIONALS, this.professionals);
+          return serverProfs;
+        }
+      }
+    } catch {}
     return this.professionals.filter((p) => p.businessId === businessId);
   }
 
@@ -1542,6 +1556,20 @@ class ApiService {
 
   // Services
   async getServices(businessId: string): Promise<Service[]> {
+    try {
+      const res = await fetch(`/api/businesses/${encodeURIComponent(businessId)}/services`);
+      if (res.ok) {
+        const serverSrvs: Service[] = await res.json();
+        if (Array.isArray(serverSrvs) && serverSrvs.length > 0) {
+          const map = new Map<string, Service>();
+          this.services.forEach((s) => map.set(s.id, s));
+          serverSrvs.forEach((s) => map.set(s.id, s));
+          this.services = Array.from(map.values());
+          saveStorage(STORAGE_KEYS.SERVICES, this.services);
+          return serverSrvs;
+        }
+      }
+    } catch {}
     return this.services.filter((s) => s.businessId === businessId);
   }
 
@@ -1591,6 +1619,18 @@ class ApiService {
 
   // Working hours
   async getWorkingHours(businessId: string): Promise<WorkingHours[]> {
+    try {
+      const res = await fetch(`/api/businesses/${encodeURIComponent(businessId)}/working-hours`);
+      if (res.ok) {
+        const serverHours: WorkingHours[] = await res.json();
+        if (Array.isArray(serverHours) && serverHours.length > 0) {
+          const other = this.workingHours.filter((w) => w.businessId !== businessId);
+          this.workingHours = [...other, ...serverHours];
+          saveStorage(STORAGE_KEYS.WORKING_HOURS, this.workingHours);
+          return serverHours;
+        }
+      }
+    } catch {}
     return this.workingHours.filter((w) => w.businessId === businessId);
   }
 
@@ -1663,6 +1703,24 @@ class ApiService {
 
   // Appointments
   async getAppointments(businessId: string, filter?: { date?: string; professionalId?: string }): Promise<Appointment[]> {
+    try {
+      const q = new URLSearchParams();
+      if (filter?.date) q.set('date', filter.date);
+      if (filter?.professionalId) q.set('professionalId', filter.professionalId);
+      const res = await fetch(`/api/businesses/${encodeURIComponent(businessId)}/appointments${q.toString() ? `?${q.toString()}` : ''}`);
+      if (res.ok) {
+        const serverApps: Appointment[] = await res.json();
+        if (Array.isArray(serverApps)) {
+          const map = new Map<string, Appointment>();
+          this.appointments.forEach((a) => map.set(a.id, a));
+          serverApps.forEach((a) => map.set(a.id, a));
+          this.appointments = Array.from(map.values());
+          saveStorage(STORAGE_KEYS.APPOINTMENTS, this.appointments);
+          return serverApps;
+        }
+      }
+    } catch {}
+
     return this.appointments.filter((a) => {
       if (a.businessId !== businessId) return false;
       if (filter?.date && a.date !== filter.date) return false;
@@ -1672,6 +1730,20 @@ class ApiService {
   }
 
   async getAppointment(idOrCode: string): Promise<Appointment> {
+    try {
+      const res = await fetch(`/api/appointments/${encodeURIComponent(idOrCode)}`);
+      if (res.ok) {
+        const appt: Appointment = await res.json();
+        if (appt && appt.id) {
+          const idx = this.appointments.findIndex((a) => a.id === appt.id);
+          if (idx >= 0) this.appointments[idx] = appt;
+          else this.appointments.unshift(appt);
+          saveStorage(STORAGE_KEYS.APPOINTMENTS, this.appointments);
+          return appt;
+        }
+      }
+    } catch {}
+
     const found = this.appointments.find((a) => a.id === idOrCode || a.bookingCode === idOrCode);
     if (!found) throw new Error('Turno no encontrado');
     return found;

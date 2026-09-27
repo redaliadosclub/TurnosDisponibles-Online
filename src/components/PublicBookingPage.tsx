@@ -76,11 +76,39 @@ export function PublicBookingPage({
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
 
   // Customer form
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
-  const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
+  const [firstName, setFirstName] = useState(() => {
+    if (currentUser?.name) {
+      return currentUser.name.trim().split(' ')[0] || '';
+    }
+    return '';
+  });
+  const [lastName, setLastName] = useState(() => {
+    if (currentUser?.name) {
+      const parts = currentUser.name.trim().split(' ');
+      return parts.slice(1).join(' ') || '';
+    }
+    return '';
+  });
+  const [phone, setPhone] = useState(currentUser?.phone || '');
+  const [email, setEmail] = useState(currentUser?.email || '');
   const [notes, setNotes] = useState('');
+
+  // Auto-fill customer form if currentUser changes (e.g. logs in or registers from modal)
+  useEffect(() => {
+    if (currentUser) {
+      if (currentUser.name) {
+        const parts = currentUser.name.trim().split(' ');
+        setFirstName(parts[0] || '');
+        setLastName(parts.slice(1).join(' ') || '');
+      }
+      if (currentUser.email) {
+        setEmail(currentUser.email);
+      }
+      if (currentUser.phone) {
+        setPhone(currentUser.phone);
+      }
+    }
+  }, [currentUser]);
 
   // Payment / Deposit states
   const [paymentMethod, setPaymentMethod] = useState<'mercadopago' | 'transfer'>('mercadopago');
@@ -373,8 +401,8 @@ export function PublicBookingPage({
                   <span>WhatsApp</span>
                 </button>
               )}
-              {/* If user is logged in as staff/owner, show discreet badge or return button, but for real patients don't show any active panel button */}
-              {currentUser && onGoToAdmin && (
+              {/* If user is logged in as staff/owner, show return button to their admin panel */}
+              {currentUser && currentUser.role !== 'customer' && onGoToAdmin && (
                 <button
                   type="button"
                   onClick={onGoToAdmin}
@@ -384,6 +412,12 @@ export function PublicBookingPage({
                   <Lock className="w-3 h-3 opacity-80" />
                   <span>Volver a Mi Panel</span>
                 </button>
+              )}
+              {currentUser && currentUser.role === 'customer' && (
+                <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-black/30 text-white text-[11px] font-medium border border-white/20">
+                  <UserIcon className="w-3 h-3 text-teal-300" />
+                  <span className="truncate max-w-[130px]">{currentUser.name}</span>
+                </div>
               )}
             </div>
           </div>
