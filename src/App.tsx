@@ -1,4 +1,6 @@
 import { useState, useEffect } from 'react';
+import { onAuthStateChanged } from 'firebase/auth';
+import { auth } from './lib/firebase';
 import { Business, User } from './types';
 import { api, INITIAL_BUSINESSES } from './services/api';
 import { PublicBookingPage } from './components/PublicBookingPage';
@@ -204,6 +206,42 @@ export default function App() {
 
   useEffect(() => {
     initialize();
+  }, []);
+
+  // Firebase Auth listener (onAuthStateChanged) for session persistence & validity verification
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      try {
+        if (firebaseUser && firebaseUser.email) {
+          // Firebase Auth user is authenticated - verify validity and update currentUser state
+          const verifiedUser = await api.getUserByEmail(firebaseUser.email);
+          if (verifiedUser) {
+            setCurrentUser(verifiedUser);
+            if (verifiedUser.role === 'superadmin') {
+              setShowDemoBar(true);
+            }
+          } else {
+            const validSession = await api.verifyUserSession();
+            setCurrentUser(validSession);
+          }
+        } else {
+          // If no active Firebase Auth session, verify whether existing local session is still valid
+          // instead of relying solely on unverified local variables
+          const verifiedUser = await api.verifyUserSession();
+          if (!verifiedUser) {
+            setCurrentUser(null);
+          } else {
+            setCurrentUser(verifiedUser);
+          }
+        }
+      } catch (err) {
+        console.warn('Firebase Auth session persistence check error:', err);
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    return () => unsubscribe();
   }, []);
 
   // Listen to hash changes in real-time

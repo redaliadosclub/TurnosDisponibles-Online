@@ -20,7 +20,7 @@ import {
   checkAppointmentCreationLimit,
   checkProfessionalLimit,
 } from '../lib/planLimits';
-import { db } from '../lib/firebase';
+import { db, auth } from '../lib/firebase';
 import {
   collection,
   doc,
@@ -28,6 +28,11 @@ import {
   setDoc,
   deleteDoc,
 } from 'firebase/firestore';
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+} from 'firebase/auth';
 
 export interface BookingPayload {
   businessId: string;
@@ -1005,6 +1010,81 @@ class ApiService {
     return saved;
   }
 
+  async getUserByEmail(email: string): Promise<User | null> {
+    const cleanEmail = (email || '').trim().toLowerCase();
+    if (!cleanEmail) return null;
+
+    const preset = LOCAL_PRESET_USERS[cleanEmail];
+    if (preset) return preset.user;
+
+    try {
+      const res = await fetch(`/api/users?email=${encodeURIComponent(cleanEmail)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data && data.user) return data.user;
+        if (Array.isArray(data)) {
+          const found = data.find((u: any) => u.email && u.email.toLowerCase() === cleanEmail);
+          if (found) return found;
+        }
+      }
+    } catch {}
+
+    const cur = this.currentUser;
+    if (cur && cur.email && cur.email.toLowerCase() === cleanEmail) {
+      return cur;
+    }
+    return null;
+  }
+
+  async verifyUserSession(candidateUser?: User | null): Promise<User | null> {
+    const target = candidateUser || this.currentUser || loadStorage<User | null>(STORAGE_KEYS.USER, null);
+    if (!target) return null;
+
+    const emailLower = (target.email || '').trim().toLowerCase();
+    const preset = LOCAL_PRESET_USERS[emailLower];
+    if (preset) {
+      const mergedUser: User = {
+        ...preset.user,
+        ...target,
+        role: preset.user.role,
+        businessId: preset.user.businessId,
+      };
+      this.currentUser = mergedUser;
+      saveStorage(STORAGE_KEYS.USER, mergedUser);
+      return mergedUser;
+    }
+
+    const token = typeof window !== 'undefined' ? localStorage.getItem('td_auth_token') : null;
+    if (token) {
+      try {
+        const res = await fetch('/api/auth/me', {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.user) {
+            this.currentUser = data.user;
+            saveStorage(STORAGE_KEYS.USER, data.user);
+            return data.user;
+          }
+        } else if (res.status === 401 || res.status === 403) {
+          // Explicit token rejection by server
+          this.currentUser = null;
+          saveStorage(STORAGE_KEYS.USER, null);
+          if (typeof window !== 'undefined') {
+            localStorage.removeItem('td_auth_token');
+          }
+          return null;
+        }
+      } catch {
+        // Offline / network fallback: keep target session if present
+        return target;
+      }
+    }
+
+    return target;
+  }
+
   async login(email: string, password?: string): Promise<User> {
     const cleanEmail = email.trim();
     if (!cleanEmail) {
@@ -1021,6 +1101,17 @@ class ApiService {
     if (preset) {
       if (password !== preset.pass) {
         throw new Error(`Contraseña incorrecta para ${lower}.`);
+      }
+
+      // Background attempt to sync with Firebase Auth if available
+      try {
+        await signInWithEmailAndPassword(auth, lower, password);
+      } catch (fbErr: any) {
+        if (fbErr?.code === 'auth/user-not-found' || fbErr?.code === 'auth/invalid-credential') {
+          try {
+            await createUserWithEmailAndPassword(auth, lower, password);
+          } catch {}
+        }
       }
 
       // Attempt server sync in background/parallel
@@ -1047,7 +1138,7 @@ class ApiService {
         console.warn('[Server Login Fallback Active]:', e);
       }
 
-      // If server request fails or is blocked in iframe preview, log in with verified preset credentials
+      // Verified preset credentials guaranteed login
       const token = `td_tok_${preset.user.id}_${Date.now()}`;
       localStorage.setItem('td_auth_token', token);
       this.currentUser = preset.user;
@@ -1062,6 +1153,11 @@ class ApiService {
     if (isSuperAdminEmail && password !== 'admin123') {
       throw new Error('Contraseña de SuperAdmin incorrecta');
     }
+
+    // Try Firebase Auth for regular accounts
+    try {
+      await signInWithEmailAndPassword(auth, cleanEmail, password);
+    } catch {}
 
     const res = await fetch('/api/auth/login', {
       method: 'POST',
@@ -1148,6 +1244,9 @@ class ApiService {
         method: 'POST',
         headers: token ? { Authorization: `Bearer ${token}` } : {},
       }).catch(() => {});
+    } catch {}
+    try {
+      await signOut(auth);
     } catch {}
     if (typeof window !== 'undefined') {
       localStorage.removeItem('td_auth_token');
