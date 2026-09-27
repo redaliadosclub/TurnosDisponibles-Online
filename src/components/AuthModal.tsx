@@ -18,51 +18,69 @@ import {
   Zap,
 } from 'lucide-react';
 
-const DEMO_ACCOUNTS = [
-  {
-    role: 'superadmin' as const,
-    title: 'SuperAdmin Master',
+export const EXPLICIT_ACCOUNTS = {
+  'agenciaclienteya@gmail.com': {
     email: 'agenciaclienteya@gmail.com',
-    password: 'admin123',
+    role: 'superadmin' as Role,
+    defaultBiz: null,
+    pass: 'admin123',
+    title: 'SuperAdmin Master',
+    name: 'Agencia Cliente Ya',
     badge: '👑 Master',
     badgeColor: 'bg-amber-100 text-amber-900 border-amber-300',
     hoverBorder: 'hover:border-amber-400 hover:bg-amber-50/70',
     icon: Shield,
     iconColor: 'text-amber-600',
+    contextInfo: 'Plataforma Global',
   },
-  {
-    role: 'business_owner' as const,
-    title: 'Dueño de Consultorio',
+  'dueno@consultorio.com': {
     email: 'dueno@consultorio.com',
-    password: 'dueno123',
+    role: 'business_owner' as Role,
+    defaultBiz: 'biz_dermatocosmiatria_spa',
+    pass: 'dueno123',
+    title: 'Dueño de Consultorio',
+    name: 'Dr. Roberto Dueño',
     badge: '🏥 Dueño',
     badgeColor: 'bg-teal-100 text-teal-900 border-teal-300',
     hoverBorder: 'hover:border-teal-400 hover:bg-teal-50/70',
     icon: Building2,
     iconColor: 'text-teal-600',
+    contextInfo: 'Consultorio Dermatocosmiatría Spa',
   },
-  {
-    role: 'staff' as const,
-    title: 'Doctor / Staff',
+  'staff@consultorio.com': {
     email: 'staff@consultorio.com',
-    password: 'staff123',
+    role: 'staff' as Role,
+    defaultBiz: 'biz_dermatocosmiatria_spa',
+    pass: 'staff123',
+    title: 'Doctor / Staff',
+    name: 'Dra. Camila Staff',
     badge: '🩺 Staff',
     badgeColor: 'bg-sky-100 text-sky-900 border-sky-300',
     hoverBorder: 'hover:border-sky-400 hover:bg-sky-50/70',
     icon: Stethoscope,
     iconColor: 'text-sky-600',
+    contextInfo: 'Agenda & Profesionales',
   },
-  {
-    role: 'customer' as const,
-    title: 'Paciente de Prueba',
+  'paciente@prueba.com': {
     email: 'paciente@prueba.com',
-    password: 'paciente123',
+    role: 'customer' as Role,
+    defaultBiz: null,
+    pass: 'paciente123',
+    title: 'Paciente de Prueba',
+    name: 'Juan Paciente Prueba',
     badge: '👤 Paciente',
     badgeColor: 'bg-purple-100 text-purple-900 border-purple-300',
     hoverBorder: 'hover:border-purple-400 hover:bg-purple-50/70',
     icon: UserIcon,
     iconColor: 'text-purple-600',
+    contextInfo: 'Reserva & Turnos',
   },
+};
+
+const SUPERADMIN_EMULATION_ACCOUNTS = [
+  EXPLICIT_ACCOUNTS['dueno@consultorio.com'],
+  EXPLICIT_ACCOUNTS['staff@consultorio.com'],
+  EXPLICIT_ACCOUNTS['paciente@prueba.com'],
 ];
 
 interface AuthModalProps {
@@ -73,6 +91,7 @@ interface AuthModalProps {
   currentBusinessId?: string;
   businessId?: string;
   allowSuperAdminQuickLogin?: boolean;
+  currentUser?: User | null;
 }
 
 export function AuthModal({
@@ -83,6 +102,7 @@ export function AuthModal({
   currentBusinessId,
   businessId,
   allowSuperAdminQuickLogin = false,
+  currentUser,
 }: AuthModalProps) {
   const [isRegister, setIsRegister] = useState(false);
   const [email, setEmail] = useState('');
@@ -105,6 +125,20 @@ export function AuthModal({
   const [error, setError] = useState<string | null>(null);
   const [secretAdminVisible, setSecretAdminVisible] = useState(false);
   const [clickCount, setClickCount] = useState(0);
+
+  const [hasSuperAdminAutologged, setHasSuperAdminAutologged] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('td_superadmin_autologged') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const isSuperAdmin = Boolean(
+    (currentUser && currentUser.role === 'superadmin') ||
+    (currentUser?.email && currentUser.email.toLowerCase() === 'agenciaclienteya@gmail.com') ||
+    hasSuperAdminAutologged
+  );
 
   useEffect(() => {
     if (isOpen) {
@@ -133,16 +167,39 @@ export function AuthModal({
     onClose();
   };
 
-  const handleQuickLogin = async (acc: (typeof DEMO_ACCOUNTS)[0]) => {
-    setEmail(acc.email);
-    setPassword(acc.password);
+  const handleSuperAdminAutoLogin = async () => {
     setError(null);
     setLoading(true);
     try {
-      const u = await api.login(acc.email, acc.password);
+      const u = await api.login('agenciaclienteya@gmail.com', 'admin123');
+      setHasSuperAdminAutologged(true);
+      try {
+        localStorage.setItem('td_superadmin_autologged', 'true');
+      } catch {}
       notifySuccess(u);
     } catch (e: any) {
-      setError(e.message || 'Error al iniciar sesión con cuenta de prueba.');
+      setError(e.message || 'Error al autologuear como SuperAdmin.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleRoleAutologin = async (acc: typeof SUPERADMIN_EMULATION_ACCOUNTS[0]) => {
+    // Security check: only superadmin can trigger emulation autologins
+    if (!isSuperAdmin) {
+      setError('Acceso denegado: Esta función requiere privilegios de SuperAdmin.');
+      return;
+    }
+
+    setEmail(acc.email);
+    setPassword(acc.pass);
+    setError(null);
+    setLoading(true);
+    try {
+      const u = await api.login(acc.email, acc.pass);
+      notifySuccess(u);
+    } catch (e: any) {
+      setError(e.message || `Error al iniciar sesión como ${acc.title}.`);
     } finally {
       setLoading(false);
     }
@@ -153,7 +210,7 @@ export function AuthModal({
     setError(null);
     setLoading(true);
 
-    const cleanEmail = email.trim();
+    const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail) {
       setError('Por favor ingresa tu correo electrónico.');
       setLoading(false);
@@ -166,12 +223,10 @@ export function AuthModal({
       return;
     }
 
-    const isSuperAdminEmail =
-      cleanEmail.toLowerCase() === 'agenciaclienteya@gmail.com' ||
-      cleanEmail.toLowerCase().includes('admin');
-
-    if (isSuperAdminEmail && password !== 'admin123') {
-      setError('Contraseña incorrecta para SuperAdmin Master.');
+    // Explicit recognition for the 4 core platform accounts
+    const explicitAccount = EXPLICIT_ACCOUNTS[cleanEmail as keyof typeof EXPLICIT_ACCOUNTS];
+    if (explicitAccount && password !== explicitAccount.pass) {
+      setError(`Contraseña incorrecta para ${cleanEmail}. Por favor verifica tus credenciales.`);
       setLoading(false);
       return;
     }
@@ -205,6 +260,12 @@ export function AuthModal({
         notifySuccess(user);
       } else {
         const user = await api.login(cleanEmail, password);
+        if (user.role === 'superadmin' || cleanEmail === 'agenciaclienteya@gmail.com') {
+          setHasSuperAdminAutologged(true);
+          try {
+            localStorage.setItem('td_superadmin_autologged', 'true');
+          } catch {}
+        }
         notifySuccess(user);
       }
     } catch (err: any) {
@@ -253,46 +314,68 @@ export function AuthModal({
           </div>
         )}
 
-        {/* Quick 1-Click Access for Demo Accounts */}
-        {!isRegister && (
-          <div className="mb-4 p-3 bg-slate-50 border border-slate-200 rounded-2xl">
-            <div className="flex items-center justify-between mb-2">
-              <div className="flex items-center gap-1.5 text-xs font-bold text-slate-800">
-                <Zap className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
-                <span>Accesos Rápidos de Prueba (1-Clic)</span>
+        {/* Secret SuperAdmin Master Bypass: Visible ONLY when clicking the TD logo 3 times */}
+        {secretAdminVisible && !isRegister && (
+          <div className="p-3 mb-4 rounded-2xl bg-amber-50 border border-amber-300 flex items-center justify-between animate-in fade-in shadow-xs">
+            <div className="flex items-center gap-2">
+              <Shield className="w-4 h-4 text-amber-600 shrink-0" />
+              <div>
+                <div className="font-bold text-amber-950 text-[11px]">Acceso Maestro SuperAdmin</div>
+                <div className="text-[10px] text-amber-800 font-mono">agenciaclienteya@gmail.com</div>
               </div>
-              <span className="text-[10px] text-slate-400 font-medium">Toca para autologuear</span>
             </div>
+            <button
+              type="button"
+              disabled={loading}
+              onClick={handleSuperAdminAutoLogin}
+              className="px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-xl text-xs cursor-pointer transition shadow-xs"
+            >
+              {loading ? 'Accediendo...' : 'Autologuear'}
+            </button>
+          </div>
+        )}
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-              {DEMO_ACCOUNTS.map((acc) => {
+        {/* Role Emulation Autologins: Strictly and Exclusively Visible to SuperAdmin AFTER authenticating */}
+        {isSuperAdmin && !isRegister && (
+          <div className="mb-4 p-3 bg-amber-50/70 border border-amber-200 rounded-2xl animate-in fade-in">
+            <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center gap-1.5 text-xs font-bold text-amber-950">
+                <Shield className="w-3.5 h-3.5 text-amber-600" />
+                <span>Emulación de Roles (Solo SuperAdmin)</span>
+              </div>
+              <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-200 text-amber-900 font-bold">
+                Privado
+              </span>
+            </div>
+            <p className="text-[11px] text-amber-800 mb-2.5 leading-snug">
+              Autologueo de cuentas de prueba para inspeccionar cada vista con su contexto real:
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+              {SUPERADMIN_EMULATION_ACCOUNTS.map((acc) => {
                 const Icon = acc.icon;
                 return (
                   <button
                     key={acc.email}
                     type="button"
                     disabled={loading}
-                    onClick={() => handleQuickLogin(acc)}
-                    className={`p-2 rounded-xl bg-white border border-slate-200 transition-all text-left flex items-start gap-2 shadow-xs group cursor-pointer ${acc.hoverBorder}`}
+                    onClick={() => handleRoleAutologin(acc)}
+                    className="p-2 rounded-xl bg-white border border-amber-200 hover:border-amber-400 hover:bg-amber-50/50 transition-all text-left flex flex-col justify-between shadow-xs cursor-pointer"
                   >
-                    <div className="p-1 rounded-lg bg-slate-50 group-hover:bg-white shrink-0 mt-0.5 border border-slate-100">
+                    <div className="flex items-center justify-between w-full mb-1">
                       <Icon className={`w-3.5 h-3.5 ${acc.iconColor}`} />
+                      <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full border ${acc.badgeColor}`}>
+                        {acc.badge}
+                      </span>
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-1">
-                        <span className="font-bold text-slate-800 text-[11px] truncate">
-                          {acc.title}
-                        </span>
-                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border ${acc.badgeColor}`}>
-                          {acc.badge}
-                        </span>
-                      </div>
-                      <div className="text-[10px] text-slate-600 truncate font-mono">
-                        {acc.email}
-                      </div>
-                      <div className="text-[9px] text-slate-400 font-mono">
-                        Pass: <strong className="text-slate-700">{acc.password}</strong>
-                      </div>
+                    <div className="font-bold text-slate-800 text-[11px] truncate">
+                      {acc.title}
+                    </div>
+                    <div className="text-[10px] text-slate-500 font-mono truncate">
+                      {acc.email}
+                    </div>
+                    <div className="mt-1 text-[9px] text-amber-700 font-medium truncate">
+                      {acc.contextInfo}
                     </div>
                   </button>
                 );
@@ -302,36 +385,6 @@ export function AuthModal({
         )}
 
         <form onSubmit={handleSubmit} className="space-y-3 text-xs">
-          {/* Secret SuperAdmin Bypass: Only displayed when clicking the TD logo 3 times */}
-          {secretAdminVisible && !isRegister && (
-            <div className="p-2.5 rounded-2xl bg-amber-50 border border-amber-300 flex items-center justify-between animate-in fade-in">
-              <div className="flex items-center gap-2">
-                <Shield className="w-4 h-4 text-amber-600 shrink-0" />
-                <div>
-                  <div className="font-bold text-amber-900 text-[11px]">Acceso Maestro SuperAdmin</div>
-                  <div className="text-[10px] text-amber-700">agenciaclienteya@gmail.com</div>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={async () => {
-                  setLoading(true);
-                  try {
-                    const u = await api.login('agenciaclienteya@gmail.com', 'admin123');
-                    notifySuccess(u);
-                  } catch (e: any) {
-                    setError(e.message);
-                  } finally {
-                    setLoading(false);
-                  }
-                }}
-                className="px-2.5 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold rounded-lg text-[10px] cursor-pointer transition shadow-xs"
-              >
-                Autologuear
-              </button>
-            </div>
-          )}
-
           {/* Role selector in Register */}
           {isRegister && (
             <div className="space-y-1">

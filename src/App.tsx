@@ -239,6 +239,9 @@ export default function App() {
   }, [businesses, activeView]);
 
   const handleLogout = async () => {
+    try {
+      localStorage.removeItem('td_superadmin_autologged');
+    } catch {}
     await api.logout();
     setCurrentUser(null);
     setActiveView('portal');
@@ -556,6 +559,7 @@ export default function App() {
         onLoginSuccess={handleLoginSuccess}
         currentBusinessId={currentBusiness.id}
         allowSuperAdminQuickLogin={true}
+        currentUser={currentUser}
       />
     </div>
   );
