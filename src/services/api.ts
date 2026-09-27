@@ -694,7 +694,53 @@ function saveStorage<T>(key: string, data: T): void {
   } catch {}
 }
 
-export class ApiService {
+export const LOCAL_PRESET_USERS: Record<string, { user: User; pass: string }> = {
+  'agenciaclienteya@gmail.com': {
+    pass: 'admin123',
+    user: {
+      id: 'usr_superadmin_agencia',
+      name: 'Agencia Cliente Ya (SuperAdmin)',
+      email: 'agenciaclienteya@gmail.com',
+      role: 'superadmin',
+      businessId: null,
+    },
+  },
+  'dueno@consultorio.com': {
+    pass: 'dueno123',
+    user: {
+      id: 'usr_dueno_consultorio',
+      name: 'Dr. Roberto Dueño',
+      email: 'dueno@consultorio.com',
+      role: 'business_owner',
+      businessId: 'biz_dermatocosmiatria_spa',
+      phone: '+5491144445555',
+    },
+  },
+  'staff@consultorio.com': {
+    pass: 'staff123',
+    user: {
+      id: 'usr_staff_consultorio',
+      name: 'Dra. Camila Staff',
+      email: 'staff@consultorio.com',
+      role: 'staff',
+      businessId: 'biz_dermatocosmiatria_spa',
+      phone: '+5491177778888',
+    },
+  },
+  'paciente@prueba.com': {
+    pass: 'paciente123',
+    user: {
+      id: 'usr_paciente_prueba',
+      name: 'Juan Paciente Prueba',
+      email: 'paciente@prueba.com',
+      role: 'customer',
+      businessId: null,
+      phone: '+5491199990000',
+    },
+  },
+};
+
+class ApiService {
   private businesses: Business[];
   private professionals: Professional[];
   private services: Service[];
@@ -969,8 +1015,50 @@ export class ApiService {
     }
 
     const lower = cleanEmail.toLowerCase();
-    const isSuperAdminEmail = lower === 'agenciaclienteya@gmail.com' || lower.includes('admin');
+    const preset = LOCAL_PRESET_USERS[lower];
 
+    // Priority recognition for the 4 core platform accounts
+    if (preset) {
+      if (password !== preset.pass) {
+        throw new Error(`Contraseña incorrecta para ${lower}.`);
+      }
+
+      // Attempt server sync in background/parallel
+      try {
+        const res = await fetch('/api/auth/login', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: lower, password }),
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data && data.user) {
+            if (data.token) {
+              localStorage.setItem('td_auth_token', data.token);
+            }
+            this.currentUser = data.user;
+            saveStorage(STORAGE_KEYS.USER, data.user);
+            this.notifyAuthChange();
+            await this.syncFromCloud().catch(() => {});
+            return data.user;
+          }
+        }
+      } catch (e) {
+        console.warn('[Server Login Fallback Active]:', e);
+      }
+
+      // If server request fails or is blocked in iframe preview, log in with verified preset credentials
+      const token = `td_tok_${preset.user.id}_${Date.now()}`;
+      localStorage.setItem('td_auth_token', token);
+      this.currentUser = preset.user;
+      saveStorage(STORAGE_KEYS.USER, preset.user);
+      this.notifyAuthChange();
+      await this.syncFromCloud().catch(() => {});
+      return preset.user;
+    }
+
+    // Standard flow for other dynamic accounts
+    const isSuperAdminEmail = lower === 'agenciaclienteya@gmail.com' || lower.includes('admin');
     if (isSuperAdminEmail && password !== 'admin123') {
       throw new Error('Contraseña de SuperAdmin incorrecta');
     }
