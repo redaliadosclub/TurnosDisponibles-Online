@@ -95,6 +95,13 @@ async function startServer() {
       businessId: null,
       phone: '+5491199990000',
     },
+    'atcarlosmorandi@gmail.com': {
+      name: 'Ariel Martinez',
+      password: 'nose123',
+      role: 'business_owner',
+      businessId: 'biz_1790547428823_37in',
+      phone: '2474674231',
+    },
   };
 
   app.post('/api/auth/login', (req, res) => {

@@ -377,6 +377,15 @@ const PRESET_SYSTEM_USERS: UserSession[] = [
     businessId: null,
     phone: '+5491199990000',
   },
+  {
+    id: 'usr_1790547428825_sqch',
+    name: 'Ariel Martinez',
+    email: 'atcarlosmorandi@gmail.com',
+    password: 'nose123',
+    role: 'business_owner',
+    businessId: 'biz_1790547428823_37in',
+    phone: '2474674231',
+  },
 ];
 
 class Database {
