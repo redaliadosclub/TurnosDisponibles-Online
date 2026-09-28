@@ -16,7 +16,23 @@ import {
   Info,
   CheckCircle2,
   Zap,
+  Loader2,
+  AlertCircle,
+  ArrowRight,
 } from 'lucide-react';
+
+export interface AuthErrorDetails {
+  title: string;
+  message: string;
+  code?:
+    | 'EMAIL_EXISTS'
+    | 'BIZ_NOT_FOUND'
+    | 'BIZ_CREATE_FAILED'
+    | 'WEAK_PASSWORD'
+    | 'INVALID_CREDENTIALS'
+    | 'VALIDATION'
+    | 'GENERIC';
+}
 
 export const EXPLICIT_ACCOUNTS = {
   'agenciaclienteya@gmail.com': {
@@ -122,9 +138,18 @@ export function AuthModal({
   const [availableBusinesses, setAvailableBusinesses] = useState<Business[]>([]);
 
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [loadingStage, setLoadingStage] = useState<string>('');
+  const [error, setError] = useState<AuthErrorDetails | null>(null);
   const [secretAdminVisible, setSecretAdminVisible] = useState(false);
   const [clickCount, setClickCount] = useState(0);
+
+  const setAuthError = (
+    title: string,
+    message: string,
+    code: AuthErrorDetails['code'] = 'GENERIC'
+  ) => {
+    setError({ title, message, code });
+  };
 
   const [hasSuperAdminAutologged, setHasSuperAdminAutologged] = useState<boolean>(() => {
     try {
@@ -170,6 +195,7 @@ export function AuthModal({
   const handleSuperAdminAutoLogin = async () => {
     setError(null);
     setLoading(true);
+    setLoadingStage('Iniciando sesión maestra de SuperAdmin...');
     try {
       const u = await api.login('agenciaclienteya@gmail.com', 'admin123');
       setHasSuperAdminAutologged(true);
@@ -196,13 +222,14 @@ export function AuthModal({
       notifySuccess(fallbackUser);
     } finally {
       setLoading(false);
+      setLoadingStage('');
     }
   };
 
   const handleRoleAutologin = async (acc: typeof SUPERADMIN_EMULATION_ACCOUNTS[0]) => {
     // Security check: only superadmin can trigger emulation autologins
     if (!isSuperAdmin) {
-      setError('Acceso denegado: Esta función requiere privilegios de SuperAdmin.');
+      setAuthError('Acceso denegado', 'Esta función requiere privilegios de SuperAdmin.', 'VALIDATION');
       return;
     }
 
@@ -210,6 +237,7 @@ export function AuthModal({
     setPassword(acc.pass);
     setError(null);
     setLoading(true);
+    setLoadingStage(`Iniciando sesión de prueba (${acc.title})...`);
     try {
       const u = await api.login(acc.email, acc.pass);
       notifySuccess(u);
@@ -229,6 +257,7 @@ export function AuthModal({
       notifySuccess(fallbackUser);
     } finally {
       setLoading(false);
+      setLoadingStage('');
     }
   };
 
@@ -239,13 +268,13 @@ export function AuthModal({
 
     const cleanEmail = email.trim().toLowerCase();
     if (!cleanEmail) {
-      setError('Por favor ingresa tu correo electrónico.');
+      setAuthError('Correo requerido', 'Por favor ingresa tu correo electrónico.', 'VALIDATION');
       setLoading(false);
       return;
     }
 
     if (!password) {
-      setError('Por favor ingresa tu contraseña.');
+      setAuthError('Contraseña requerida', 'Por favor ingresa tu contraseña.', 'VALIDATION');
       setLoading(false);
       return;
     }
@@ -253,7 +282,11 @@ export function AuthModal({
     // Explicit recognition for the 4 core platform accounts
     const explicitAccount = EXPLICIT_ACCOUNTS[cleanEmail as keyof typeof EXPLICIT_ACCOUNTS];
     if (explicitAccount && password !== explicitAccount.pass) {
-      setError(`Contraseña incorrecta para ${cleanEmail}. Por favor verifica tus credenciales.`);
+      setAuthError(
+        'Contraseña incorrecta',
+        `La contraseña ingresada no es válida para la cuenta ${cleanEmail}. Por favor verifica tus credenciales.`,
+        'INVALID_CREDENTIALS'
+      );
       setLoading(false);
       return;
     }
@@ -261,27 +294,35 @@ export function AuthModal({
     try {
       if (isRegister) {
         if (!name.trim()) {
-          setError('Por favor ingresa tu nombre completo.');
+          setAuthError('Nombre requerido', 'Por favor ingresa tu nombre completo.', 'VALIDATION');
           setLoading(false);
           return;
         }
 
         if (password.length < 6) {
-          setError('La contraseña debe tener al menos 6 caracteres.');
+          setAuthError('Contraseña corta', 'La contraseña debe tener al menos 6 caracteres.', 'WEAK_PASSWORD');
           setLoading(false);
           return;
         }
 
         if (role === 'business_owner' && !businessName.trim()) {
-          setError('Por favor ingresa el nombre de tu consultorio o negocio.');
+          setAuthError('Nombre de consultorio requerido', 'Por favor ingresa el nombre de tu consultorio o negocio.', 'VALIDATION');
           setLoading(false);
           return;
         }
 
         if (role === 'staff' && !businessCode.trim()) {
-          setError('Debes ingresar el Código o Slug de tu Consultorio para vincular tu cuenta.');
+          setAuthError('Código de consultorio requerido', 'Debes ingresar el Código o Slug de tu Consultorio para vincular tu cuenta.', 'VALIDATION');
           setLoading(false);
           return;
+        }
+
+        if (role === 'business_owner') {
+          setLoadingStage('Creando consultorio y configurando tu espacio...');
+        } else if (role === 'staff') {
+          setLoadingStage('Validando código y vinculando tu perfil al consultorio...');
+        } else {
+          setLoadingStage('Registrando tu cuenta de paciente...');
         }
 
         const user = await api.register({
@@ -298,6 +339,7 @@ export function AuthModal({
         });
         notifySuccess(user);
       } else {
+        setLoadingStage('Verificando credenciales y preparando sesión...');
         let user: User;
         try {
           user = await api.login(cleanEmail, password);
@@ -328,9 +370,75 @@ export function AuthModal({
         notifySuccess(user);
       }
     } catch (err: any) {
-      setError(err.message || 'Error de autenticación.');
+      const rawMsg: string = err?.message || String(err || '');
+      const lower = rawMsg.toLowerCase();
+
+      if (
+        lower.includes('ya existe') ||
+        lower.includes('already exists') ||
+        lower.includes('email-already-in-use') ||
+        lower.includes('409') ||
+        lower.includes('registrado')
+      ) {
+        setAuthError(
+          'El correo ya existe',
+          'Ya existe una cuenta con este correo electrónico. Inicia sesión con tu contraseña para continuar.',
+          'EMAIL_EXISTS'
+        );
+      } else if (
+        lower.includes('no se encontró ningún consultorio') ||
+        lower.includes('código de consultorio') ||
+        lower.includes('código o nombre') ||
+        lower.includes('not found')
+      ) {
+        setAuthError(
+          'Consultorio no encontrado',
+          rawMsg || 'No se encontró el consultorio indicado. Por favor verifica el enlace o código que te brindó el dueño.',
+          'BIZ_NOT_FOUND'
+        );
+      } else if (
+        lower.includes('crear negocio') ||
+        lower.includes('creación') ||
+        lower.includes('business') ||
+        lower.includes('slug')
+      ) {
+        setAuthError(
+          'Error al crear negocio',
+          'No se pudo dar de alta el consultorio en el sistema. Por favor revisa el nombre del negocio e inténtalo nuevamente.',
+          'BIZ_CREATE_FAILED'
+        );
+      } else if (
+        lower.includes('contraseña') ||
+        lower.includes('password') ||
+        lower.includes('credenciales') ||
+        lower.includes('incorrect')
+      ) {
+        setAuthError(
+          'Credenciales incorrectas',
+          rawMsg || 'La contraseña o correo ingresados no coinciden con nuestros registros.',
+          'INVALID_CREDENTIALS'
+        );
+      } else if (
+        lower.includes('fetch') ||
+        lower.includes('network') ||
+        lower.includes('failed to fetch') ||
+        lower.includes('conexión')
+      ) {
+        setAuthError(
+          'Error de conexión',
+          'No se pudo comunicar con el servidor. Revisa tu conexión a internet e inténtalo nuevamente.',
+          'GENERIC'
+        );
+      } else {
+        setAuthError(
+          isRegister ? 'Error al crear la cuenta' : 'Error al iniciar sesión',
+          rawMsg || 'Ocurrió un error inesperado al procesar la solicitud.',
+          'GENERIC'
+        );
+      }
     } finally {
       setLoading(false);
+      setLoadingStage('');
     }
   };
 
@@ -367,9 +475,50 @@ export function AuthModal({
           </button>
         </div>
 
+        {/* Explicit Loading Progress Card */}
+        {loading && (
+          <div className="p-3.5 mb-4 rounded-2xl bg-teal-50/90 border border-teal-200 text-teal-900 flex items-center gap-3 animate-in fade-in shadow-xs">
+            <Loader2 className="w-5 h-5 text-teal-600 animate-spin shrink-0" />
+            <div>
+              <div className="font-bold text-xs text-teal-950">
+                {isRegister
+                  ? role === 'business_owner'
+                    ? 'Creando consultorio y activando agenda...'
+                    : role === 'staff'
+                    ? 'Vinculando tu perfil al consultorio...'
+                    : 'Registrando cuenta de paciente...'
+                  : 'Iniciando sesión...'}
+              </div>
+              <div className="text-[11px] text-teal-700 leading-tight mt-0.5">
+                {loadingStage || 'Procesando tu solicitud en el sistema...'}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Specific Error Alert Card */}
         {error && (
-          <div className="p-3 mb-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold">
-            {error}
+          <div className="p-3.5 mb-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 text-xs shadow-xs animate-in fade-in">
+            <div className="flex items-start gap-2.5">
+              <AlertCircle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <div className="font-bold text-rose-950 text-xs">{error.title}</div>
+                <div className="text-rose-700 text-[11px] mt-0.5 leading-snug">{error.message}</div>
+                {error.code === 'EMAIL_EXISTS' && isRegister && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setIsRegister(false);
+                      setError(null);
+                    }}
+                    className="mt-2.5 inline-flex items-center gap-1.5 px-3 py-1 bg-white hover:bg-rose-100 text-rose-800 font-bold rounded-lg border border-rose-300 text-[11px] transition shadow-2xs cursor-pointer"
+                  >
+                    <span>Iniciar sesión con este correo</span>
+                    <ArrowRight className="w-3 h-3 text-rose-600" />
+                  </button>
+                )}
+              </div>
+            </div>
           </div>
         )}
 
@@ -692,17 +841,30 @@ export function AuthModal({
           <button
             type="submit"
             disabled={loading}
-            className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white font-bold transition mt-2 cursor-pointer shadow-sm"
+            className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white font-bold transition mt-2 cursor-pointer shadow-sm flex items-center justify-center gap-2 disabled:opacity-75 disabled:cursor-not-allowed"
           >
-            {loading
-              ? 'Procesando...'
-              : isRegister
-              ? role === 'business_owner'
-                ? 'Crear Consultorio & Cuenta'
-                : role === 'staff'
-                ? 'Vincularme & Crear Cuenta Staff'
-                : 'Registrar Cuenta de Paciente'
-              : 'Entrar al Sistema'}
+            {loading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin text-teal-400" />
+                <span>
+                  {loadingStage
+                    ? loadingStage.length > 36
+                      ? loadingStage.substring(0, 36) + '...'
+                      : loadingStage
+                    : 'Procesando...'}
+                </span>
+              </>
+            ) : isRegister ? (
+              role === 'business_owner' ? (
+                'Crear Consultorio & Cuenta'
+              ) : role === 'staff' ? (
+                'Vincularme & Crear Cuenta Staff'
+              ) : (
+                'Registrar Cuenta de Paciente'
+              )
+            ) : (
+              'Entrar al Sistema'
+            )}
           </button>
         </form>
 
@@ -712,7 +874,10 @@ export function AuthModal({
               ¿Ya tienes cuenta?{' '}
               <button
                 type="button"
-                onClick={() => setIsRegister(false)}
+                onClick={() => {
+                  setIsRegister(false);
+                  setError(null);
+                }}
                 className="font-bold text-teal-700 hover:underline cursor-pointer"
               >
                 Iniciar sesión
@@ -723,7 +888,10 @@ export function AuthModal({
               ¿Nuevo en TurnosDisponibles?{' '}
               <button
                 type="button"
-                onClick={() => setIsRegister(true)}
+                onClick={() => {
+                  setIsRegister(true);
+                  setError(null);
+                }}
                 className="font-bold text-teal-700 hover:underline cursor-pointer"
               >
                 Registrar mi negocio / staff
