@@ -240,18 +240,26 @@ export const INITIAL_PROFESSIONALS: Professional[] = [
     active: true,
     specialty: 'Dermatocosmiatría Facial',
     serviceIds: ['srv_dermato_limpieza', 'srv_dermato_peeling', 'srv_dermato_antiage'],
+    officeNumber: 'Consultorio 1',
+    accessCode: 'CONS-1001',
+    commissionRate: 20,
+    commissionType: 'percentage',
   },
   {
     id: 'prof_camila_dermato',
     businessId: 'biz_dermatocosmiatria_spa',
-    name: 'Camila Valenzuela',
-    title: 'Cosmiatra & Masoterapeuta Facial',
+    name: 'Camila Valenzuela (Dra. Camila Staff)',
+    title: 'Cosmiatra & Especialista Staff',
     photoUrl: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?w=160&auto=format&fit=crop&q=80',
-    email: 'camila@dermatocosmiatria.com',
+    email: 'staff@consultorio.com',
     phone: '+54 11 5566-7790',
     active: true,
     specialty: 'Cosmiatría & Drenaje Facial',
     serviceIds: ['srv_dermato_limpieza', 'srv_dermato_hidra'],
+    officeNumber: 'Consultorio 2',
+    accessCode: 'STAFF-2002',
+    commissionRate: 20,
+    commissionType: 'percentage',
   },
 
   // Odontología
@@ -266,6 +274,10 @@ export const INITIAL_PROFESSIONALS: Professional[] = [
     active: true,
     specialty: 'Estética Dental & Prótesis',
     serviceIds: ['srv_odonto_limpieza', 'srv_odonto_blanqueamiento', 'srv_odonto_consulta'],
+    officeNumber: 'Consultorio 1',
+    accessCode: 'CONS-3001',
+    commissionRate: 20,
+    commissionType: 'percentage',
   },
   {
     id: 'prof_valeria_orto',
@@ -278,6 +290,10 @@ export const INITIAL_PROFESSIONALS: Professional[] = [
     active: true,
     specialty: 'Ortodoncia & Alineadores',
     serviceIds: ['srv_odonto_ortodoncia', 'srv_odonto_consulta'],
+    officeNumber: 'Consultorio 2',
+    accessCode: 'CONS-3002',
+    commissionRate: 20,
+    commissionType: 'percentage',
   },
 
   // Centro Médico Belgrano
@@ -292,18 +308,26 @@ export const INITIAL_PROFESSIONALS: Professional[] = [
     active: true,
     specialty: 'Medicina Clínica General',
     serviceIds: ['srv_med_clinica', 'srv_med_chequeo'],
+    officeNumber: 'Consultorio 1',
+    accessCode: 'CONS-4001',
+    commissionRate: 20,
+    commissionType: 'percentage',
   },
   {
     id: 'prof_carolina_derm',
     businessId: 'biz_centro_medico_belgrano',
     name: 'Dra. Carolina Méndez',
     title: 'Médica Dermatóloga (UBA)',
-    photoUrl: 'https://images.unsplash.com/photo-1594824813689-53e77c6ca93f?w=160&auto=format&fit=crop&q=80',
-    email: 'mendez@medicosbelgrano.com',
+    photoUrl: 'https://images.unsplash.com/photo-1594824813629-9e8c3230a13d?w=160&auto=format&fit=crop&q=80',
+    email: 'carolina@medicosbelgrano.com',
     phone: '+54 11 4788-9902',
     active: true,
-    specialty: 'Dermatología Clínica & Lunares',
-    serviceIds: ['srv_med_dermato', 'srv_med_clinica'],
+    specialty: 'Dermatología Clínica & Estética',
+    serviceIds: ['srv_med_dermatologia'],
+    officeNumber: 'Consultorio 2',
+    accessCode: 'CONS-4002',
+    commissionRate: 20,
+    commissionType: 'percentage',
   },
 
   // Barbería Urbana
@@ -733,7 +757,24 @@ export const LOCAL_PRESET_USERS: Record<string, { user: User; pass: string }> = 
       email: 'staff@consultorio.com',
       role: 'staff',
       businessId: 'biz_dermatocosmiatria_spa',
+      professionalId: 'prof_camila_dermato',
+      officeNumber: 'Consultorio 2',
+      accessCode: 'STAFF-2002',
       phone: '+5491177778888',
+    },
+  },
+  'mariana@dermatocosmiatria.com': {
+    pass: 'staff123',
+    user: {
+      id: 'usr_mariana_dermato',
+      name: 'Lic. Mariana Gómez',
+      email: 'mariana@dermatocosmiatria.com',
+      role: 'staff',
+      businessId: 'biz_dermatocosmiatria_spa',
+      professionalId: 'prof_mariana_dermato',
+      officeNumber: 'Consultorio 1',
+      accessCode: 'CONS-1001',
+      phone: '+54 11 5566-7789',
     },
   },
   'paciente@prueba.com': {
@@ -1485,21 +1526,55 @@ class ApiService {
 
   // Professionals
   async getProfessionals(businessId: string): Promise<Professional[]> {
+    let result: Professional[] = [];
     try {
       const res = await fetch(`/api/businesses/${encodeURIComponent(businessId)}/professionals`);
       if (res.ok) {
         const serverProfs: Professional[] = await res.json();
         if (Array.isArray(serverProfs) && serverProfs.length > 0) {
-          const map = new Map<string, Professional>();
-          this.professionals.forEach((p) => map.set(p.id, p));
-          serverProfs.forEach((p) => map.set(p.id, p));
-          this.professionals = Array.from(map.values());
-          saveStorage(STORAGE_KEYS.PROFESSIONALS, this.professionals);
-          return serverProfs;
+          result = serverProfs;
         }
       }
     } catch {}
-    return this.professionals.filter((p) => p.businessId === businessId);
+
+    if (result.length === 0) {
+      result = this.professionals.filter((p) => p.businessId === businessId);
+    }
+
+    // Safeguard: Ensure every professional has a valid, non-empty accessCode and officeNumber
+    let hasChanges = false;
+    result = result.map((prof, idx) => {
+      let code = prof.accessCode;
+      let office = prof.officeNumber;
+      if (!code) {
+        if (prof.id === 'prof_mariana_dermato' || prof.name?.toLowerCase().includes('mariana')) {
+          code = 'CONS-1001';
+        } else if (prof.id === 'prof_camila_dermato' || prof.name?.toLowerCase().includes('camila')) {
+          code = 'STAFF-2002';
+        } else {
+          code = `CONS-${1000 + idx + 1}`;
+        }
+        hasChanges = true;
+      }
+      if (!office) {
+        office = `Consultorio ${idx + 1}`;
+        hasChanges = true;
+      }
+      if (hasChanges) {
+        return { ...prof, accessCode: code, officeNumber: office };
+      }
+      return prof;
+    });
+
+    if (hasChanges) {
+      const map = new Map<string, Professional>();
+      this.professionals.forEach((p) => map.set(p.id, p));
+      result.forEach((p) => map.set(p.id, p));
+      this.professionals = Array.from(map.values());
+      saveStorage(STORAGE_KEYS.PROFESSIONALS, this.professionals);
+    }
+
+    return result;
   }
 
   async createProfessional(businessId: string, data: Omit<Professional, 'id' | 'businessId'>): Promise<Professional> {

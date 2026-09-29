@@ -6,6 +6,7 @@ import { api, INITIAL_BUSINESSES } from './services/api';
 import { PublicBookingPage } from './components/PublicBookingPage';
 import { BusinessDashboard } from './components/BusinessDashboard';
 import { SuperAdminDashboard } from './components/SuperAdminDashboard';
+import { StaffWorkspace } from './components/StaffWorkspace';
 import { AuthModal } from './components/AuthModal';
 import { NotFoundBusinessView } from './components/NotFoundBusinessView';
 import { LandingPortalPage } from './components/portal/LandingPortalPage';
@@ -18,6 +19,7 @@ import {
   LayoutDashboard,
   Calendar,
   X,
+  Stethoscope,
 } from 'lucide-react';
 
 export default function App() {
@@ -78,6 +80,40 @@ export default function App() {
     return '';
   };
 
+  // Helper to extract staff portal invitation parameters (?clinic=...&code=... or #staff)
+  const getStaffParamsFromUrl = () => {
+    try {
+      const fullUrl = window.location.href;
+      const hash = window.location.hash || '';
+      const isStaffRoute =
+        hash.includes('staff') ||
+        hash.includes('portal-medico') ||
+        hash.includes('consultorio') ||
+        fullUrl.includes('staff=true');
+      if (!isStaffRoute) return null;
+
+      let clinic = '';
+      let code = '';
+
+      if (hash.includes('?')) {
+        const hashQuery = hash.split('?')[1];
+        const hashParams = new URLSearchParams(hashQuery);
+        clinic = hashParams.get('clinic') || hashParams.get('negocio') || hashParams.get('b') || '';
+        code = hashParams.get('code') || hashParams.get('clave') || '';
+      }
+
+      if (!clinic || !code) {
+        const urlObj = new URL(fullUrl);
+        if (!clinic) clinic = urlObj.searchParams.get('clinic') || urlObj.searchParams.get('negocio') || urlObj.searchParams.get('b') || '';
+        if (!code) code = urlObj.searchParams.get('code') || urlObj.searchParams.get('clave') || '';
+      }
+
+      return { clinic: clinic.trim(), code: code.trim() };
+    } catch {
+      return null;
+    }
+  };
+
   const LEGACY_DEMO_IDS = new Set(['biz_turnosmed_demo', 'biz_estetica_bella', 'turnosmed-demo', 'estetica-bella']);
 
   const getCleanSavedBusinesses = (): Business[] => {
@@ -102,8 +138,13 @@ export default function App() {
 
   // Synchronous resolution of initial view and business
   const initialSlug = getRequestedSlug();
+  const initialStaffParams = getStaffParamsFromUrl();
   const initialBizs = getCleanSavedBusinesses();
-  const matchedInitialBiz = initialSlug ? findBusinessBySlug(initialBizs, initialSlug) : undefined;
+  const matchedInitialBiz = initialStaffParams?.clinic
+    ? findBusinessBySlug(initialBizs, initialStaffParams.clinic)
+    : initialSlug
+    ? findBusinessBySlug(initialBizs, initialSlug)
+    : undefined;
 
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [businesses, setBusinesses] = useState<Business[]>(initialBizs);
@@ -111,9 +152,11 @@ export default function App() {
     matchedInitialBiz || initialBizs[0] || INITIAL_BUSINESSES[0]
   );
   const [notFoundSlug, setNotFoundSlug] = useState<string | null>(
-    initialSlug && !matchedInitialBiz ? initialSlug : null
+    initialSlug && !matchedInitialBiz && !initialStaffParams ? initialSlug : null
   );
-  const [activeView, setActiveView] = useState<'portal' | 'public' | 'business' | 'superadmin'>(() => {
+  const [staffInitialCode, setStaffInitialCode] = useState<string>(initialStaffParams?.code || '');
+  const [activeView, setActiveView] = useState<'portal' | 'public' | 'business' | 'superadmin' | 'staff'>(() => {
+    if (initialStaffParams) return 'staff';
     if (initialSlug) return 'public';
     return 'portal';
   });
@@ -219,10 +262,15 @@ export default function App() {
             setCurrentUser(verifiedUser);
             if (verifiedUser.role === 'superadmin') {
               setShowDemoBar(true);
+            } else if (verifiedUser.role === 'staff' && activeView !== 'public') {
+              setActiveView('staff');
             }
           } else {
             const validSession = await api.verifyUserSession();
             setCurrentUser(validSession);
+            if (validSession?.role === 'staff' && activeView !== 'public') {
+              setActiveView('staff');
+            }
           }
         } else {
           // If no active Firebase Auth session, verify whether existing local session is still valid
@@ -232,6 +280,9 @@ export default function App() {
             setCurrentUser(null);
           } else {
             setCurrentUser(verifiedUser);
+            if (verifiedUser.role === 'staff' && activeView !== 'public') {
+              setActiveView('staff');
+            }
           }
         }
       } catch (err) {
@@ -247,6 +298,19 @@ export default function App() {
   // Listen to hash changes in real-time
   useEffect(() => {
     const handleHashChange = () => {
+      const staffParams = getStaffParamsFromUrl();
+      if (staffParams) {
+        if (staffParams.clinic) {
+          const match = findBusinessBySlug([...businesses, ...INITIAL_BUSINESSES], staffParams.clinic);
+          if (match) setCurrentBusiness(match);
+        }
+        if (staffParams.code) {
+          setStaffInitialCode(staffParams.code);
+        }
+        setActiveView('staff');
+        return;
+      }
+
       const targetSlug = getRequestedSlug();
       const allAvailable = [
         ...businesses,
@@ -290,6 +354,19 @@ export default function App() {
     if (user.role === 'superadmin') {
       setActiveView('superadmin');
       setShowDemoBar(true);
+    } else if (user.role === 'staff') {
+      if (user.businessId) {
+        try {
+          const directBiz = await api.getBusinessById(user.businessId).catch(() => null);
+          const freshList = await api.getBusinesses();
+          setBusinesses(freshList);
+          const match = directBiz || freshList.find((b) => b.id === user.businessId || b.slug === user.businessId);
+          if (match) {
+            setCurrentBusiness(match);
+          }
+        } catch {}
+      }
+      setActiveView('staff');
     } else if (user.businessId) {
       try {
         const directBiz = await api.getBusinessById(user.businessId).catch(() => null);
@@ -310,9 +387,9 @@ export default function App() {
 
   const activeBusiness = currentBusiness || businesses[0] || INITIAL_BUSINESSES[0];
 
-  // The top bar is displayed ONLY if user is logged in (SuperAdmin or Business Owner/Staff)
-  // Public visitors / patients booking an appointment NEVER see this admin navigation bar
-  const shouldRenderTopBar = currentUser !== null && (activeView !== 'portal' || showDemoBar);
+  // The top bar is displayed ONLY if user is logged in (SuperAdmin or Business Owner)
+  // When in Staff view, it is hidden so doctors have an ultra-clean, dedicated medical workspace
+  const shouldRenderTopBar = currentUser !== null && activeView !== 'staff' && (activeView !== 'portal' || showDemoBar);
 
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col relative">
@@ -391,6 +468,20 @@ export default function App() {
                 >
                   <LayoutDashboard className="w-3.5 h-3.5" />
                   <span>Panel Negocio</span>
+                </button>
+
+                {/* Portal Médico / Staff Workspace */}
+                <button
+                  type="button"
+                  onClick={() => setActiveView('staff')}
+                  className={`flex items-center gap-1.5 px-3 py-1 rounded-lg font-semibold transition cursor-pointer ${
+                    activeView === 'staff'
+                      ? 'bg-teal-500 text-slate-950 shadow-xs'
+                      : 'text-teal-400 hover:text-teal-200'
+                  }`}
+                >
+                  <Stethoscope className="w-3.5 h-3.5" />
+                  <span>Portal Médico</span>
                 </button>
 
                 {/* SuperAdmin Tab */}
@@ -556,6 +647,21 @@ export default function App() {
               setBusinesses((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
             }}
             onViewPublicPage={() => setActiveView('public')}
+          />
+        )}
+
+        {activeView === 'staff' && (
+          <StaffWorkspace
+            business={activeBusiness}
+            currentUser={currentUser}
+            initialCode={staffInitialCode}
+            onLogout={handleLogout}
+            onSwitchToOwner={
+              currentUser?.role === 'business_owner' || currentUser?.role === 'superadmin'
+                ? () => setActiveView('business')
+                : undefined
+            }
+            onUserUpdate={(updated) => setCurrentUser(updated)}
           />
         )}
 

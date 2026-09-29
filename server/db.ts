@@ -79,17 +79,17 @@ const INITIAL_DATA: DatabaseSchema = {
     {
       id: 'prof_mariana_dermato',
       businessId: 'biz_dermatocosmiatria_spa',
-      name: 'Dr. Roberto Dueño (Dra. Mariana Gómez)',
-      title: 'Director Médico & Dermatocosmiatra',
+      name: 'Lic. Mariana Gómez',
+      title: 'Dermatocosmiatra & Especialista en Estética Facial',
       photoUrl: 'https://images.unsplash.com/photo-1580489944761-15a19d654956?w=160&auto=format&fit=crop&q=80',
-      email: 'dueno@consultorio.com',
+      email: 'mariana@dermatocosmiatria.com',
       phone: '+54 11 5566-7789',
       active: true,
       specialty: 'Dermatocosmiatría Facial & Estética',
       serviceIds: ['srv_dermato_limpieza', 'srv_dermato_peeling', 'srv_dermato_antiage'],
-      officeNumber: 'Consultorio 1 (Director)',
-      accessCode: 'DUE-1001',
-      commissionRate: 0,
+      officeNumber: 'Consultorio 1',
+      accessCode: 'CONS-1001',
+      commissionRate: 20,
       commissionType: 'percentage',
     },
     {
@@ -333,6 +333,18 @@ const INITIAL_DATA: DatabaseSchema = {
       phone: '+5491177778888',
     },
     {
+      id: 'usr_mariana_dermato',
+      name: 'Lic. Mariana Gómez',
+      email: 'mariana@dermatocosmiatria.com',
+      password: 'staff123',
+      role: 'staff',
+      businessId: 'biz_dermatocosmiatria_spa',
+      professionalId: 'prof_mariana_dermato',
+      officeNumber: 'Consultorio 1',
+      accessCode: 'CONS-1001',
+      phone: '+54 11 5566-7789',
+    },
+    {
       id: 'usr_paciente_prueba',
       name: 'Juan Paciente Prueba',
       email: 'paciente@prueba.com',
@@ -519,6 +531,28 @@ class Database {
 
   // --- Professionals ---
   public getProfessionals(businessId: string): Professional[] {
+    let hasChanges = false;
+    this.data.professionals.forEach((p, idx) => {
+      if (p.businessId === businessId) {
+        if (!p.accessCode) {
+          if (p.id === 'prof_mariana_dermato' || p.name?.toLowerCase().includes('mariana')) {
+            p.accessCode = 'CONS-1001';
+          } else if (p.id === 'prof_camila_dermato' || p.name?.toLowerCase().includes('camila')) {
+            p.accessCode = 'STAFF-2002';
+          } else {
+            p.accessCode = `CONS-${1000 + idx + 1}`;
+          }
+          hasChanges = true;
+        }
+        if (!p.officeNumber) {
+          p.officeNumber = `Consultorio ${idx + 1}`;
+          hasChanges = true;
+        }
+      }
+    });
+    if (hasChanges) {
+      this.save();
+    }
     return this.data.professionals.filter((p) => p.businessId === businessId);
   }
 
