@@ -754,7 +754,10 @@
       "role": "staff",
       "password": "staff123",
       "businessId": "biz_dermatocosmiatria_spa",
-      "phone": "+5491177778888"
+      "phone": "+5491177778888",
+      "professionalId": "prof_camila_dermato",
+      "officeNumber": "Consultorio 2",
+      "accessCode": "STAFF-2002"
     },
     {
       "id": "usr_paciente_prueba",

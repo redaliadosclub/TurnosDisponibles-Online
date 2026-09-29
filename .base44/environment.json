@@ -1,0 +1,12 @@
+{
+  "previewPort": 3000,
+  "healthPath": "/api/health",
+  "startCommand": "docker compose -f docker-compose.base44.yml up -d",
+  "secrets": [
+    {
+  "name": "GEMINI_API_KEY",
+  "description": "Google Gemini AI API key for AI chat and gap-campaign features. Optional — the app boots without it; AI features are disabled until provided. Obtain from Google AI Studio (aistudio.google.com).",
+  "requiredAtBoot": false
+}
+  ]
+}
