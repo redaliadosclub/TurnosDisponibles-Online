@@ -645,6 +645,14 @@ class Database {
     return hours;
   }
 
+  public resetProfessionalWorkingHours(businessId: string, professionalId: string): boolean {
+    this.data.workingHours = this.data.workingHours.filter(
+      (wh) => !(wh.businessId === businessId && wh.professionalId === professionalId)
+    );
+    this.save();
+    return true;
+  }
+
   public getTimeOffs(businessId: string): TimeOff[] {
     return this.data.timeOffs.filter((to) => to.businessId === businessId);
   }

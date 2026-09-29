@@ -37,12 +37,19 @@ import {
   Building2,
   ArrowLeft,
   Copy,
+  Save,
+  RotateCcw,
+  Sparkles,
+  Sun,
+  Moon,
+  CalendarDays,
 } from 'lucide-react';
 
 interface StaffWorkspaceProps {
   business: Business;
   currentUser: User | null;
   initialCode?: string;
+  initialProfId?: string;
   onLogout: () => void;
   onSwitchToOwner?: () => void;
   onUserUpdate?: (updatedUser: User) => void;
@@ -52,6 +59,7 @@ export function StaffWorkspace({
   business,
   currentUser,
   initialCode = '',
+  initialProfId = '',
   onLogout,
   onSwitchToOwner,
   onUserUpdate,
@@ -74,6 +82,22 @@ export function StaffWorkspace({
   // Agenda filters
   const [agendaDateFilter, setAgendaDateFilter] = useState<'today' | 'tomorrow' | 'all'>('today');
   const [searchPatient, setSearchPatient] = useState('');
+
+  // Working Hours State for this Doctor / Consultorio
+  const [myHoursDraft, setMyHoursDraft] = useState<WorkingHours[]>([]);
+  const [isEditingMyHours, setIsEditingMyHours] = useState(false);
+  const [savingMyHours, setSavingMyHours] = useState(false);
+  const [myHoursMessage, setMyHoursMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const DAYS_ORDER = [
+    { day: 1, label: 'Lunes' },
+    { day: 2, label: 'Martes' },
+    { day: 3, label: 'Miércoles' },
+    { day: 4, label: 'Jueves' },
+    { day: 5, label: 'Viernes' },
+    { day: 6, label: 'Sábado' },
+    { day: 0, label: 'Domingo' },
+  ];
 
   // Modals
   const [showNewAppointmentModal, setShowNewAppointmentModal] = useState(false);
@@ -147,12 +171,61 @@ export function StaffWorkspace({
     return null;
   }, [professionals, currentUser]);
 
-  // Auto-link if initialCode passed in URL and matches
+  // Auto-link if initialProfId or initialCode passed in URL and matches
   useEffect(() => {
-    if (initialCode && !assignedProfessional && professionals.length > 0) {
-      handleLinkWithCode(initialCode);
+    if (!assignedProfessional && professionals.length > 0) {
+      if (initialProfId) {
+        const found = professionals.find((p) => p.id === initialProfId);
+        if (found) {
+          handleLinkWithProfessional(found);
+          return;
+        }
+      }
+      if (initialCode) {
+        handleLinkWithCode(initialCode);
+      }
     }
-  }, [initialCode, assignedProfessional, professionals]);
+  }, [initialProfId, initialCode, assignedProfessional, professionals]);
+
+  // Direct 1-click Link with a detected Professional
+  const handleLinkWithProfessional = async (matched: Professional) => {
+    try {
+      setIsLinking(true);
+      const directStaffUser: User = currentUser
+        ? {
+            ...currentUser,
+            role: 'staff',
+            businessId: business.id,
+            professionalId: matched.id,
+            officeNumber: matched.officeNumber || 'Consultorio Asignado',
+            accessCode: matched.accessCode || 'CONS-1001',
+          }
+        : {
+            id: `usr_staff_${matched.id}`,
+            name: matched.name,
+            email: matched.email || `staff_${matched.id}@consultorio.com`,
+            role: 'staff',
+            businessId: business.id,
+            professionalId: matched.id,
+            officeNumber: matched.officeNumber || 'Consultorio Asignado',
+            accessCode: matched.accessCode || 'CONS-1001',
+            phone: matched.phone,
+          };
+
+      try {
+        localStorage.setItem('td_auth_token', `td_tok_staff_${matched.id}_${Date.now()}`);
+        localStorage.setItem('td_session_user', JSON.stringify(directStaffUser));
+      } catch {}
+
+      if (onUserUpdate) onUserUpdate(directStaffUser);
+      setLinkSuccess(`¡Acceso directo concedido! Bienvenido/a Dr./Lic. ${matched.name} (${matched.officeNumber || 'Consultorio'}).`);
+      setTimeout(() => setLinkSuccess(null), 3000);
+    } catch (err: any) {
+      console.warn('Error en enlace directo de staff:', err);
+    } finally {
+      setIsLinking(false);
+    }
+  };
 
   // Perform Staff linking with Key
   const handleLinkWithCode = async (codeToUse?: string) => {
@@ -198,18 +271,33 @@ export function StaffWorkspace({
 
       setProfessionals((prev) => prev.map((p) => (p.id === matched.id ? updated : p)));
 
-      if (currentUser) {
-        const updatedUser: User = {
-          ...currentUser,
-          professionalId: matched.id,
-          officeNumber: matched.officeNumber || 'Consultorio Asignado',
-          accessCode: matched.accessCode || raw.toUpperCase(),
-        };
-        try {
-          localStorage.setItem('td_session_user', JSON.stringify(updatedUser));
-        } catch {}
-        if (onUserUpdate) onUserUpdate(updatedUser);
-      }
+      const directStaffUser: User = currentUser
+        ? {
+            ...currentUser,
+            role: 'staff',
+            businessId: business.id,
+            professionalId: matched.id,
+            officeNumber: matched.officeNumber || 'Consultorio Asignado',
+            accessCode: matched.accessCode || raw.toUpperCase(),
+          }
+        : {
+            id: `usr_staff_${matched.id}`,
+            name: matched.name,
+            email: matched.email || `staff_${matched.id}@consultorio.com`,
+            role: 'staff',
+            businessId: business.id,
+            professionalId: matched.id,
+            officeNumber: matched.officeNumber || 'Consultorio Asignado',
+            accessCode: matched.accessCode || raw.toUpperCase(),
+            phone: matched.phone,
+          };
+
+      try {
+        localStorage.setItem('td_auth_token', `td_tok_staff_${matched.id}_${Date.now()}`);
+        localStorage.setItem('td_session_user', JSON.stringify(directStaffUser));
+      } catch {}
+
+      if (onUserUpdate) onUserUpdate(directStaffUser);
 
       setLinkSuccess(`¡Vinculación confirmada! Bienvenido/a Dr./Lic. ${matched.name} (${matched.officeNumber || 'Consultorio'}).`);
       setLinkCodeInput('');
@@ -301,6 +389,290 @@ export function StaffWorkspace({
     const text = `¡Hola ${app.customerName}! 👋 Le escribo desde el Consultorio de ${doctorName} en ${business.name} para confirmar su turno de ${srv?.name || 'consulta'} el día ${formatDateShort(app.date)} a las ${app.startTime} hs. Código de turno: ${app.bookingCode}. ¡Le esperamos puntualmente!`;
     const url = generateWaMeLink(app.customerPhone, text);
     window.open(url, '_blank', 'noopener,noreferrer');
+  };
+
+  // Working hours: General Clinic vs Custom Staff Hours
+  const clinicGeneralHours = useMemo(() => {
+    return workingHours.filter((w) => w.professionalId === null);
+  }, [workingHours]);
+
+  const myCustomHours = useMemo(() => {
+    if (!assignedProfessional) return [];
+    return workingHours.filter((w) => w.professionalId === assignedProfessional.id);
+  }, [workingHours, assignedProfessional]);
+
+  const hasCustomHours = useMemo(() => {
+    return myCustomHours.length > 0 && myCustomHours.some((h) => h.enabled && h.shifts.length > 0);
+  }, [myCustomHours]);
+
+  // Displayed hours in read-only mode (either custom or clinic fallback)
+  const displayedWeeklyHours = useMemo(() => {
+    if (!assignedProfessional) return [];
+    const source = hasCustomHours ? myCustomHours : clinicGeneralHours;
+    return DAYS_ORDER.map((d) => {
+      const found = source.find((h) => h.dayOfWeek === d.day);
+      return {
+        day: d.day,
+        label: d.label,
+        enabled: found ? found.enabled : false,
+        shifts: found ? found.shifts : [],
+      };
+    });
+  }, [assignedProfessional, hasCustomHours, myCustomHours, clinicGeneralHours, DAYS_ORDER]);
+
+  // Helper to ensure all 7 days exist for editing
+  const ensureAllDaysForStaff = (sourceHours: WorkingHours[], profId: string): WorkingHours[] => {
+    const profHours = sourceHours.filter((w) => w.professionalId === profId);
+    const clinicHours = sourceHours.filter((w) => w.professionalId === null);
+    const result: WorkingHours[] = [];
+
+    for (let day = 0; day <= 6; day++) {
+      const existingProf = profHours.find((w) => w.dayOfWeek === day);
+      if (existingProf) {
+        result.push({
+          ...existingProf,
+          professionalId: profId,
+          shifts: existingProf.shifts.map((s) => ({ ...s })),
+        });
+      } else {
+        const existingClinic = clinicHours.find((w) => w.dayOfWeek === day);
+        if (existingClinic) {
+          result.push({
+            id: `wh_prof_${profId}_day_${day}`,
+            businessId: business.id,
+            professionalId: profId,
+            dayOfWeek: day,
+            enabled: existingClinic.enabled,
+            shifts: existingClinic.shifts.map((s) => ({ ...s })),
+          });
+        } else {
+          result.push({
+            id: `wh_prof_${profId}_day_${day}`,
+            businessId: business.id,
+            professionalId: profId,
+            dayOfWeek: day,
+            enabled: day >= 1 && day <= 5,
+            shifts:
+              day >= 1 && day <= 5
+                ? [{ start: '09:00', end: '13:00' }, { start: '14:00', end: '18:00' }]
+                : day === 6
+                ? [{ start: '09:00', end: '13:00' }]
+                : [],
+          });
+        }
+      }
+    }
+    return result;
+  };
+
+  const handleStartEditingMyHours = () => {
+    if (!assignedProfessional) return;
+    setMyHoursDraft(ensureAllDaysForStaff(workingHours, assignedProfessional.id));
+    setIsEditingMyHours(true);
+    setMyHoursMessage(null);
+  };
+
+  const handleCancelEditingMyHours = () => {
+    setIsEditingMyHours(false);
+    setMyHoursMessage(null);
+  };
+
+  const handleToggleMyDay = (dayNum: number) => {
+    setMyHoursDraft((prev) =>
+      prev.map((item) => {
+        if (item.dayOfWeek === dayNum) {
+          const nextEnabled = !item.enabled;
+          let shifts = item.shifts;
+          if (nextEnabled && shifts.length === 0) {
+            shifts = [{ start: '09:00', end: '17:00' }];
+          }
+          return { ...item, enabled: nextEnabled, shifts };
+        }
+        return item;
+      })
+    );
+  };
+
+  const handleAddShiftToMyDay = (dayNum: number) => {
+    setMyHoursDraft((prev) =>
+      prev.map((item) => {
+        if (item.dayOfWeek === dayNum) {
+          const lastShift = item.shifts[item.shifts.length - 1];
+          const newStart = lastShift ? '15:00' : '09:00';
+          const newEnd = lastShift ? '19:00' : '13:00';
+          return {
+            ...item,
+            enabled: true,
+            shifts: [...item.shifts, { start: newStart, end: newEnd }],
+          };
+        }
+        return item;
+      })
+    );
+  };
+
+  const handleRemoveShiftFromMyDay = (dayNum: number, shiftIdx: number) => {
+    setMyHoursDraft((prev) =>
+      prev.map((item) => {
+        if (item.dayOfWeek === dayNum) {
+          const nextShifts = item.shifts.filter((_, idx) => idx !== shiftIdx);
+          return {
+            ...item,
+            enabled: nextShifts.length > 0,
+            shifts: nextShifts,
+          };
+        }
+        return item;
+      })
+    );
+  };
+
+  const handleShiftTimeChange = (
+    dayNum: number,
+    shiftIdx: number,
+    field: 'start' | 'end',
+    val: string
+  ) => {
+    setMyHoursDraft((prev) =>
+      prev.map((item) => {
+        if (item.dayOfWeek === dayNum) {
+          const nextShifts = item.shifts.map((s, idx) => {
+            if (idx === shiftIdx) {
+              return { ...s, [field]: val };
+            }
+            return s;
+          });
+          return { ...item, shifts: nextShifts };
+        }
+        return item;
+      })
+    );
+  };
+
+  const handleCopyMondayToWeek = () => {
+    const monday = myHoursDraft.find((h) => h.dayOfWeek === 1);
+    if (!monday) return;
+    setMyHoursDraft((prev) =>
+      prev.map((item) => {
+        if (item.dayOfWeek >= 2 && item.dayOfWeek <= 5) {
+          return {
+            ...item,
+            enabled: monday.enabled,
+            shifts: JSON.parse(JSON.stringify(monday.shifts)),
+          };
+        }
+        return item;
+      })
+    );
+    setMyHoursMessage({
+      type: 'success',
+      text: 'Se copió la configuración del Lunes a Martes, Miércoles, Jueves y Viernes.',
+    });
+  };
+
+  const handleImportClinicHours = () => {
+    if (!assignedProfessional) return;
+    const clinicHours = workingHours.filter((w) => w.professionalId === null);
+    const imported = ensureAllDaysForStaff(clinicHours, assignedProfessional.id);
+    setMyHoursDraft(imported);
+    setMyHoursMessage({
+      type: 'success',
+      text: 'Se copiaron los horarios generales de la clínica en tu borrador. Puedes ajustarlos o cambiarlos a tu conveniencia antes de guardar.',
+    });
+  };
+
+  const handleApplyPreset = (preset: 'manana' | 'tarde' | 'partido') => {
+    setMyHoursDraft((prev) =>
+      prev.map((item) => {
+        if (item.dayOfWeek >= 1 && item.dayOfWeek <= 5) {
+          return {
+            ...item,
+            enabled: true,
+            shifts:
+              preset === 'manana'
+                ? [{ start: '08:30', end: '13:00' }]
+                : preset === 'tarde'
+                ? [{ start: '14:00', end: '19:30' }]
+                : [
+                    { start: '09:00', end: '13:00' },
+                    { start: '15:00', end: '19:00' },
+                  ],
+          };
+        }
+        if (item.dayOfWeek === 6) {
+          return {
+            ...item,
+            enabled: preset === 'manana' || preset === 'partido',
+            shifts: preset === 'manana' || preset === 'partido' ? [{ start: '09:00', end: '13:00' }] : [],
+          };
+        }
+        return {
+          ...item,
+          enabled: false,
+          shifts: [],
+        };
+      })
+    );
+    setMyHoursMessage({
+      type: 'success',
+      text:
+        preset === 'manana'
+          ? 'Plantilla aplicada: Turno Mañana (Lun a Sáb 08:30 a 13:00)'
+          : preset === 'tarde'
+          ? 'Plantilla aplicada: Turno Tarde (Lun a Vie 14:00 a 19:30)'
+          : 'Plantilla aplicada: Turno Partido (Lun a Vie 09:00-13:00 y 15:00-19:00, Sáb 09:00-13:00)',
+    });
+  };
+
+  const handleSaveMyHours = async () => {
+    if (!assignedProfessional) return;
+    try {
+      setSavingMyHours(true);
+      setMyHoursMessage(null);
+      const payload = myHoursDraft.map((wh) => ({
+        ...wh,
+        businessId: business.id,
+        professionalId: assignedProfessional.id,
+      }));
+      await api.updateWorkingHours(business.id, payload);
+      const reloaded = await api.getWorkingHours(business.id);
+      setWorkingHours(reloaded);
+      setIsEditingMyHours(false);
+      setMyHoursMessage({
+        type: 'success',
+        text: '¡Tus horarios y días de atención han sido guardados con éxito! Los pacientes que reserven contigo en el portal solo verán turnos dentro de tus rangos configurados.',
+      });
+    } catch (err: any) {
+      setMyHoursMessage({ type: 'error', text: err.message || 'Error al guardar tus horarios' });
+    } finally {
+      setSavingMyHours(false);
+    }
+  };
+
+  const handleResetToClinicHours = async () => {
+    if (!assignedProfessional) return;
+    if (
+      !confirm(
+        '¿Deseas volver a usar los horarios generales de la clínica? Esto eliminará tus rangos horarios personalizados de este consultorio.'
+      )
+    ) {
+      return;
+    }
+    try {
+      setSavingMyHours(true);
+      await api.resetProfessionalWorkingHours(business.id, assignedProfessional.id);
+      const reloaded = await api.getWorkingHours(business.id);
+      setWorkingHours(reloaded);
+      setIsEditingMyHours(false);
+      setMyHoursMessage({
+        type: 'success',
+        text: 'Se han restablecido los horarios. Tu consultorio vuelve a utilizar los horarios de atención generales de la clínica.',
+      });
+    } catch (err: any) {
+      setMyHoursMessage({ type: 'error', text: err.message || 'Error al restablecer horarios' });
+    } finally {
+      setSavingMyHours(false);
+    }
   };
 
   return (
@@ -878,32 +1250,413 @@ export function StaffWorkspace({
             {/* TAB 3: MIS HORARIOS & DÍAS LIBRES */}
             {activeTab === 'hours' && (
               <div className="bg-slate-950 rounded-3xl p-5 sm:p-6 border border-slate-800 shadow-sm space-y-6">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-800">
-                  <div>
-                    <h3 className="text-base font-extrabold text-white flex items-center gap-2">
-                      <Clock className="w-4 h-4 text-teal-400" />
-                      <span>Horarios y Días Libres de {assignedProfessional.name}</span>
-                    </h3>
+                {/* Header & Status */}
+                <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+                  <div className="space-y-1">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+                        <Clock className="w-4 h-4 text-teal-400" />
+                        <span>Horarios y Días de Atención de {assignedProfessional.name}</span>
+                      </h3>
+                      {hasCustomHours ? (
+                        <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-bold flex items-center gap-1">
+                          <CheckCircle2 className="w-3 h-3" />
+                          <span>Horarios Personalizados Activos</span>
+                        </span>
+                      ) : (
+                        <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-sky-500/15 text-sky-400 border border-sky-500/30 font-bold flex items-center gap-1">
+                          <Building2 className="w-3 h-3" />
+                          <span>Heredados de la Clínica</span>
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-slate-400">
-                      Gestiona tus turnos de atención y bloquea tus vacaciones o licencias personales sin afectar el resto de la clínica.
+                      {hasCustomHours
+                        ? 'Tus pacientes solo verán turnos en los días y rangos horarios que tú definas aquí (tienen prioridad sobre la clínica).'
+                        : 'Actualmente estás usando los horarios generales de la clínica. Puedes personalizar tus días de atención y franjas horarias con total autonomía.'}
                     </p>
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => setShowTimeOffModal(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-xs transition cursor-pointer shrink-0"
-                  >
-                    <Plus className="w-3.5 h-3.5" />
-                    <span>+ Bloquear Días Libres / Vacaciones</span>
-                  </button>
+                  {/* Actions Header */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    {!isEditingMyHours ? (
+                      <>
+                        {hasCustomHours && (
+                          <button
+                            type="button"
+                            onClick={handleResetToClinicHours}
+                            disabled={savingMyHours}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800 text-xs font-semibold transition cursor-pointer"
+                            title="Volver a utilizar los horarios generales de la clínica"
+                          >
+                            <RotateCcw className="w-3.5 h-3.5" />
+                            <span>Restablecer a Clínica</span>
+                          </button>
+                        )}
+                        <button
+                          type="button"
+                          onClick={() => setShowTimeOffModal(true)}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-teal-400 border border-teal-500/30 text-xs font-semibold transition cursor-pointer"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>+ Vacaciones / Días Libres</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleStartEditingMyHours}
+                          className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-xs transition cursor-pointer shadow-xs"
+                        >
+                          <Edit2 className="w-3.5 h-3.5" />
+                          <span>Editar Mis Horarios & Días</span>
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          onClick={handleCancelEditingMyHours}
+                          disabled={savingMyHours}
+                          className="px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-semibold transition cursor-pointer border border-slate-800"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          type="button"
+                          onClick={handleSaveMyHours}
+                          disabled={savingMyHours}
+                          className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition cursor-pointer shadow-xs"
+                        >
+                          <Save className="w-3.5 h-3.5" />
+                          <span>{savingMyHours ? 'Guardando...' : 'Guardar Mis Horarios'}</span>
+                        </button>
+                      </>
+                    )}
+                  </div>
                 </div>
 
-                {/* Personal Time Offs List */}
-                <div>
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3">
-                    Mis Ausencias & Vacaciones Programadas:
-                  </h4>
+                {/* Feedback Message */}
+                {myHoursMessage && (
+                  <div
+                    className={`p-3.5 rounded-2xl text-xs flex items-center justify-between gap-3 animate-in fade-in ${
+                      myHoursMessage.type === 'success'
+                        ? 'bg-emerald-950/40 border border-emerald-800/60 text-emerald-300'
+                        : 'bg-rose-950/40 border border-rose-800/60 text-rose-300'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2">
+                      {myHoursMessage.type === 'success' ? (
+                        <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                      ) : (
+                        <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                      )}
+                      <span>{myHoursMessage.text}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setMyHoursMessage(null)}
+                      className="text-slate-400 hover:text-white"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                )}
+
+                {/* MODE 1: READ ONLY SCHEDULE VIEW */}
+                {!isEditingMyHours && (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+                      {displayedWeeklyHours.map((item) => (
+                        <div
+                          key={item.day}
+                          className={`p-4 rounded-2xl border transition ${
+                            item.enabled && item.shifts.length > 0
+                              ? 'bg-slate-900/90 border-slate-800 hover:border-slate-700'
+                              : 'bg-slate-950/50 border-slate-900 opacity-60'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <span className="text-xs font-bold text-white uppercase tracking-wider">
+                              {item.label}
+                            </span>
+                            <span
+                              className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
+                                item.enabled && item.shifts.length > 0
+                                  ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                                  : 'bg-slate-800 text-slate-500'
+                              }`}
+                            >
+                              {item.enabled && item.shifts.length > 0 ? 'Atiende' : 'No atiende'}
+                            </span>
+                          </div>
+
+                          {item.enabled && item.shifts.length > 0 ? (
+                            <div className="space-y-1.5 mt-2">
+                              {item.shifts.map((s, idx) => (
+                                <div
+                                  key={idx}
+                                  className="flex items-center justify-between bg-slate-950 px-2.5 py-1.5 rounded-xl border border-slate-800/80 text-xs font-mono"
+                                >
+                                  <span className="text-teal-400 font-bold">{s.start} hs</span>
+                                  <span className="text-slate-600">a</span>
+                                  <span className="text-teal-400 font-bold">{s.end} hs</span>
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="text-[11px] text-slate-500 italic mt-3 py-1">
+                              Día de descanso en este consultorio
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="p-4 rounded-2xl bg-teal-950/20 border border-teal-800/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+                      <div className="flex items-center gap-2.5">
+                        <Sparkles className="w-4 h-4 text-teal-400 shrink-0" />
+                        <span className="text-slate-300">
+                          ¿Necesitas cambiar tus días o atender en turnos cortados (mañana y tarde)?
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleStartEditingMyHours}
+                        className="px-3.5 py-1.5 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-xs transition cursor-pointer self-start sm:self-auto shrink-0 shadow-xs"
+                      >
+                        Personalizar Mis Horarios
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* MODE 2: INTERACTIVE SCHEDULE EDITOR */}
+                {isEditingMyHours && (
+                  <div className="space-y-5 animate-in fade-in">
+                    {/* Presets and Helpers Bar */}
+                    <div className="bg-slate-900/90 p-4 rounded-2xl border border-slate-800 space-y-3">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                          <Sparkles className="w-3.5 h-3.5 text-teal-400" />
+                          <span>Plantillas rápidas para tu consultorio:</span>
+                        </span>
+                        <span className="text-[11px] text-slate-500">
+                          Aplica una base y edita los días o turnos específicos que desees
+                        </span>
+                      </div>
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => handleApplyPreset('manana')}
+                          className="flex items-center gap-1 px-3 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition cursor-pointer"
+                        >
+                          <Sun className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Turno Mañana (08:30 a 13:00)</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleApplyPreset('tarde')}
+                          className="flex items-center gap-1 px-3 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition cursor-pointer"
+                        >
+                          <Moon className="w-3.5 h-3.5 text-indigo-400" />
+                          <span>Turno Tarde (14:00 a 19:30)</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => handleApplyPreset('partido')}
+                          className="flex items-center gap-1 px-3 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition cursor-pointer"
+                        >
+                          <Clock className="w-3.5 h-3.5 text-teal-400" />
+                          <span>Turno Doble (09-13 / 15-19)</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleCopyMondayToWeek}
+                          className="flex items-center gap-1 px-3 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition cursor-pointer"
+                        >
+                          <Copy className="w-3.5 h-3.5 text-emerald-400" />
+                          <span>Copiar Lunes a Mar-Vie</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={handleImportClinicHours}
+                          className="flex items-center gap-1 px-3 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold transition cursor-pointer"
+                        >
+                          <Building2 className="w-3.5 h-3.5 text-sky-400" />
+                          <span>Copiar de la Clínica</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Day by Day Configuration Cards */}
+                    <div className="space-y-3">
+                      {DAYS_ORDER.map(({ day, label }) => {
+                        const daySchedule = myHoursDraft.find((h) => h.dayOfWeek === day);
+                        const isEnabled = daySchedule?.enabled ?? false;
+                        const shifts = daySchedule?.shifts ?? [];
+
+                        return (
+                          <div
+                            key={day}
+                            className={`p-4 rounded-2xl border transition ${
+                              isEnabled
+                                ? 'bg-slate-900 border-slate-800 shadow-xs'
+                                : 'bg-slate-950/60 border-slate-900 opacity-60'
+                            }`}
+                          >
+                            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800/80">
+                              <div className="flex items-center gap-3">
+                                <label className="relative inline-flex items-center cursor-pointer">
+                                  <input
+                                    type="checkbox"
+                                    checked={isEnabled}
+                                    onChange={() => handleToggleMyDay(day)}
+                                    className="sr-only peer"
+                                  />
+                                  <div className="w-10 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-teal-500"></div>
+                                </label>
+                                <div>
+                                  <span className="text-sm font-bold text-white uppercase tracking-wider">
+                                    {label}
+                                  </span>
+                                  <span className="block text-[11px] text-slate-400">
+                                    {isEnabled
+                                      ? `${shifts.length} ${shifts.length === 1 ? 'rango de atención' : 'rangos horarios'}`
+                                      : 'No atiende en la clínica este día'}
+                                  </span>
+                                </div>
+                              </div>
+
+                              {isEnabled && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleAddShiftToMyDay(day)}
+                                  className="flex items-center gap-1 px-3 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-teal-400 text-xs font-semibold transition cursor-pointer self-start sm:self-auto"
+                                >
+                                  <Plus className="w-3.5 h-3.5" />
+                                  <span>+ Agregar Turno / Franja</span>
+                                </button>
+                              )}
+                            </div>
+
+                            {/* Shifts Inputs */}
+                            {isEnabled ? (
+                              <div className="pt-3 space-y-2.5">
+                                {shifts.map((shift, sIdx) => (
+                                  <div
+                                    key={sIdx}
+                                    className="flex items-center gap-3 flex-wrap bg-slate-950 p-2.5 rounded-xl border border-slate-800"
+                                  >
+                                    <span className="text-xs font-semibold text-slate-400 w-16">
+                                      Turno {sIdx + 1}:
+                                    </span>
+
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-[11px] text-slate-500">Desde:</span>
+                                      <input
+                                        type="time"
+                                        value={shift.start}
+                                        onChange={(e) =>
+                                          handleShiftTimeChange(day, sIdx, 'start', e.target.value)
+                                        }
+                                        className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white font-mono focus:outline-none focus:border-teal-500"
+                                      />
+                                    </div>
+
+                                    <div className="flex items-center gap-2">
+                                      <span className="text-[11px] text-slate-500">Hasta:</span>
+                                      <input
+                                        type="time"
+                                        value={shift.end}
+                                        onChange={(e) =>
+                                          handleShiftTimeChange(day, sIdx, 'end', e.target.value)
+                                        }
+                                        className="bg-slate-900 border border-slate-700 rounded-lg px-2 py-1 text-xs text-white font-mono focus:outline-none focus:border-teal-500"
+                                      />
+                                    </div>
+
+                                    {shifts.length > 1 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => handleRemoveShiftFromMyDay(day, sIdx)}
+                                        className="p-1 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-rose-500/10 transition cursor-pointer ml-auto"
+                                        title="Eliminar este turno"
+                                      >
+                                        <Trash2 className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="pt-3 flex items-center justify-between text-xs text-slate-500">
+                                <span>Día no laborable para tu consultorio.</span>
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleMyDay(day)}
+                                  className="text-teal-400 hover:text-teal-300 font-semibold cursor-pointer"
+                                >
+                                  Activar este día
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Bottom Save / Cancel Bar */}
+                    <div className="pt-4 border-t border-slate-800 flex flex-wrap items-center justify-between gap-3">
+                      <button
+                        type="button"
+                        onClick={handleCancelEditingMyHours}
+                        disabled={savingMyHours}
+                        className="px-4 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-300 text-xs font-bold transition cursor-pointer border border-slate-800"
+                      >
+                        Cancelar
+                      </button>
+
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={handleSaveMyHours}
+                          disabled={savingMyHours}
+                          className="flex items-center gap-2 px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition cursor-pointer shadow-md"
+                        >
+                          <Save className="w-4 h-4" />
+                          <span>{savingMyHours ? 'Guardando...' : 'Guardar Mis Horarios & Días'}</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Personal Time Offs List (Ausencias y Vacaciones) */}
+                <div className="pt-6 border-t border-slate-800 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h4 className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                        Mis Ausencias & Vacaciones Programadas:
+                      </h4>
+                      <p className="text-[11px] text-slate-500">
+                        Bloquea días específicos en los que no atenderás por congresos, feriados o vacaciones personales.
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowTimeOffModal(true)}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-teal-400 border border-teal-500/30 text-xs font-semibold transition cursor-pointer"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>+ Bloquear Días</span>
+                    </button>
+                  </div>
+
                   {myTimeOffs.length === 0 ? (
                     <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 text-center text-xs text-slate-500">
                       No tienes bloqueos de vacaciones o ausencias activas.

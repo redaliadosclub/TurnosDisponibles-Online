@@ -1711,9 +1711,39 @@ class ApiService {
   }
 
   async updateWorkingHours(businessId: string, hours: WorkingHours[]): Promise<WorkingHours[]> {
-    this.workingHours = this.workingHours.filter((w) => w.businessId !== businessId).concat(hours);
+    const targetProfId = hours[0]?.professionalId ?? null;
+    this.workingHours = this.workingHours
+      .filter((w) => !(w.businessId === businessId && w.professionalId === targetProfId))
+      .concat(hours);
     saveStorage(STORAGE_KEYS.WORKING_HOURS, this.workingHours);
+
+    try {
+      await fetch(`/api/businesses/${encodeURIComponent(businessId)}/working-hours`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(hours),
+      });
+    } catch {}
+
     return hours;
+  }
+
+  async resetProfessionalWorkingHours(businessId: string, professionalId: string): Promise<boolean> {
+    this.workingHours = this.workingHours.filter(
+      (w) => !(w.businessId === businessId && w.professionalId === professionalId)
+    );
+    saveStorage(STORAGE_KEYS.WORKING_HOURS, this.workingHours);
+
+    try {
+      await fetch(
+        `/api/businesses/${encodeURIComponent(businessId)}/working-hours/reset?professionalId=${encodeURIComponent(
+          professionalId
+        )}`,
+        { method: 'POST' }
+      );
+    } catch {}
+
+    return true;
   }
 
   // Time off

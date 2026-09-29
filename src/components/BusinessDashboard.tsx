@@ -765,11 +765,11 @@ export function BusinessDashboard({
   const handleCopyStaffInvite = (prof: Professional) => {
     const code = prof.accessCode || (prof.id === 'prof_mariana_dermato' ? 'CONS-1001' : 'CONS-' + Math.floor(1000 + Math.random() * 9000));
     const office = prof.officeNumber || 'Consultorio';
-    const staffUrl = `${window.location.origin}/#staff?clinic=${business.slug}&code=${code}`;
+    const staffDirectUrl = `${window.location.origin}/#staff?clinic=${business.slug}&prof=${prof.id}&token=${code}`;
 
-    const inviteText = `¡Hola Dr./Lic. ${prof.name}! 👋 Te compartimos el acceso oficial a tu Consultorio Privado en ${business.name}:\n\n🏢 Consultorio Asignado: ${office}\n🔑 Clave Única de Acceso: ${code}\n🏥 Código de la Clínica: ${business.slug}\n🌐 Enlace Directo al Portal Médico: ${staffUrl}\n\n💡 Al ingresar por este enlace con tu clave única, tendrás tu entorno 100% privado e independiente para autoadministrar tu agenda de turnos, tus pacientes, tus servicios y tus días libres, sin acceso a la facturación global de la clínica.`;
+    const inviteText = `¡Hola Dr./Lic. ${prof.name}! 👋 Te compartimos tu Enlace de Acceso Directo a tu Consultorio Privado en ${business.name}:\n\n🏢 Consultorio: ${office}\n🌐 Enlace Directo (1 solo clic, sin contraseñas):\n${staffDirectUrl}\n\n💡 Al abrir este enlace entrarás inmediatamente a tu entorno privado de trabajo para autoadministrar tu agenda de turnos, pacientes, horarios y servicios con total autonomía.\n(Código de respaldo si abres en otro equipo: ${code})`;
     navigator.clipboard.writeText(inviteText);
-    alert(`¡Invitación para ${prof.name} copiada al portapapeles!\nPuedes enviarla por WhatsApp a tu colega.`);
+    alert(`¡Enlace de acceso directo para ${prof.name} copiado al portapapeles!\nPuedes enviarlo por WhatsApp a tu colega para que ingrese con 1 solo clic.`);
   };
 
   // Relevant Appointments (for Staff: strictly locked to their consultorio)

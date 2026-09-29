@@ -94,21 +94,24 @@ export default function App() {
 
       let clinic = '';
       let code = '';
+      let profId = '';
 
       if (hash.includes('?')) {
         const hashQuery = hash.split('?')[1];
         const hashParams = new URLSearchParams(hashQuery);
         clinic = hashParams.get('clinic') || hashParams.get('negocio') || hashParams.get('b') || '';
-        code = hashParams.get('code') || hashParams.get('clave') || '';
+        code = hashParams.get('code') || hashParams.get('clave') || hashParams.get('token') || '';
+        profId = hashParams.get('prof') || hashParams.get('p') || hashParams.get('id') || '';
       }
 
-      if (!clinic || !code) {
+      if (!clinic || (!code && !profId)) {
         const urlObj = new URL(fullUrl);
         if (!clinic) clinic = urlObj.searchParams.get('clinic') || urlObj.searchParams.get('negocio') || urlObj.searchParams.get('b') || '';
-        if (!code) code = urlObj.searchParams.get('code') || urlObj.searchParams.get('clave') || '';
+        if (!code) code = urlObj.searchParams.get('code') || urlObj.searchParams.get('clave') || urlObj.searchParams.get('token') || '';
+        if (!profId) profId = urlObj.searchParams.get('prof') || urlObj.searchParams.get('p') || urlObj.searchParams.get('id') || '';
       }
 
-      return { clinic: clinic.trim(), code: code.trim() };
+      return { clinic: clinic.trim(), code: code.trim(), profId: profId.trim() };
     } catch {
       return null;
     }
@@ -155,6 +158,7 @@ export default function App() {
     initialSlug && !matchedInitialBiz && !initialStaffParams ? initialSlug : null
   );
   const [staffInitialCode, setStaffInitialCode] = useState<string>(initialStaffParams?.code || '');
+  const [staffInitialProfId, setStaffInitialProfId] = useState<string>(initialStaffParams?.profId || '');
   const [activeView, setActiveView] = useState<'portal' | 'public' | 'business' | 'superadmin' | 'staff'>(() => {
     if (initialStaffParams) return 'staff';
     if (initialSlug) return 'public';
@@ -306,6 +310,9 @@ export default function App() {
         }
         if (staffParams.code) {
           setStaffInitialCode(staffParams.code);
+        }
+        if (staffParams.profId) {
+          setStaffInitialProfId(staffParams.profId);
         }
         setActiveView('staff');
         return;
@@ -655,6 +662,7 @@ export default function App() {
             business={activeBusiness}
             currentUser={currentUser}
             initialCode={staffInitialCode}
+            initialProfId={staffInitialProfId}
             onLogout={handleLogout}
             onSwitchToOwner={
               currentUser?.role === 'business_owner' || currentUser?.role === 'superadmin'

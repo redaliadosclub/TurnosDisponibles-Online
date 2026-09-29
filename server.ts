@@ -579,6 +579,13 @@ async function startServer() {
     res.json(hours);
   });
 
+  app.post('/api/businesses/:businessId/working-hours/reset', (req, res) => {
+    const profId = (req.query.professionalId || req.body?.professionalId) as string;
+    if (!profId) return res.status(400).json({ error: 'Falta professionalId' });
+    db.resetProfessionalWorkingHours(req.params.businessId, profId);
+    res.json({ success: true });
+  });
+
   app.get('/api/businesses/:businessId/time-offs', (req, res) => {
     const tos = db.getTimeOffs(req.params.businessId);
     res.json(tos);
