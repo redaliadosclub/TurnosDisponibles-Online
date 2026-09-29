@@ -100,6 +100,11 @@ export interface Professional {
   active: boolean;
   specialty: string;
   serviceIds: string[];
+  officeNumber?: string; // Número de consultorio / box asignado (ej: "Consultorio 1", "Consultorio 2")
+  accessCode?: string; // Clave Única de Acceso asignada por el dueño para el Staff (ej: "STAFF-4821")
+  commissionRate?: number; // Comisión de la clínica por paciente / consulta (ej: 20%)
+  commissionType?: 'percentage' | 'fixed'; // Tipo de comisión ('percentage' o 'fixed')
+  userId?: string; // ID de usuario vinculado
 }
 
 export interface Service {
@@ -229,6 +234,9 @@ export interface User {
   email: string;
   role: Role;
   businessId?: string | null;
+  professionalId?: string | null; // ID de consultorio/profesional asignado para staff
+  officeNumber?: string; // Número de consultorio asignado
+  accessCode?: string; // Clave Única de Acceso
   password?: string;
   token?: string;
   phone?: string;

@@ -135,6 +135,7 @@ export function AuthModal({
   // Specific fields for Staff
   const [specialty, setSpecialty] = useState('');
   const [businessCode, setBusinessCode] = useState(businessId || currentBusinessId || '');
+  const [staffAccessCode, setStaffAccessCode] = useState('');
   const [availableBusinesses, setAvailableBusinesses] = useState<Business[]>([]);
 
   const [loading, setLoading] = useState(false);
@@ -334,6 +335,7 @@ export function AuthModal({
           businessName: role === 'business_owner' ? businessName.trim() : undefined,
           businessType: role === 'business_owner' ? businessType : undefined,
           businessCode: role === 'staff' ? businessCode.trim() : undefined,
+          accessCode: role === 'staff' ? staffAccessCode.trim() || undefined : undefined,
           specialty: role === 'staff' ? specialty.trim() : undefined,
           phone: phone.trim(),
         });
@@ -758,6 +760,30 @@ export function AuthModal({
                     ))}
                   </div>
                 )}
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block font-semibold text-slate-800">
+                    Clave Única de Acceso del Consultorio
+                  </label>
+                  <span className="text-[10px] text-teal-700 font-bold bg-teal-50 px-1.5 py-0.5 rounded">
+                    Asignada por el Dueño
+                  </span>
+                </div>
+                <div className="relative">
+                  <KeyRound className="w-4 h-4 absolute left-3 top-2.5 text-slate-500 pointer-events-none" />
+                  <input
+                    type="text"
+                    placeholder="Ej: STAFF-2002 o PIN de tu consultorio"
+                    value={staffAccessCode}
+                    onChange={(e) => setStaffAccessCode(e.target.value)}
+                    className="w-full pl-9 pr-3 py-2 rounded-xl border border-slate-300 text-xs bg-white text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-teal-500 font-medium transition-all"
+                  />
+                </div>
+                <p className="text-[10px] text-slate-500 mt-1">
+                  Ingresa la clave única o PIN que te proporcionó el director o dueño para vincular tu panel privado autónomo.
+                </p>
               </div>
 
               <div>

@@ -9,6 +9,7 @@ import {
   TimeOff,
   Role,
   BusinessTypeKey,
+  User,
 } from '../types';
 import { getBusinessLabels, BUSINESS_TYPES } from '../lib/businessTypes';
 import { api } from '../services/api';
@@ -66,11 +67,18 @@ import {
   Award,
   QrCode,
   CheckCircle,
+  Key,
+  KeyRound,
+  Stethoscope,
+  Percent,
+  Coins,
+  Lock,
 } from 'lucide-react';
 
 interface BusinessDashboardProps {
   business: Business;
   userRole: Role;
+  currentUser?: User | null;
   onUpdateBusiness: (updated: Business) => void;
   onViewPublicPage: () => void;
 }
@@ -78,6 +86,7 @@ interface BusinessDashboardProps {
 export function BusinessDashboard({
   business,
   userRole,
+  currentUser,
   onUpdateBusiness,
   onViewPublicPage,
 }: BusinessDashboardProps) {
@@ -123,10 +132,17 @@ export function BusinessDashboard({
   const [showCreateTurnoModal, setShowCreateTurnoModal] = useState(false);
   const [showProfModal, setShowProfModal] = useState(false);
   const [editingProf, setEditingProf] = useState<Professional | null>(null);
+  const [profAccessCode, setProfAccessCode] = useState('');
   const [showServiceModal, setShowServiceModal] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
   const [showTimeOffModal, setShowTimeOffModal] = useState(false);
   const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<Customer | null>(null);
+
+  // Staff linking states
+  const [staffLinkCode, setStaffLinkCode] = useState('');
+  const [staffLinkError, setStaffLinkError] = useState<string | null>(null);
+  const [staffLinkSuccess, setStaffLinkSuccess] = useState<string | null>(null);
+  const [isLinkingStaff, setIsLinkingStaff] = useState(false);
 
   // Loading indicator
   const [loading, setLoading] = useState(true);
@@ -652,6 +668,101 @@ export function BusinessDashboard({
     loadData();
   }, [business.id]);
 
+  // Identify the staff member's assigned professional / consultorio (STRICT RBAC: Only if belongs to an assigned consultorio)
+  const assignedProfessional = useMemo(() => {
+    if (userRole !== 'staff') return null;
+    if (currentUser?.professionalId) {
+      const found = professionals.find((p) => p.id === currentUser.professionalId);
+      if (found) return found;
+    }
+    if (currentUser?.accessCode) {
+      const found = professionals.find(
+        (p) => p.accessCode && p.accessCode.trim().toLowerCase() === currentUser.accessCode?.trim().toLowerCase()
+      );
+      if (found) return found;
+    }
+    if (currentUser?.email) {
+      const found = professionals.find(
+        (p) => p.email && p.email.trim().toLowerCase() === currentUser.email.trim().toLowerCase()
+      );
+      if (found) return found;
+    }
+    if (currentUser?.id) {
+      const found = professionals.find((p) => p.userId === currentUser.id);
+      if (found) return found;
+    }
+    // Strict RBAC: No generic fallback. Staff MUST belong to an assigned consultorio
+    return null;
+  }, [professionals, currentUser, userRole]);
+
+  // Link staff user to an assigned consultorio with their Clave Única de Acceso
+  const handleLinkConsultorio = async (codeToUse?: string) => {
+    const code = (codeToUse || staffLinkCode).trim();
+    if (!code) {
+      setStaffLinkError('Por favor ingresa la Clave Única de Acceso proporcionada por el dueño de la clínica.');
+      return;
+    }
+    setStaffLinkError(null);
+    setStaffLinkSuccess(null);
+    setIsLinkingStaff(true);
+    try {
+      const targetProf = professionals.find(
+        (p) => p.accessCode && p.accessCode.trim().toLowerCase() === code.toLowerCase()
+      );
+      if (!targetProf) {
+        setStaffLinkError(`No se encontró ningún consultorio con la clave "${code}" en ${business.name}. Pídele al dueño que te proporcione la clave correcta.`);
+        setIsLinkingStaff(false);
+        return;
+      }
+
+      const updated = await api.updateProfessional(business.id, targetProf.id, {
+        userId: currentUser?.id,
+        email: currentUser?.email || targetProf.email,
+      });
+
+      setProfessionals((prev) => prev.map((p) => (p.id === targetProf.id ? updated : p)));
+      if (currentUser) {
+        currentUser.professionalId = targetProf.id;
+        currentUser.officeNumber = targetProf.officeNumber;
+        currentUser.accessCode = targetProf.accessCode;
+      }
+      setStaffLinkSuccess(`¡Vinculación exitosa con ${targetProf.name} (${targetProf.officeNumber || 'Consultorio Asignado'})!`);
+      setTimeout(() => {
+        setStaffLinkCode('');
+        setStaffLinkSuccess(null);
+      }, 2500);
+    } catch (err: any) {
+      setStaffLinkError(err.message || 'Error al vincular con el consultorio.');
+    } finally {
+      setIsLinkingStaff(false);
+    }
+  };
+
+  // Owner action: Toggle active / inactive status of a professional
+  const handleToggleProfActive = async (prof: Professional) => {
+    try {
+      const updated = await api.updateProfessional(business.id, prof.id, { active: !prof.active });
+      setProfessionals((prev) => prev.map((p) => (p.id === prof.id ? updated : p)));
+    } catch (err: any) {
+      alert('Error al actualizar estado del profesional: ' + err.message);
+    }
+  };
+
+  // Owner action: Copy invitation message with Access Code and Office Number for doctors/staff
+  const handleCopyStaffInvite = (prof: Professional) => {
+    const inviteText = `¡Hola Dr./Lic. ${prof.name}! 👋 Te compartimos los datos de tu Consultorio Privado para acceder a tu Panel de Administración en ${business.name}:\n\n🏢 Consultorio Asignado: ${prof.officeNumber || 'Consultorio'}\n🔑 Clave Única de Acceso: ${prof.accessCode || 'CONS-1001'}\n🏥 Código de la Clínica: ${business.slug}\n🌐 Enlace de Acceso: ${window.location.origin}/#booking-${business.slug}\n\nIngresa al enlace, selecciona "Iniciar Sesión" (o regístrate como Staff con tu Clave Única) para autoadministrar tu agenda de turnos, horarios y servicios con total privacidad y autonomía.`;
+    navigator.clipboard.writeText(inviteText);
+    alert(`¡Invitación para ${prof.name} copiada al portapapeles!\nPuedes enviarla por WhatsApp a tu colega.`);
+  };
+
+  // Relevant Appointments (for Staff: strictly locked to their consultorio)
+  const relevantAppointments = useMemo(() => {
+    if (userRole === 'staff' && assignedProfessional) {
+      return appointments.filter((a) => a.professionalId === assignedProfessional.id);
+    }
+    return appointments;
+  }, [appointments, userRole, assignedProfessional]);
+
   // Derived Today / Tomorrow stats
   const todayStr = useMemo(() => {
     const d = new Date();
@@ -665,23 +776,23 @@ export function BusinessDashboard({
   }, []);
 
   const todayAppointments = useMemo(
-    () => appointments.filter((a) => a.date === todayStr && a.status !== 'cancelled'),
-    [appointments, todayStr]
+    () => relevantAppointments.filter((a) => a.date === todayStr && a.status !== 'cancelled'),
+    [relevantAppointments, todayStr]
   );
 
   const tomorrowAppointments = useMemo(
-    () => appointments.filter((a) => a.date === tomorrowStr && a.status !== 'cancelled'),
-    [appointments, tomorrowStr]
+    () => relevantAppointments.filter((a) => a.date === tomorrowStr && a.status !== 'cancelled'),
+    [relevantAppointments, tomorrowStr]
   );
 
   const pendingAppointments = useMemo(
-    () => appointments.filter((a) => a.status === 'pending'),
-    [appointments]
+    () => relevantAppointments.filter((a) => a.status === 'pending'),
+    [relevantAppointments]
   );
 
   const cancelledAppointments = useMemo(
-    () => appointments.filter((a) => a.status === 'cancelled'),
-    [appointments]
+    () => relevantAppointments.filter((a) => a.status === 'cancelled'),
+    [relevantAppointments]
   );
 
   // Hybrid Strategy status and monthly limits
@@ -716,8 +827,14 @@ export function BusinessDashboard({
   // Filtered Appointments for the calendar / list
   const filteredAppointments = useMemo(() => {
     return appointments.filter((app) => {
+      // If user is staff, ONLY see appointments for their assigned professional/consultorio
+      if (userRole === 'staff' && assignedProfessional) {
+        if (app.professionalId !== assignedProfessional.id) return false;
+      } else if (filterProfId !== 'all' && app.professionalId !== filterProfId) {
+        return false;
+      }
+
       if (calendarView === 'day' && app.date !== selectedDate) return false;
-      if (filterProfId !== 'all' && app.professionalId !== filterProfId) return false;
       if (filterStatus !== 'all' && app.status !== filterStatus) return false;
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase();
@@ -728,15 +845,86 @@ export function BusinessDashboard({
       }
       return true;
     });
-  }, [appointments, calendarView, selectedDate, filterProfId, filterStatus, searchQuery]);
+  }, [appointments, calendarView, selectedDate, filterProfId, filterStatus, searchQuery, userRole, assignedProfessional]);
+
+  const displayedCustomers = useMemo(() => {
+    if (userRole === 'staff' && assignedProfessional) {
+      const myCustIds = new Set(
+        appointments
+          .filter((a) => a.professionalId === assignedProfessional.id)
+          .map((a) => a.customerId)
+      );
+      return customers.filter((c) => myCustIds.has(c.id));
+    }
+    return customers;
+  }, [customers, appointments, userRole, assignedProfessional]);
+
+  const displayedTimeOffs = useMemo(() => {
+    if (userRole === 'staff' && assignedProfessional) {
+      return timeOffs.filter((to) => to.professionalId === assignedProfessional.id);
+    }
+    return timeOffs;
+  }, [timeOffs, userRole, assignedProfessional]);
+
+  // Financial Settlement & Clinic Commission Breakdown (Owner Only)
+  const financialBreakdown = useMemo(() => {
+    return professionals.map((prof) => {
+      const profAppointments = appointments.filter(
+        (a) => a.professionalId === prof.id && (a.status === 'completed' || a.status === 'confirmed')
+      );
+      const grossRevenue = profAppointments.reduce((sum, a) => {
+        const srv = services.find((s) => s.id === a.serviceId);
+        return sum + (srv ? srv.price : 0);
+      }, 0);
+      const rate = prof.commissionRate !== undefined ? prof.commissionRate : 20;
+      const clinicCommission = Math.round(grossRevenue * (rate / 100));
+      const netToProfessional = grossRevenue - clinicCommission;
+
+      return {
+        profId: prof.id,
+        officeNumber: prof.officeNumber || 'Consultorio',
+        name: prof.name,
+        specialty: prof.specialty,
+        accessCode: prof.accessCode || 'CONS-1001',
+        turnosCount: profAppointments.length,
+        grossRevenue,
+        commissionRate: rate,
+        clinicCommission,
+        netToProfessional,
+      };
+    });
+  }, [professionals, appointments, services]);
+
+  const totalGrossRevenue = useMemo(
+    () => financialBreakdown.reduce((sum, r) => sum + r.grossRevenue, 0),
+    [financialBreakdown]
+  );
+  const totalClinicCommission = useMemo(
+    () => financialBreakdown.reduce((sum, r) => sum + r.clinicCommission, 0),
+    [financialBreakdown]
+  );
+  const totalNetToProfessionals = useMemo(
+    () => financialBreakdown.reduce((sum, r) => sum + r.netToProfessional, 0),
+    [financialBreakdown]
+  );
+  const completedAppointments = useMemo(
+    () => appointments.filter((a) => a.status === 'completed' || a.status === 'confirmed'),
+    [appointments]
+  );
 
   const isOwnerOrAdmin = userRole === 'business_owner' || userRole === 'superadmin';
 
   useEffect(() => {
-    if (!isOwnerOrAdmin && ['branding', 'payments', 'whatsapp', 'plans'].includes(activeTab)) {
-      setActiveTab('agenda');
+    if (!isOwnerOrAdmin) {
+      const allowedForStaff = ['agenda', 'services', 'hours', 'customers', 'analytics'];
+      if (business.plan === 'business' || business.plan === 'whitelabel') {
+        allowedForStaff.push('ai');
+      }
+      if (!allowedForStaff.includes(activeTab)) {
+        setActiveTab('agenda');
+      }
     }
-  }, [isOwnerOrAdmin, activeTab]);
+  }, [isOwnerOrAdmin, activeTab, business.plan]);
 
   return (
     <div className="min-h-screen bg-slate-100/70 text-slate-900 pb-20">
@@ -766,15 +954,40 @@ export function BusinessDashboard({
                     <Sparkles className="w-2.5 h-2.5 text-emerald-600" />
                     <span>Plan {business.plan.toUpperCase()}</span>
                   </button>
+                ) : assignedProfessional ? (
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-teal-50 text-teal-800 border border-teal-200 flex items-center gap-1">
+                      <Building className="w-3 h-3 text-teal-600" />
+                      <span>{assignedProfessional.officeNumber || 'Consultorio Asignado'}</span>
+                    </span>
+                    <span className="text-[10px] font-mono font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 flex items-center gap-1" title="Clave Única de Acceso asignada">
+                      <KeyRound className="w-2.5 h-2.5 text-teal-600" />
+                      <span>{assignedProfessional.accessCode || 'CONS-1001'}</span>
+                    </span>
+                  </div>
                 ) : (
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 border border-slate-200 flex items-center gap-1">
-                    <Sparkles className="w-2.5 h-2.5 text-slate-500" />
-                    <span>Plan {business.plan.toUpperCase()}</span>
+                  <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-50 text-amber-800 border border-amber-200 flex items-center gap-1">
+                    <Lock className="w-3 h-3 text-amber-600" />
+                    <span>Sin Consultorio Asignado</span>
                   </span>
                 )}
               </div>
               <p className="text-xs text-slate-500">
-                Panel de Administración • Rol: <span className="font-semibold">{userRole === 'business_owner' ? 'Dueño del Negocio' : userRole === 'staff' ? 'Staff / Profesional Médico' : userRole}</span>
+                {isOwnerOrAdmin ? (
+                  <>Panel de Administración • Rol: <span className="font-semibold text-slate-800">Dueño del Negocio</span></>
+                ) : assignedProfessional ? (
+                  <>
+                    Panel de Administración Autónomo •{' '}
+                    <span className="font-semibold text-teal-800">
+                      {assignedProfessional.name}
+                    </span>{' '}
+                    • {assignedProfessional.officeNumber || 'Consultorio Asignado'} • Clave: <span className="font-mono font-bold text-teal-700">{assignedProfessional.accessCode || 'CONS-1001'}</span>
+                  </>
+                ) : (
+                  <>
+                    Panel de Staff • <span className="text-amber-700 font-semibold">Pendiente de vinculación a consultorio</span>
+                  </>
+                )}
               </p>
             </div>
           </div>
@@ -828,21 +1041,28 @@ export function BusinessDashboard({
             }`}
           >
             <CalendarIcon className="w-4 h-4" />
-            <span>Agenda & {labels.appointmentsLabel}</span>
+            <span>
+              {userRole === 'staff'
+                ? 'Agenda & Citas del Consultorio'
+                : `Agenda & ${labels.appointmentsLabel}`}
+            </span>
           </button>
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('professionals')}
-            className={`py-3 px-3.5 border-b-2 flex items-center gap-2 whitespace-nowrap transition cursor-pointer ${
-              activeTab === 'professionals'
-                ? 'border-slate-900 text-slate-900 font-bold'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <Users className="w-4 h-4" />
-            <span>{labels.professionalsLabel}</span>
-          </button>
+          {/* Professionals Tab - STRICTLY FOR OWNER */}
+          {isOwnerOrAdmin && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('professionals')}
+              className={`py-3 px-3.5 border-b-2 flex items-center gap-2 whitespace-nowrap transition cursor-pointer ${
+                activeTab === 'professionals'
+                  ? 'border-slate-900 text-slate-900 font-bold'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <Users className="w-4 h-4" />
+              <span>{labels.professionalsLabel} & Consultorios</span>
+            </button>
+          )}
 
           <button
             type="button"
@@ -854,7 +1074,7 @@ export function BusinessDashboard({
             }`}
           >
             <Briefcase className="w-4 h-4" />
-            <span>{labels.servicesLabel}</span>
+            <span>{userRole === 'staff' ? 'Servicios del Consultorio' : labels.servicesLabel}</span>
           </button>
 
           <button
@@ -867,7 +1087,7 @@ export function BusinessDashboard({
             }`}
           >
             <Clock className="w-4 h-4" />
-            <span>Horarios & Ausencias</span>
+            <span>{userRole === 'staff' ? 'Mis Horarios & Ausencias' : 'Horarios & Ausencias'}</span>
           </button>
 
           <button
@@ -880,7 +1100,7 @@ export function BusinessDashboard({
             }`}
           >
             <UserCheck className="w-4 h-4" />
-            <span>{labels.clientsLabel} ({customers.length})</span>
+            <span>{userRole === 'staff' ? 'Mis Pacientes' : labels.clientsLabel} ({displayedCustomers.length})</span>
           </button>
 
           {isOwnerOrAdmin && (
@@ -928,21 +1148,24 @@ export function BusinessDashboard({
             </button>
           )}
 
-          <button
-            type="button"
-            onClick={() => setActiveTab('ai')}
-            className={`py-3 px-3.5 border-b-2 flex items-center gap-2 whitespace-nowrap transition cursor-pointer ${
-              activeTab === 'ai'
-                ? 'border-teal-600 text-teal-700 font-bold'
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            <Sparkles className="w-4 h-4 text-teal-500" />
-            <span>Asistente IA</span>
-            {business.aiBotEnabled && (
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Modo Conversacional Activo" />
-            )}
-          </button>
+          {/* AI Assistant: Visible to Owner, or to Staff ONLY if in EXP AI plan */}
+          {(isOwnerOrAdmin || business.plan === 'business' || business.plan === 'whitelabel') && (
+            <button
+              type="button"
+              onClick={() => setActiveTab('ai')}
+              className={`py-3 px-3.5 border-b-2 flex items-center gap-2 whitespace-nowrap transition cursor-pointer ${
+                activeTab === 'ai'
+                  ? 'border-teal-600 text-teal-700 font-bold'
+                  : 'border-transparent text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              <Sparkles className="w-4 h-4 text-teal-500" />
+              <span>Asistente IA</span>
+              {business.aiBotEnabled && (
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" title="Modo Conversacional Activo" />
+              )}
+            </button>
+          )}
 
           <button
             type="button"
@@ -954,7 +1177,7 @@ export function BusinessDashboard({
             }`}
           >
             <BarChart3 className="w-4 h-4" />
-            <span>Métricas</span>
+            <span>{userRole === 'staff' ? 'Métricas de Atención' : 'Métricas & Finanzas'}</span>
           </button>
 
           {isOwnerOrAdmin && (
@@ -976,8 +1199,117 @@ export function BusinessDashboard({
 
       {/* Main Container */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6">
-        {/* Hybrid Commercial Strategy Status Banner */}
-        {business.plan === 'free' && trialStatus.isTrial && (
+        {/* Unassigned Staff Screen: Only if user is Staff and has NOT yet been assigned to a consultorio */}
+        {userRole === 'staff' && !assignedProfessional && (
+          <div className="max-w-2xl mx-auto my-8 bg-white rounded-3xl p-8 border border-slate-200 shadow-xl text-center space-y-6 animate-in fade-in">
+            <div className="w-16 h-16 rounded-2xl bg-amber-50 text-amber-600 border border-amber-200 flex items-center justify-center mx-auto shadow-xs">
+              <Lock className="w-8 h-8" />
+            </div>
+            <div>
+              <span className="text-[11px] uppercase font-extrabold tracking-wider px-3 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-200">
+                Acceso Restringido • Staff Sin Consultorio
+              </span>
+              <h2 className="text-xl font-extrabold text-slate-900 mt-3">
+                Consultorio No Asignado o Pendiente de Vinculación
+              </h2>
+              <p className="text-xs text-slate-600 mt-2 max-w-lg mx-auto leading-relaxed">
+                Cada consultorio en <strong>{business.name}</strong> es un entorno privado de trabajo, autónomo y autoadministrable. Para habilitar tu panel de administración (agenda, servicios, horarios, pacientes y métricas), debes pertenecer a un consultorio asignado por la Dirección con tu <strong>Clave Única de Acceso</strong>.
+              </p>
+            </div>
+
+            <div className="bg-slate-50 rounded-2xl p-5 border border-slate-200 text-left max-w-md mx-auto space-y-3">
+              <label className="block text-xs font-bold text-slate-800">
+                Ingresa tu Clave Única de Acceso asignada:
+              </label>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  placeholder="Ej: CONS-1001 o STAFF-4821"
+                  value={staffLinkCode}
+                  onChange={(e) => {
+                    setStaffLinkCode(e.target.value);
+                    setStaffLinkError(null);
+                  }}
+                  className="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs font-mono font-bold focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                />
+                <button
+                  type="button"
+                  disabled={isLinkingStaff || !staffLinkCode.trim()}
+                  onClick={() => handleLinkConsultorio()}
+                  className="px-4 py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 disabled:opacity-50 text-white text-xs font-bold transition shadow-xs cursor-pointer shrink-0"
+                >
+                  {isLinkingStaff ? 'Vinculando...' : 'Vincular Consultorio'}
+                </button>
+              </div>
+
+              {staffLinkError && (
+                <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-medium flex items-center gap-1.5">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-rose-500" />
+                  <span>{staffLinkError}</span>
+                </div>
+              )}
+
+              {staffLinkSuccess && (
+                <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-medium flex items-center gap-1.5">
+                  <Check className="w-4 h-4 shrink-0 text-emerald-600" />
+                  <span>{staffLinkSuccess}</span>
+                </div>
+              )}
+
+              <p className="text-[11px] text-slate-400">
+                ¿No posees una clave? Solicita al dueño o director que te agregue en la pestaña <strong>"Profesionales & Consultorios"</strong> y te comparta tu Clave Única.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Staff Autonomous Workspace Banner (Visible when assigned) */}
+        {userRole === 'staff' && assignedProfessional && (
+          <div className="mb-6 p-4 rounded-3xl bg-white border border-teal-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div className="flex items-start gap-3.5">
+              <div className="w-11 h-11 rounded-2xl bg-teal-600 text-white flex items-center justify-center shrink-0 shadow-xs font-bold text-sm">
+                <Stethoscope className="w-6 h-6" />
+              </div>
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="font-extrabold text-slate-900 text-sm">
+                    Panel de Administración • {assignedProfessional.officeNumber || 'Consultorio Asignado'}
+                  </h3>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-100 text-teal-800 border border-teal-200">
+                    Entorno Privado & Autónomo
+                  </span>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200 flex items-center gap-1">
+                    <KeyRound className="w-2.5 h-2.5 text-teal-600" />
+                    <span>Clave: {assignedProfessional.accessCode || 'CONS-1001'}</span>
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-1">
+                  Especialista: <strong className="text-slate-800">{assignedProfessional.name}</strong> ({assignedProfessional.specialty}). Este es tu entorno de trabajo privado: autoadministras tus citas, servicios, precios y ausencias individuales sin afectar a toda la clínica ni a otros médicos.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  navigator.clipboard.writeText(assignedProfessional.accessCode || '');
+                  alert(`¡Clave Única "${assignedProfessional.accessCode || ''}" copiada al portapapeles!`);
+                }}
+                className="px-3 py-1.5 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                title="Copiar Clave Única de Acceso"
+              >
+                <KeyRound className="w-3.5 h-3.5 text-teal-600" />
+                <span>Copiar Clave</span>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Dashboard Tabs Content: Available ONLY IF owner OR assigned staff */}
+        {(isOwnerOrAdmin || (userRole === 'staff' && assignedProfessional)) && (
+          <>
+        {/* Commercial Status Banners - STRICTLY FOR OWNER ONLY */}
+        {isOwnerOrAdmin && business.plan === 'free' && trialStatus.isTrial && (
           <div className="mb-6 p-4 rounded-3xl bg-gradient-to-r from-teal-500/10 via-emerald-500/10 to-teal-500/5 border border-teal-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex items-start gap-3">
               <div className="p-2.5 rounded-2xl bg-teal-600 text-white shrink-0 shadow-xs">
@@ -1007,7 +1339,7 @@ export function BusinessDashboard({
           </div>
         )}
 
-        {business.plan === 'free' && !trialStatus.isTrial && (
+        {isOwnerOrAdmin && business.plan === 'free' && !trialStatus.isTrial && (
           <div className="mb-6 p-4 rounded-3xl bg-white border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="p-2.5 rounded-2xl bg-amber-50 text-amber-600 shrink-0 border border-amber-200">
@@ -1052,12 +1384,12 @@ export function BusinessDashboard({
           </div>
         )}
 
-        {business.plan === 'pro' && (
+        {isOwnerOrAdmin && business.plan === 'pro' && (
           <div className="mb-6 p-3.5 rounded-3xl bg-teal-50/80 border border-teal-200/80 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
             <div className="flex items-center gap-2.5 text-teal-900">
               <Award className="w-4 h-4 text-teal-600 shrink-0" />
               <span>
-                <strong>Plan Pro Ilimitado Activo:</strong> Turnos ilimitados sin tope mensual, hasta 5 profesionales, cobro de señas integrado (Mercado Pago + CBU) y exportación de agenda.
+                <strong>Plan Pro Ilimitado Activo:</strong> Turnos ilimitados sin tope mensual, hasta 5 profesionales y especialistas (consultorios) + 1 del dueño o director, cobro de señas integrado (Mercado Pago + CBU) y exportación de agenda.
               </span>
             </div>
             <button
@@ -1070,12 +1402,12 @@ export function BusinessDashboard({
           </div>
         )}
 
-        {business.plan === 'business' && (
+        {isOwnerOrAdmin && business.plan === 'business' && (
           <div className="mb-6 p-3.5 rounded-3xl bg-slate-900 text-white shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
             <div className="flex items-center gap-2.5 text-slate-200">
               <Bot className="w-4 h-4 text-teal-400 shrink-0" />
               <span>
-                <strong>Plan Experiencia AI Activo:</strong> Asistente Virtual WhatsApp Bot 24/7, turnos y profesionales ilimitados, y campañas inteligentes para rellenar huecos.
+                <strong>Plan Experiencia AI Activo:</strong> Asistente Virtual WhatsApp Bot 24/7, turnos y consultorios ilimitados, y campañas inteligentes para rellenar huecos.
               </span>
             </div>
             <button
@@ -1085,6 +1417,49 @@ export function BusinessDashboard({
             >
               Simulador Asistente IA
             </button>
+          </div>
+        )}
+
+        {/* STAFF PRIVATE WORKSPACE BANNER */}
+        {!isOwnerOrAdmin && assignedProfessional && (
+          <div className="mb-6 p-4 rounded-3xl bg-white border border-teal-200/90 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-2xl bg-teal-600 text-white shrink-0 shadow-xs">
+                <Stethoscope className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="font-extrabold text-slate-900 text-sm">
+                    {assignedProfessional.officeNumber || 'Consultorio Asignado'}: {assignedProfessional.name}
+                  </h4>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-teal-100 text-teal-800 border border-teal-200">
+                    Entorno Privado Autónomo
+                  </span>
+                </div>
+                <p className="text-xs text-slate-500 mt-0.5">
+                  Especialidad: <strong>{assignedProfessional.specialty}</strong> • Tu Clave de Acceso:{' '}
+                  <span className="font-mono font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded">
+                    {assignedProfessional.accessCode || 'STAFF-1001'}
+                  </span>
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  if (assignedProfessional.accessCode) {
+                    navigator.clipboard.writeText(assignedProfessional.accessCode);
+                    alert(`¡Clave de Acceso "${assignedProfessional.accessCode}" copiada al portapapeles!`);
+                  }
+                }}
+                className="px-3 py-1.5 rounded-xl border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-semibold flex items-center gap-1.5 cursor-pointer shadow-2xs"
+                title="Copiar mi Clave Única de Acceso"
+              >
+                <Key className="w-3.5 h-3.5 text-slate-500" />
+                <span>Copiar Mi Clave</span>
+              </button>
+            </div>
           </div>
         )}
 
@@ -1463,25 +1838,25 @@ export function BusinessDashboard({
           </div>
         )}
 
-        {/* TAB 2: PROFESSIONALS */}
-        {activeTab === 'professionals' && (
-          <div className="space-y-4">
+        {/* TAB 2: PROFESSIONALS (Strictly for Owner/Director) */}
+        {activeTab === 'professionals' && isOwnerOrAdmin && (
+          <div className="space-y-5">
             {/* Staff Invite & Linking Code Banner */}
-            <div className="p-4 rounded-2xl bg-gradient-to-r from-teal-50 to-emerald-50 border border-teal-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs">
-              <div className="flex items-start gap-3">
-                <div className="w-9 h-9 rounded-xl bg-teal-600 text-white flex items-center justify-center shrink-0 font-bold">
+            <div className="p-5 rounded-3xl bg-gradient-to-r from-teal-50 via-emerald-50 to-teal-50/50 border border-teal-200 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-xs">
+              <div className="flex items-start gap-3.5">
+                <div className="w-10 h-10 rounded-2xl bg-teal-600 text-white flex items-center justify-center shrink-0 font-bold shadow-xs">
                   <ShieldCheck className="w-5 h-5" />
                 </div>
                 <div>
                   <h4 className="text-xs font-bold text-teal-950 flex items-center gap-2">
-                    <span>Código de Vinculación de este Consultorio para Staff / Médicos</span>
+                    <span>Nómina Médica, Consultorios Asignados y Claves Únicas de Acceso</span>
                   </h4>
-                  <p className="text-[11px] text-teal-800 mt-0.5 max-w-xl">
-                    Tus médicos o recepcionistas deben registrarse como <strong>"Staff"</strong> e ingresar este código para vincularse de forma exclusiva e independiente a este consultorio.
+                  <p className="text-[11px] text-teal-800 mt-1 max-w-2xl leading-relaxed">
+                    Como dueño o director de la clínica, aquí administras la nómina completa. Cada especialista cuenta con su propio <strong>Consultorio Asignado</strong> y su <strong>Clave Única de Acceso</strong> para operar de forma privada y autónoma. Puedes activar o pausar consultorios y definir la comisión que la clínica retiene por paciente.
                   </p>
                 </div>
               </div>
-              <div className="flex items-center gap-2 self-start sm:self-center">
+              <div className="flex items-center gap-2 self-start sm:self-center shrink-0">
                 <div className="px-3 py-1.5 bg-white border border-teal-300 rounded-xl font-mono font-bold text-xs text-teal-900 shadow-xs">
                   {business.slug}
                 </div>
@@ -1489,12 +1864,12 @@ export function BusinessDashboard({
                   type="button"
                   onClick={() => {
                     navigator.clipboard.writeText(business.slug);
-                    alert(`¡Código "${business.slug}" copiado al portapapeles!`);
+                    alert(`¡Código de clínica "${business.slug}" copiado al portapapeles!`);
                   }}
-                  className="px-3 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-bold text-xs flex items-center gap-1 cursor-pointer transition shadow-xs"
+                  className="px-3.5 py-1.5 bg-teal-600 hover:bg-teal-700 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 cursor-pointer transition shadow-xs"
                 >
                   <Copy className="w-3.5 h-3.5" />
-                  <span>Copiar Código</span>
+                  <span>Copiar Código Clínica</span>
                 </button>
               </div>
             </div>
@@ -1503,22 +1878,24 @@ export function BusinessDashboard({
               <div>
                 <div className="flex items-center gap-2">
                   <h3 className="text-base font-bold text-slate-900">
-                    Gestión de {labels.professionalsLabel}
+                    Consultorios & Plantilla Médica
                   </h3>
                   <span className={`px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase ${
                     profLimit.allowed ? 'bg-slate-100 text-slate-700' : 'bg-rose-100 text-rose-800 border border-rose-200'
                   }`}>
                     {business.plan === 'free' && !trialStatus.isTrial
-                      ? `${professionals.length}/1 Profesional (Plan Free)`
+                      ? `${professionals.length}/1 Consultorio (Plan Freemium)`
                       : business.plan === 'pro' || trialStatus.isTrial
-                      ? `${professionals.length}/5 Profesionales (Plan Pro)`
-                      : `${professionals.length} Profesionales (Ilimitados)`}
+                      ? `${professionals.length}/6 Consultorios (5 Staff + 1 Director - Plan Pro)`
+                      : `${professionals.length} Consultorios (Ilimitados - Plan Experiencia AI)`}
                   </span>
                 </div>
                 <p className="text-xs text-slate-500 mt-0.5">
                   {business.plan === 'free' && !trialStatus.isTrial
-                    ? 'El Plan Base Free incluye 1 especialista. Para habilitar agendas de hasta 5 profesionales, ascendé al Plan Pro.'
-                    : 'Cada profesional cuenta con agenda propia, sincronización de turnos y franjas horarias personalizadas.'}
+                    ? 'En el Plan Freemium tienes 1 consultorio. Asciende al Plan Pro para habilitar hasta 5 consultorios de especialistas + 1 del dueño.'
+                    : business.plan === 'pro' || trialStatus.isTrial
+                    ? 'Plan Pro: Hasta 5 consultorios de especialistas + 1 del director/dueño (máximo 6 consultorios).'
+                    : 'Plan Experiencia AI: Consultorios, especialistas y turnos 100% ilimitados.'}
                 </p>
               </div>
 
@@ -1529,60 +1906,131 @@ export function BusinessDashboard({
                     setProfLimitModalOpen(true);
                   } else {
                     setEditingProf(null);
+                    setProfAccessCode(`CONS-${Math.floor(1000 + Math.random() * 9000)}`);
                     setShowProfModal(true);
                   }
                 }}
-                className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-semibold transition cursor-pointer ${
+                className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer shadow-xs ${
                   profLimit.allowed
                     ? 'bg-slate-900 text-white hover:bg-black'
                     : 'bg-amber-100 text-amber-900 hover:bg-amber-200 border border-amber-300'
                 }`}
               >
                 <Plus className="w-3.5 h-3.5" />
-                <span>+ Agregar {labels.professionalLabel}</span>
+                <span>+ Agregar Profesional / Consultorio</span>
               </button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
               {professionals.map((prof) => (
-                <div key={prof.id} className="bg-white rounded-3xl p-5 border border-slate-200 shadow-xs">
-                  <div className="flex items-start gap-3.5">
-                    <img
-                      src={prof.photoUrl || 'https://images.unsplash.com/photo-1537368910025-700350fe46c7?w=120'}
-                      alt={prof.name}
-                      className="w-14 h-14 rounded-2xl object-cover border border-slate-200 shrink-0"
-                    />
-                    <div className="min-w-0 flex-1">
+                <div key={prof.id} className="bg-white rounded-3xl p-5 border border-slate-200 shadow-xs flex flex-col justify-between hover:border-slate-300 transition">
+                  <div>
+                    <div className="flex items-start gap-3.5">
+                      <img
+                        src={prof.photoUrl || 'https://images.unsplash.com/photo-1537368910025-700350fe46c7?w=120'}
+                        alt={prof.name}
+                        className="w-14 h-14 rounded-2xl object-cover border border-slate-200 shrink-0"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-1">
+                          <h4 className="font-bold text-slate-900 text-sm truncate">{prof.name}</h4>
+                          <button
+                            type="button"
+                            onClick={() => handleToggleProfActive(prof)}
+                            className={`px-2 py-0.5 rounded-full text-[10px] font-bold transition cursor-pointer shrink-0 ${
+                              prof.active
+                                ? 'bg-emerald-100 text-emerald-800 hover:bg-emerald-200'
+                                : 'bg-slate-100 text-slate-500 hover:bg-slate-200'
+                            }`}
+                            title="Haz clic para activar o pausar este consultorio"
+                          >
+                            {prof.active ? '● Activo' : '○ Pausado'}
+                          </button>
+                        </div>
+                        <p className="text-xs text-teal-700 font-semibold">{prof.specialty || prof.title}</p>
+                        <p className="text-[11px] text-slate-400 mt-0.5 truncate">{prof.email || 'Sin correo asignado'}</p>
+                      </div>
+                    </div>
+
+                    {/* Assigned Office, Access Code & Commission Badges */}
+                    <div className="mt-4 pt-3 border-t border-slate-100 space-y-2 text-xs">
                       <div className="flex items-center justify-between">
-                        <h4 className="font-bold text-slate-900 text-sm truncate">{prof.name}</h4>
-                        <span
-                          className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                            prof.active ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-500'
-                          }`}
-                        >
-                          {prof.active ? 'Activo' : 'Inactivo'}
+                        <span className="text-slate-500 flex items-center gap-1.5 text-[11px]">
+                          <Building className="w-3.5 h-3.5 text-teal-600" />
+                          Consultorio Asignado:
+                        </span>
+                        <span className="font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-md text-[11px]">
+                          {prof.officeNumber || 'Consultorio 1'}
                         </span>
                       </div>
-                      <p className="text-xs text-slate-500 font-medium">{prof.specialty || prof.title}</p>
-                      <p className="text-[11px] text-slate-400 mt-1 truncate">{prof.email}</p>
+
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500 flex items-center gap-1.5 text-[11px]">
+                          <KeyRound className="w-3.5 h-3.5 text-teal-600" />
+                          Clave Única de Acceso:
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            navigator.clipboard.writeText(prof.accessCode || 'CONS-1001');
+                            alert(`¡Clave "${prof.accessCode || 'CONS-1001'}" copiada!`);
+                          }}
+                          className="font-mono font-bold text-teal-800 bg-teal-50 hover:bg-teal-100 px-2.5 py-0.5 rounded-md text-[11px] transition cursor-pointer flex items-center gap-1 border border-teal-200"
+                          title="Copiar Clave Única para compartir"
+                        >
+                          <span>{prof.accessCode || 'CONS-1001'}</span>
+                          <Copy className="w-3 h-3 text-teal-600" />
+                        </button>
+                      </div>
+
+                      <div className="flex items-center justify-between">
+                        <span className="text-slate-500 flex items-center gap-1.5 text-[11px]">
+                          <Percent className="w-3.5 h-3.5 text-amber-600" />
+                          Comisión de la Clínica:
+                        </span>
+                        <span className="font-bold text-amber-900 bg-amber-50 px-2 py-0.5 rounded-md text-[11px] border border-amber-200">
+                          {prof.commissionRate !== undefined ? `${prof.commissionRate}%` : '20%'}
+                        </span>
+                      </div>
                     </div>
                   </div>
 
-                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                    <span className="text-slate-500">
-                      {prof.serviceIds?.length || 0} servicios asociados
-                    </span>
+                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between gap-2 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => handleCopyStaffInvite(prof)}
+                      className="px-2.5 py-1.5 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-800 font-semibold text-[11px] flex items-center gap-1.5 transition cursor-pointer border border-teal-200"
+                      title="Copiar invitación completa para WhatsApp"
+                    >
+                      <Share2 className="w-3.5 h-3.5 text-teal-600" />
+                      <span>Invitar con Clave</span>
+                    </button>
+
                     <div className="flex items-center gap-1">
                       <button
                         type="button"
                         onClick={() => {
                           setEditingProf(prof);
+                          setProfAccessCode(prof.accessCode || `CONS-${Math.floor(1000 + Math.random() * 9000)}`);
                           setShowProfModal(true);
                         }}
-                        className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100"
-                        title="Editar"
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 cursor-pointer"
+                        title="Editar ficha del médico"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          if (confirm(`¿Estás seguro de eliminar el consultorio de ${prof.name}?`)) {
+                            await api.deleteProfessional(business.id, prof.id);
+                            setProfessionals((prev) => prev.filter((p) => p.id !== prof.id));
+                          }
+                        }}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 cursor-pointer"
+                        title="Eliminar consultorio"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
                   </div>
@@ -1676,35 +2124,41 @@ export function BusinessDashboard({
                 </div>
 
                 <div className="flex items-center gap-2">
-                  {!isEditingSchedule ? (
-                    <button
-                      type="button"
-                      onClick={handleStartEditingSchedule}
-                      className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition shadow-xs cursor-pointer"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                      <span>Modificar Horarios</span>
-                    </button>
-                  ) : (
-                    <div className="flex items-center gap-2">
+                  {isOwnerOrAdmin ? (
+                    !isEditingSchedule ? (
                       <button
                         type="button"
-                        disabled={savingSchedule}
-                        onClick={handleCancelEditingSchedule}
-                        className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition cursor-pointer"
-                      >
-                        Cancelar
-                      </button>
-                      <button
-                        type="button"
-                        disabled={savingSchedule}
-                        onClick={handleSaveWorkingHours}
+                        onClick={handleStartEditingSchedule}
                         className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition shadow-xs cursor-pointer"
                       >
-                        <Check className="w-3.5 h-3.5" />
-                        <span>{savingSchedule ? 'Guardando...' : 'Guardar Horarios'}</span>
+                        <Edit2 className="w-3.5 h-3.5" />
+                        <span>Modificar Horarios de la Clínica</span>
                       </button>
-                    </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          disabled={savingSchedule}
+                          onClick={handleCancelEditingSchedule}
+                          className="px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold transition cursor-pointer"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          type="button"
+                          disabled={savingSchedule}
+                          onClick={handleSaveWorkingHours}
+                          className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition shadow-xs cursor-pointer"
+                        >
+                          <Check className="w-3.5 h-3.5" />
+                          <span>{savingSchedule ? 'Guardando...' : 'Guardar Horarios'}</span>
+                        </button>
+                      </div>
+                    )
+                  ) : (
+                    <span className="text-[11px] text-teal-800 bg-teal-50 px-3 py-1.5 rounded-xl border border-teal-200 font-medium">
+                      Horario general fijado por la Dirección
+                    </span>
                   )}
                 </div>
               </div>
@@ -1943,37 +2397,52 @@ export function BusinessDashboard({
                 </button>
               </div>
 
-              {timeOffs.length === 0 ? (
+              {displayedTimeOffs.length === 0 ? (
                 <div className="p-6 text-center text-slate-400 text-xs bg-slate-50 rounded-2xl">
-                  No hay bloqueos ni ausencias programadas.
+                  {userRole === 'staff'
+                    ? 'No tienes bloqueos ni ausencias individuales programadas para tu consultorio.'
+                    : 'No hay bloqueos ni ausencias programadas en la clínica.'}
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {timeOffs.map((to) => (
-                    <div
-                      key={to.id}
-                      className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs"
-                    >
-                      <div>
-                        <span className="font-bold text-slate-900">{to.reason}</span>
-                        <span className="text-slate-500 ml-2">
-                          ({to.startDate} al {to.endDate})
-                        </span>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={async () => {
-                          if (confirm('¿Eliminar esta excepción?')) {
-                            await api.deleteTimeOff(business.id, to.id);
-                            setTimeOffs((prev) => prev.filter((t) => t.id !== to.id));
-                          }
-                        }}
-                        className="text-rose-600 hover:text-rose-800"
+                  {displayedTimeOffs.map((to) => {
+                    const prof = professionals.find((p) => p.id === to.professionalId);
+                    return (
+                      <div
+                        key={to.id}
+                        className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between text-xs"
                       >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ))}
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-slate-900">{to.reason}</span>
+                            <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-200 text-slate-700">
+                              {to.professionalId ? (prof ? `${prof.name} (${prof.officeNumber || 'Consultorio'})` : 'Consultorio Individual') : 'Toda la Clínica'}
+                            </span>
+                          </div>
+                          <span className="text-slate-500 text-[11px] mt-0.5 block">
+                            {to.startDate} al {to.endDate}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            if (userRole === 'staff' && to.professionalId !== assignedProfessional?.id) {
+                              alert('Solo puedes eliminar bloqueos o ausencias de tu propio consultorio.');
+                              return;
+                            }
+                            if (confirm('¿Eliminar esta excepción de agenda?')) {
+                              await api.deleteTimeOff(business.id, to.id);
+                              setTimeOffs((prev) => prev.filter((t) => t.id !== to.id));
+                            }
+                          }}
+                          className="text-rose-600 hover:text-rose-800 p-1 rounded-lg hover:bg-rose-50 transition cursor-pointer"
+                          title="Eliminar bloqueo"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -2577,78 +3046,277 @@ export function BusinessDashboard({
           </div>
         )}
 
-        {/* TAB 8: ANALYTICS */}
+        {/* TAB 8: ANALYTICS (Strict Separation: Financials for Owner vs Care Metrics for Staff) */}
         {activeTab === 'analytics' && (
           <div className="space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs">
-                <span className="text-xs font-semibold text-slate-500">Visitas a Página Pública</span>
-                <div className="text-2xl font-bold text-slate-900 mt-1">
-                  {analytics?.pageViews || 18}
+            {isOwnerOrAdmin ? (
+              /* --- OWNER: FINANCIAL METRICS & GLOBAL BILLING --- */
+              <div className="space-y-6">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-base font-bold text-slate-900">
+                        Facturación Global, Rentabilidad & Liquidaciones
+                      </h3>
+                      <span className="px-2.5 py-0.5 rounded-full text-[10px] font-extrabold uppercase bg-emerald-100 text-emerald-900 border border-emerald-200">
+                        Exclusivo Dirección
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Monitorea los ingresos generados por cada consultorio, la retención por comisión de la clínica y el saldo a liquidar a cada profesional.
+                    </p>
+                  </div>
                 </div>
-                <span className="text-[10px] text-emerald-600 font-medium">Tráfico orgánico</span>
+
+                {/* Owner Financial KPI Cards */}
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs">
+                    <div className="flex items-center justify-between text-slate-500 mb-1">
+                      <span className="text-xs font-semibold">Facturación Bruta Total</span>
+                      <DollarSign className="w-4 h-4 text-emerald-600" />
+                    </div>
+                    <div className="text-2xl font-extrabold text-slate-900">
+                      ${totalGrossRevenue.toLocaleString('es-AR')}
+                    </div>
+                    <span className="text-[10px] text-emerald-600 font-medium">Turnos completados y atendidos</span>
+                  </div>
+
+                  <div className="bg-white p-5 rounded-3xl border border-teal-200 shadow-xs bg-teal-50/20">
+                    <div className="flex items-center justify-between text-teal-900 mb-1">
+                      <span className="text-xs font-bold">Comisión / Ganancia Clínica</span>
+                      <Coins className="w-4 h-4 text-teal-600" />
+                    </div>
+                    <div className="text-2xl font-extrabold text-teal-800">
+                      ${totalClinicCommission.toLocaleString('es-AR')}
+                    </div>
+                    <span className="text-[10px] text-teal-700 font-medium">Retención promedio por consultorios</span>
+                  </div>
+
+                  <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs">
+                    <div className="flex items-center justify-between text-slate-500 mb-1">
+                      <span className="text-xs font-semibold">A Liquidar a Especialistas</span>
+                      <Users className="w-4 h-4 text-blue-600" />
+                    </div>
+                    <div className="text-2xl font-extrabold text-slate-900">
+                      ${totalNetToProfessionals.toLocaleString('es-AR')}
+                    </div>
+                    <span className="text-[10px] text-slate-500 font-medium">Saldo neto a pagar a médicos</span>
+                  </div>
+
+                  <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs">
+                    <div className="flex items-center justify-between text-slate-500 mb-1">
+                      <span className="text-xs font-semibold">Turnos Atendidos Totales</span>
+                      <CheckCircle className="w-4 h-4 text-emerald-600" />
+                    </div>
+                    <div className="text-2xl font-extrabold text-slate-900">
+                      {completedAppointments.length}
+                    </div>
+                    <span className="text-[10px] text-emerald-600 font-medium">En todos los consultorios</span>
+                  </div>
+                </div>
+
+                {/* Detailed Breakdown per Office / Specialist Table */}
+                <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden">
+                  <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+                    <div>
+                      <h4 className="font-bold text-slate-900 text-sm">
+                        Liquidación y Rendimiento por Consultorio / Especialista
+                      </h4>
+                      <p className="text-[11px] text-slate-500">
+                        Cálculo automático de retención clínica según el porcentaje pactado con cada médico.
+                      </p>
+                    </div>
+                    <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-full">
+                      {financialBreakdown.length} Consultorios Activos
+                    </span>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs text-slate-700">
+                      <thead className="bg-slate-50 text-[11px] uppercase font-semibold text-slate-500 border-b border-slate-200">
+                        <tr>
+                          <th className="px-4 py-3">Consultorio Asignado</th>
+                          <th className="px-4 py-3">Especialista / Médico</th>
+                          <th className="px-4 py-3 text-center">Clave de Acceso</th>
+                          <th className="px-4 py-3 text-center">Turnos Atendidos</th>
+                          <th className="px-4 py-3 text-right">Facturación Bruta</th>
+                          <th className="px-4 py-3 text-center">% Comisión</th>
+                          <th className="px-4 py-3 text-right text-teal-700">Ganancia Clínica</th>
+                          <th className="px-4 py-3 text-right font-bold text-slate-900">A Liquidar al Médico</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-100">
+                        {financialBreakdown.map((row) => (
+                          <tr key={row.profId} className="hover:bg-slate-50/70 transition">
+                            <td className="px-4 py-3 font-bold text-slate-900">
+                              <div className="flex items-center gap-1.5">
+                                <Building className="w-3.5 h-3.5 text-teal-600" />
+                                <span>{row.officeNumber}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="font-semibold text-slate-900">{row.name}</div>
+                              <div className="text-[11px] text-slate-500">{row.specialty}</div>
+                            </td>
+                            <td className="px-4 py-3 text-center font-mono font-bold text-teal-800 text-[11px]">
+                              {row.accessCode}
+                            </td>
+                            <td className="px-4 py-3 text-center font-bold">
+                              {row.turnosCount}
+                            </td>
+                            <td className="px-4 py-3 text-right font-medium">
+                              ${row.grossRevenue.toLocaleString('es-AR')}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-900 font-bold text-[11px] border border-amber-200">
+                                {row.commissionRate}%
+                              </span>
+                            </td>
+                            <td className="px-4 py-3 text-right font-bold text-teal-700">
+                              ${row.clinicCommission.toLocaleString('es-AR')}
+                            </td>
+                            <td className="px-4 py-3 text-right font-extrabold text-slate-900">
+                              ${row.netToProfessional.toLocaleString('es-AR')}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+
+                {/* Conversion Funnel & Web Traffic */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs">
+                    <h4 className="font-bold text-slate-900 text-sm mb-4">Tráfico y Conversión Web</h4>
+                    <div className="grid grid-cols-2 gap-3 text-xs">
+                      <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                        <span className="text-slate-500 font-medium">Visitas a la Página</span>
+                        <div className="text-xl font-bold text-slate-900 mt-1">{analytics?.pageViews || 18}</div>
+                      </div>
+                      <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                        <span className="text-slate-500 font-medium">Inicios de Reserva</span>
+                        <div className="text-xl font-bold text-slate-900 mt-1">{analytics?.bookingStart || 12}</div>
+                      </div>
+                      <div className="p-3 bg-emerald-50 rounded-2xl border border-emerald-100">
+                        <span className="text-emerald-800 font-medium">Reservas Completadas</span>
+                        <div className="text-xl font-bold text-emerald-800 mt-1">{analytics?.bookingCompleted || appointments.length}</div>
+                      </div>
+                      <div className="p-3 bg-slate-50 rounded-2xl border border-slate-100">
+                        <span className="text-slate-500 font-medium">Tasa de Conversión</span>
+                        <div className="text-xl font-bold text-slate-900 mt-1">{analytics?.conversionRate || 42}%</div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs">
+                    <h4 className="font-bold text-slate-900 text-sm mb-4">Embudo de Conversión de Pacientes</h4>
+                    <div className="space-y-3">
+                      <div>
+                        <div className="flex justify-between text-xs font-semibold mb-1">
+                          <span>1. Visita Landing Pública</span>
+                          <span>100%</span>
+                        </div>
+                        <div className="w-full bg-slate-100 rounded-full h-2.5">
+                          <div className="bg-blue-600 h-2.5 rounded-full w-full" />
+                        </div>
+                      </div>
+                      <div>
+                        <div className="flex justify-between text-xs font-semibold mb-1">
+                          <span>2. Selección de Especialista / Horario</span>
+                          <span>68%</span>
+                        </div>
+                        <div className="w-full bg-slate-100 rounded-full h-2.5">
+                          <div className="bg-teal-500 h-2.5 rounded-full w-[68%]" />
+                        </div>
+                      </div>
+                      <div>
+                        <div className="flex justify-between text-xs font-semibold mb-1">
+                          <span>3. Turno Confirmado</span>
+                          <span>42%</span>
+                        </div>
+                        <div className="w-full bg-slate-100 rounded-full h-2.5">
+                          <div className="bg-emerald-500 h-2.5 rounded-full w-[42%]" />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
-
-              <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs">
-                <span className="text-xs font-semibold text-slate-500">Inicios de Reserva</span>
-                <div className="text-2xl font-bold text-slate-900 mt-1">
-                  {analytics?.bookingStart || 12}
+            ) : (
+              /* --- STAFF: PATIENT CARE METRICS (NO GLOBAL FINANCIALS) --- */
+              <div className="space-y-6">
+                <div className="p-4 rounded-3xl bg-teal-50 border border-teal-200 text-xs text-teal-900 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5">
+                    <BarChart3 className="w-5 h-5 text-teal-700 shrink-0" />
+                    <span>
+                      <strong>Métricas de Atención Médica:</strong> Estadísticas de pacientes atendidos, asistencia y volumen de citas exclusivas de <strong>{assignedProfessional?.officeNumber || 'tu consultorio'}</strong> ({assignedProfessional?.name}).
+                    </span>
+                  </div>
                 </div>
-                <span className="text-[10px] text-slate-500">Click en horario</span>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                  <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs">
+                    <span className="text-xs font-semibold text-slate-500">Tus Pacientes Atendidos</span>
+                    <div className="text-2xl font-extrabold text-emerald-700 mt-1">
+                      {completedAppointments.filter((a) => a.professionalId === assignedProfessional?.id).length}
+                    </div>
+                    <span className="text-[10px] text-emerald-600 font-medium">Citas completadas con éxito</span>
+                  </div>
+
+                  <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs">
+                    <span className="text-xs font-semibold text-slate-500">Turnos Totales Asignados</span>
+                    <div className="text-2xl font-extrabold text-slate-900 mt-1">
+                      {relevantAppointments.length}
+                    </div>
+                    <span className="text-[10px] text-slate-500 font-medium">En tu agenda personal</span>
+                  </div>
+
+                  <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs">
+                    <span className="text-xs font-semibold text-slate-500">Tasa de Asistencia</span>
+                    <div className="text-2xl font-extrabold text-teal-700 mt-1">
+                      {relevantAppointments.length > 0
+                        ? `${Math.round((completedAppointments.filter((a) => a.professionalId === assignedProfessional?.id).length / relevantAppointments.length) * 100)}%`
+                        : '100%'}
+                    </div>
+                    <span className="text-[10px] text-teal-600 font-medium">Asistencia a tus consultas</span>
+                  </div>
+
+                  <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs">
+                    <span className="text-xs font-semibold text-slate-500">Pacientes Registrados</span>
+                    <div className="text-2xl font-extrabold text-slate-900 mt-1">
+                      {displayedCustomers.length}
+                    </div>
+                    <span className="text-[10px] text-slate-500 font-medium">Historial de tu consultorio</span>
+                  </div>
+                </div>
+
+                {/* Consultorio Recent Activity & Services breakdown */}
+                <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs">
+                  <h4 className="font-bold text-slate-900 text-sm mb-3">
+                    Servicios de Atención del Consultorio
+                  </h4>
+                  <p className="text-xs text-slate-500 mb-4">
+                    Resumen de prestaciones habilitadas para tu agenda:
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                    {services
+                      .filter((s) => s.assignedProfessionalIds?.includes(assignedProfessional?.id || ''))
+                      .map((srv) => (
+                        <div key={srv.id} className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs flex justify-between items-center">
+                          <div>
+                            <div className="font-bold text-slate-900">{srv.name}</div>
+                            <div className="text-[11px] text-slate-500">{srv.durationMinutes} minutos</div>
+                          </div>
+                          <span className="font-bold text-slate-800 bg-white px-2.5 py-1 rounded-xl border border-slate-200">
+                            ${srv.price.toLocaleString('es-AR')}
+                          </span>
+                        </div>
+                      ))}
+                  </div>
+                </div>
               </div>
-
-              <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs">
-                <span className="text-xs font-semibold text-emerald-700">Reservas Completadas</span>
-                <div className="text-2xl font-bold text-emerald-700 mt-1">
-                  {analytics?.bookingCompleted || appointments.length}
-                </div>
-                <span className="text-[10px] text-emerald-600 font-medium">Conversión efectiva</span>
-              </div>
-
-              <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs">
-                <span className="text-xs font-semibold text-slate-500">Tasa de Conversión</span>
-                <div className="text-2xl font-bold text-slate-900 mt-1">
-                  {analytics?.conversionRate || 42}%
-                </div>
-                <span className="text-[10px] text-slate-500">Visita a Turno Reservado</span>
-              </div>
-            </div>
-
-            {/* Funnel breakdown */}
-            <div className="bg-white rounded-3xl p-6 border border-slate-200 shadow-xs">
-              <h4 className="font-bold text-slate-900 text-sm mb-4">Embudo de Conversión de Reservas</h4>
-              <div className="space-y-3 max-w-xl">
-                <div>
-                  <div className="flex justify-between text-xs font-semibold mb-1">
-                    <span>1. Visita Landing Pública</span>
-                    <span>100%</span>
-                  </div>
-                  <div className="w-full bg-slate-100 rounded-full h-3">
-                    <div className="bg-blue-600 h-3 rounded-full w-full" />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between text-xs font-semibold mb-1">
-                    <span>2. Selección de Horario Disponible</span>
-                    <span>68%</span>
-                  </div>
-                  <div className="w-full bg-slate-100 rounded-full h-3">
-                    <div className="bg-teal-500 h-3 rounded-full w-[68%]" />
-                  </div>
-                </div>
-
-                <div>
-                  <div className="flex justify-between text-xs font-semibold mb-1">
-                    <span>3. Confirmación de Reserva</span>
-                    <span>42%</span>
-                  </div>
-                  <div className="w-full bg-slate-100 rounded-full h-3">
-                    <div className="bg-emerald-500 h-3 rounded-full w-[42%]" />
-                  </div>
-                </div>
-              </div>
-            </div>
+            )}
           </div>
         )}
 
@@ -3089,6 +3757,8 @@ export function BusinessDashboard({
             </div>
           </div>
         )}
+          </>
+        )}
       </main>
 
       {/* MODAL: NUEVO TURNO MANUAL */}
@@ -3141,13 +3811,27 @@ export function BusinessDashboard({
             >
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">{labels.professionalLabel} *</label>
-                <select name="professionalId" required className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white">
-                  {professionals.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name} ({p.specialty})
-                    </option>
-                  ))}
-                </select>
+                {userRole === 'staff' && assignedProfessional ? (
+                  <div className="w-full px-3.5 py-2.5 rounded-xl border border-teal-200 bg-teal-50 text-teal-950 font-medium text-xs flex items-center justify-between shadow-2xs">
+                    <div className="flex items-center gap-2">
+                      <Stethoscope className="w-3.5 h-3.5 text-teal-600" />
+                      <span className="font-bold">{assignedProfessional.name}</span>
+                      <span className="text-teal-700">({assignedProfessional.officeNumber || 'Mi Consultorio'})</span>
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-200 text-teal-900">
+                      Consultorio Asignado
+                    </span>
+                    <input type="hidden" name="professionalId" value={assignedProfessional.id} />
+                  </div>
+                ) : (
+                  <select name="professionalId" required className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white">
+                    {professionals.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} ({p.officeNumber || p.specialty})
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               <div>
@@ -3242,6 +3926,10 @@ export function BusinessDashboard({
                   email: formData.get('email') as string,
                   phone: formData.get('phone') as string,
                   active: formData.get('active') === 'on',
+                  officeNumber: (formData.get('officeNumber') as string) || `Consultorio ${professionals.length + 1}`,
+                  accessCode: profAccessCode || (formData.get('accessCode') as string) || `CONS-${Math.floor(1000 + Math.random() * 9000)}`,
+                  commissionRate: Number(formData.get('commissionRate') || 20),
+                  commissionType: 'percentage' as const,
                   serviceIds: services.map((s) => s.id),
                 };
 
@@ -3291,6 +3979,69 @@ export function BusinessDashboard({
                   placeholder="Ej. Cardiología / Estilista"
                   className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
                 />
+              </div>
+
+              {/* Office Number & Clinic Commission */}
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Consultorio Asignado *
+                  </label>
+                  <input
+                    type="text"
+                    name="officeNumber"
+                    required
+                    defaultValue={editingProf?.officeNumber || `Consultorio ${professionals.length + 1}`}
+                    placeholder="Ej. Consultorio 1, Box Dental 2"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">
+                    Comisión Clínica (%)
+                  </label>
+                  <input
+                    type="number"
+                    name="commissionRate"
+                    min={0}
+                    max={100}
+                    defaultValue={editingProf?.commissionRate !== undefined ? editingProf.commissionRate : 20}
+                    placeholder="Ej. 20"
+                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                  />
+                </div>
+              </div>
+
+              {/* Unique Access Code with Generator */}
+              <div className="p-3 bg-teal-50/60 rounded-2xl border border-teal-200/80 space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label className="block font-bold text-teal-950 text-xs">
+                    Clave Única de Acceso *
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setProfAccessCode(`CONS-${Math.floor(1000 + Math.random() * 9000)}`)}
+                    className="text-[10px] text-teal-700 hover:text-teal-900 font-bold flex items-center gap-1 cursor-pointer transition"
+                  >
+                    <Zap className="w-3 h-3 text-teal-600" />
+                    <span>⚡ Generar Nueva Clave</span>
+                  </button>
+                </div>
+                <div className="relative">
+                  <KeyRound className="w-4 h-4 absolute left-3 top-2.5 text-teal-600 pointer-events-none" />
+                  <input
+                    type="text"
+                    name="accessCode"
+                    required
+                    value={profAccessCode}
+                    onChange={(e) => setProfAccessCode(e.target.value)}
+                    placeholder="Ej. CONS-4821"
+                    className="w-full pl-9 pr-3 py-2 rounded-xl border border-teal-300 bg-white font-mono font-bold text-teal-950 text-xs focus:ring-2 focus:ring-teal-500 focus:outline-none"
+                  />
+                </div>
+                <p className="text-[10px] text-teal-800">
+                  Esta es la clave privada asignada con la que el médico accederá a su Panel de Administración privado y autónomo.
+                </p>
               </div>
 
               <div>
@@ -3391,7 +4142,9 @@ export function BusinessDashboard({
                   price: Number(formData.get('price')),
                   currency: '$',
                   active: formData.get('active') === 'on',
-                  assignedProfessionalIds: professionals.map((p) => p.id),
+                  assignedProfessionalIds: editingService
+                    ? editingService.assignedProfessionalIds
+                    : (userRole === 'staff' && assignedProfessional ? [assignedProfessional.id] : professionals.map((p) => p.id)),
                 };
 
                 if (editingService) {
@@ -3524,14 +4277,28 @@ export function BusinessDashboard({
 
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Afecta a:</label>
-                <select name="professionalId" className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white">
-                  <option value="all">Toda la clínica / negocio</option>
-                  {professionals.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.name}
-                    </option>
-                  ))}
-                </select>
+                {userRole === 'staff' && assignedProfessional ? (
+                  <div className="w-full px-3.5 py-2.5 rounded-xl border border-teal-200 bg-teal-50 text-teal-950 font-medium text-xs flex items-center justify-between shadow-2xs">
+                    <div className="flex items-center gap-2">
+                      <Stethoscope className="w-3.5 h-3.5 text-teal-600" />
+                      <span className="font-bold">{assignedProfessional.name}</span>
+                      <span className="text-teal-700">({assignedProfessional.officeNumber || 'Mi Consultorio'})</span>
+                    </div>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-teal-200 text-teal-900">
+                      Bloqueo Individual
+                    </span>
+                    <input type="hidden" name="professionalId" value={assignedProfessional.id} />
+                  </div>
+                ) : (
+                  <select name="professionalId" className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white">
+                    <option value="all">Toda la clínica / negocio</option>
+                    {professionals.map((p) => (
+                      <option key={p.id} value={p.id}>
+                        {p.name} ({p.officeNumber || p.specialty})
+                      </option>
+                    ))}
+                  </select>
+                )}
               </div>
 
               <div className="grid grid-cols-2 gap-2">

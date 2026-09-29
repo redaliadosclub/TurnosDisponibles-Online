@@ -1200,6 +1200,7 @@ class ApiService {
     businessName?: string;
     businessType?: string;
     businessCode?: string;
+    accessCode?: string;
     specialty?: string;
     phone?: string;
   }): Promise<User> {

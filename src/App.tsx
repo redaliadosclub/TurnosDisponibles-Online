@@ -550,6 +550,7 @@ export default function App() {
           <BusinessDashboard
             business={activeBusiness}
             userRole={currentUser?.role || 'business_owner'}
+            currentUser={currentUser}
             onUpdateBusiness={(updated) => {
               setCurrentBusiness(updated);
               setBusinesses((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));

@@ -330,9 +330,14 @@ async function startServer() {
 
         // Link or create professional profile in that business
         const existingProfs = db.getProfessionals(matchedBiz.id);
-        const alreadyProf = existingProfs.find((p) => p.email?.toLowerCase() === cleanEmail);
-        if (!alreadyProf) {
-          db.createProfessional(matchedBiz.id, {
+        const accessCodeInput = (req.body.accessCode || req.body.businessCode || '').trim();
+        const matchedByCode = existingProfs.find(
+          (p) => p.accessCode && p.accessCode.toLowerCase() === accessCodeInput.toLowerCase()
+        );
+        let targetProf = matchedByCode || existingProfs.find((p) => p.email?.toLowerCase() === cleanEmail);
+
+        if (!targetProf) {
+          targetProf = db.createProfessional(matchedBiz.id, {
             name,
             title: specialty || 'Profesional / Staff',
             photoUrl: 'https://images.unsplash.com/photo-1594824813629-9e8c3230a13d?auto=format&fit=crop&q=80&w=400',
@@ -341,8 +346,33 @@ async function startServer() {
             active: true,
             specialty: specialty || 'Atención General',
             serviceIds: [],
+            officeNumber: `Consultorio ${existingProfs.length + 1}`,
+            accessCode: accessCodeInput.startsWith('CONS-') || accessCodeInput.startsWith('STAFF-') ? accessCodeInput : undefined,
           });
         }
+
+        const newUser = db.createUser({
+          name,
+          email: cleanEmail,
+          password,
+          phone: phone || undefined,
+          role: selectedRole,
+          businessId: finalBusinessId,
+          professionalId: targetProf.id,
+          officeNumber: targetProf.officeNumber,
+          accessCode: targetProf.accessCode,
+        });
+
+        db.updateProfessional(targetProf.id, { userId: newUser.id });
+
+        const token = `td_tok_${newUser.id}_${Date.now()}_${Math.random().toString(36).substring(2, 8)}`;
+        activeSessions.set(token, newUser);
+
+        return res.status(201).json({
+          user: sanitizeUser(newUser),
+          token,
+          business: createdBusiness || (finalBusinessId ? db.getBusinessById(finalBusinessId) : null),
+        });
       } else if (selectedRole === 'customer') {
         finalBusinessId = null;
       }
@@ -487,9 +517,9 @@ async function startServer() {
             code: 'PROFESSIONAL_LIMIT_REACHED',
           });
         }
-        if (biz.plan === 'pro' && currentProfs.length >= 5) {
+        if (biz.plan === 'pro' && currentProfs.length >= 6) {
           return res.status(403).json({
-            error: 'El Plan Pro incluye hasta 5 profesionales. Asciende al Plan Experiencia AI para habilitar profesionales y sucursales ilimitadas.',
+            error: 'El Plan Pro incluye hasta 5 profesionales y especialistas (consultorios) + 1 del dueño o director (máximo 6 consultorios). Asciende al Plan Experiencia AI para consultorios ilimitados.',
             code: 'PROFESSIONAL_LIMIT_REACHED',
           });
         }

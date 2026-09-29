@@ -87,6 +87,10 @@ const INITIAL_DATA: DatabaseSchema = {
       active: true,
       specialty: 'Dermatocosmiatría Facial & Estética',
       serviceIds: ['srv_dermato_limpieza', 'srv_dermato_peeling', 'srv_dermato_antiage'],
+      officeNumber: 'Consultorio 1 (Director)',
+      accessCode: 'DUE-1001',
+      commissionRate: 0,
+      commissionType: 'percentage',
     },
     {
       id: 'prof_camila_dermato',
@@ -99,6 +103,10 @@ const INITIAL_DATA: DatabaseSchema = {
       active: true,
       specialty: 'Cosmiatría & Drenaje Facial',
       serviceIds: ['srv_dermato_limpieza', 'srv_dermato_hidra'],
+      officeNumber: 'Consultorio 2',
+      accessCode: 'STAFF-2002',
+      commissionRate: 20,
+      commissionType: 'percentage',
     },
   ],
   services: [
@@ -319,6 +327,9 @@ const INITIAL_DATA: DatabaseSchema = {
       password: 'staff123',
       role: 'staff',
       businessId: 'biz_dermatocosmiatria_spa',
+      professionalId: 'prof_camila_dermato',
+      officeNumber: 'Consultorio 2',
+      accessCode: 'STAFF-2002',
       phone: '+5491177778888',
     },
     {
@@ -366,6 +377,9 @@ const PRESET_SYSTEM_USERS: UserSession[] = [
     password: 'staff123',
     role: 'staff',
     businessId: 'biz_dermatocosmiatria_spa',
+    professionalId: 'prof_camila_dermato',
+    officeNumber: 'Consultorio 2',
+    accessCode: 'STAFF-2002',
     phone: '+5491177778888',
   },
   {
@@ -513,10 +527,16 @@ class Database {
   }
 
   public createProfessional(businessId: string, prof: Omit<Professional, 'id' | 'businessId'>): Professional {
+    const existing = this.data.professionals.filter((p) => p.businessId === businessId);
+    const count = existing.length;
     const newProf: Professional = {
       ...prof,
       id: `prof_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       businessId,
+      officeNumber: prof.officeNumber || `Consultorio ${count + 1}`,
+      accessCode: prof.accessCode || `CONS-${Math.floor(1000 + Math.random() * 9000)}`,
+      commissionRate: prof.commissionRate !== undefined ? prof.commissionRate : 20,
+      commissionType: prof.commissionType || 'percentage',
     };
     this.data.professionals.push(newProf);
     this.save();

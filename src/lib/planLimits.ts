@@ -130,24 +130,25 @@ export function checkProfessionalLimit(
   }
 
   if (business.plan === 'pro' || trial.isTrial) {
-    const PRO_MAX_PROFS = 5;
+    // Plan PRO: hasta 5 Profesionales y Especialistas (consultorios) + 1 del dueño o director (máximo 6)
+    const PRO_MAX_PROFS = 6;
     if (currentCount >= PRO_MAX_PROFS) {
       return {
         allowed: false,
         maxAllowed: PRO_MAX_PROFS,
-        reason: `El Plan Pro incluye hasta ${PRO_MAX_PROFS} profesionales con agendas independientes. Para profesionales ilimitados, asciende al Plan Experiencia AI.`,
+        reason: `El Plan Pro incluye hasta 5 consultorios de especialistas + 1 del dueño/director (máximo ${PRO_MAX_PROFS} consultorios). Para consultorios ilimitados, asciende al Plan Experiencia AI.`,
       };
     }
     return { allowed: true, maxAllowed: PRO_MAX_PROFS };
   }
 
-  // Free plan post-trial: 1 professional
+  // Freemium / Free plan post-trial: 1 profesional / consultorio
   const FREE_MAX_PROFS = 1;
   if (currentCount >= FREE_MAX_PROFS) {
     return {
       allowed: false,
       maxAllowed: FREE_MAX_PROFS,
-      reason: `El Plan Base Free incluye 1 profesional. Asciende al Plan Pro para gestionar hasta 5 profesionales con agendas separadas.`,
+      reason: `El Plan Freemium incluye 1 profesional y especialista (consultorio). Asciende al Plan Pro para habilitar hasta 5 consultorios + 1 del dueño.`,
     };
   }
 
