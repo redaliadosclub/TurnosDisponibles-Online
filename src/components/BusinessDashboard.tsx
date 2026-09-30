@@ -27,6 +27,11 @@ import {
   generateAgendaIcsContent,
   downloadIcsFile,
 } from '../lib/calendarExport';
+import {
+  getProfessionalCommissionSummary,
+  calculateAppointmentCommission,
+  type ProfessionalCommissionSummary,
+} from '../lib/commissionEngine';
 import { AIConfigPanel } from './AIConfigPanel';
 import {
   Calendar as CalendarIcon,
@@ -67,12 +72,19 @@ import {
   Award,
   QrCode,
   CheckCircle,
+  CheckCircle2,
   Key,
   KeyRound,
   Stethoscope,
   Percent,
   Coins,
   Lock,
+  Receipt,
+  Wallet,
+  FileText,
+  Calculator,
+  HelpCircle,
+  Info,
 } from 'lucide-react';
 
 interface BusinessDashboardProps {
@@ -133,6 +145,14 @@ export function BusinessDashboard({
   const [showProfModal, setShowProfModal] = useState(false);
   const [editingProf, setEditingProf] = useState<Professional | null>(null);
   const [profAccessCode, setProfAccessCode] = useState('');
+  const [profCommissionEnabled, setProfCommissionEnabled] = useState(true);
+  const [profCommissionType, setProfCommissionType] = useState<'percentage' | 'fixed' | 'none'>('percentage');
+  const [profCommissionRate, setProfCommissionRate] = useState<number>(20);
+  const [profCommissionCollectionMode, setProfCommissionCollectionMode] = useState<
+    'split_on_deposit' | 'manual_settlement' | 'direct_to_clinic' | 'direct_to_professional'
+  >('split_on_deposit');
+  const [selectedProfForSettlement, setSelectedProfForSettlement] = useState<Professional | null>(null);
+  const [copiedSettlementNote, setCopiedSettlementNote] = useState(false);
   const [showServiceModal, setShowServiceModal] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
   const [showTimeOffModal, setShowTimeOffModal] = useState(false);
@@ -300,6 +320,21 @@ export function BusinessDashboard({
   const [paymentSaving, setPaymentSaving] = useState<boolean>(false);
   const [paymentStatusMessage, setPaymentStatusMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
+  // Política General de Comisiones para Profesionales / Sub-inquilinos
+  const [commissionPolicyEnabled, setCommissionPolicyEnabled] = useState<boolean>(
+    business.commissionPolicyEnabled ?? true
+  );
+  const [commissionPolicyType, setCommissionPolicyType] = useState<'percentage' | 'fixed' | 'none'>(
+    business.commissionPolicyType || 'percentage'
+  );
+  const [commissionPolicyRate, setCommissionPolicyRate] = useState<number>(
+    business.commissionPolicyRate ?? 20
+  );
+  const [commissionPolicyCollectionMode, setCommissionPolicyCollectionMode] = useState<
+    'split_on_deposit' | 'manual_settlement' | 'direct_to_clinic' | 'direct_to_professional'
+  >(business.commissionPolicyCollectionMode || 'split_on_deposit');
+  const [applyingPolicyToAll, setApplyingPolicyToAll] = useState(false);
+
   useEffect(() => {
     setPaymentsEnabled(Boolean(business.paymentsEnabled));
     setDepositRequired(Boolean(business.depositRequired));
@@ -313,6 +348,10 @@ export function BusinessDashboard({
     setBankAccountHolder(business.bankAccountHolder || business.name);
     setBankCbu(business.bankCbu || '');
     setBankAlias(business.bankAlias || '');
+    setCommissionPolicyEnabled(business.commissionPolicyEnabled ?? true);
+    setCommissionPolicyType(business.commissionPolicyType || 'percentage');
+    setCommissionPolicyRate(business.commissionPolicyRate ?? 20);
+    setCommissionPolicyCollectionMode(business.commissionPolicyCollectionMode || 'split_on_deposit');
   }, [business]);
 
   const handleSavePayments = async () => {
@@ -332,13 +371,47 @@ export function BusinessDashboard({
         bankAccountHolder,
         bankCbu,
         bankAlias,
+        commissionPolicyEnabled,
+        commissionPolicyType,
+        commissionPolicyRate: Number(commissionPolicyRate),
+        commissionPolicyCollectionMode,
       });
       onUpdateBusiness(updated);
-      setPaymentStatusMessage({ type: 'success', text: '¡Configuración de señas y cobros guardada exitosamente!' });
+      setPaymentStatusMessage({ type: 'success', text: '¡Configuración de pagos y política de comisiones guardada exitosamente!' });
     } catch (err: any) {
       setPaymentStatusMessage({ type: 'error', text: err.message || 'Error al guardar la configuración de pagos.' });
     } finally {
       setPaymentSaving(false);
+    }
+  };
+
+  const handleApplyPolicyToAllProfessionals = async () => {
+    if (!window.confirm(`¿Deseas aplicar la política general (${commissionPolicyEnabled ? (commissionPolicyType === 'percentage' ? `${commissionPolicyRate}%` : `$${commissionPolicyRate.toLocaleString('es-AR')} fijo`) : 'Sin comisión'}) a todos los ${professionals.length} profesionales actuales?`)) {
+      return;
+    }
+    try {
+      setApplyingPolicyToAll(true);
+      const updatedProfs = await Promise.all(
+        professionals.map((prof) =>
+          api.updateProfessional(business.id, prof.id, {
+            commissionEnabled: commissionPolicyEnabled,
+            commissionType: commissionPolicyType,
+            commissionRate: Number(commissionPolicyRate),
+          })
+        )
+      );
+      setProfessionals(updatedProfs);
+      setPaymentStatusMessage({
+        type: 'success',
+        text: `¡Política aplicada con éxito a ${updatedProfs.length} profesionales!`,
+      });
+    } catch (err: any) {
+      setPaymentStatusMessage({
+        type: 'error',
+        text: err.message || 'Error al propagar política a profesionales.',
+      });
+    } finally {
+      setApplyingPolicyToAll(false);
     }
   };
 
@@ -886,28 +959,30 @@ export function BusinessDashboard({
   // Financial Settlement & Clinic Commission Breakdown (Owner Only)
   const financialBreakdown = useMemo(() => {
     return professionals.map((prof) => {
-      const profAppointments = appointments.filter(
+      const summary = getProfessionalCommissionSummary(prof, appointments, services);
+      const profApps = appointments.filter(
         (a) => a.professionalId === prof.id && (a.status === 'completed' || a.status === 'confirmed')
       );
-      const grossRevenue = profAppointments.reduce((sum, a) => {
-        const srv = services.find((s) => s.id === a.serviceId);
-        return sum + (srv ? srv.price : 0);
-      }, 0);
-      const rate = prof.commissionRate !== undefined ? prof.commissionRate : 20;
-      const clinicCommission = Math.round(grossRevenue * (rate / 100));
-      const netToProfessional = grossRevenue - clinicCommission;
-
       return {
         profId: prof.id,
         officeNumber: prof.officeNumber || 'Consultorio',
         name: prof.name,
         specialty: prof.specialty,
         accessCode: prof.accessCode || 'CONS-1001',
-        turnosCount: profAppointments.length,
-        grossRevenue,
-        commissionRate: rate,
-        clinicCommission,
-        netToProfessional,
+        turnosCount: summary.completedAppointments || profApps.length,
+        grossRevenue: summary.grossRevenue,
+        commissionEnabled: summary.commissionEnabled,
+        commissionType: summary.commissionType,
+        commissionRate: summary.commissionRate,
+        commissionRateDisplay: summary.commissionRateDisplay,
+        clinicCommission: summary.totalClinicCommission,
+        netToProfessional: summary.totalProfessionalNet,
+        depositsCollected: summary.totalDepositsCollected,
+        retainedCommission: summary.retainedCommissionFromDeposits,
+        pendingToClinic: summary.pendingSettlementToClinic,
+        pendingToProf: summary.pendingSettlementToProfessional,
+        prof,
+        appointments: profApps,
       };
     });
   }, [professionals, appointments, services]);
@@ -924,10 +999,63 @@ export function BusinessDashboard({
     () => financialBreakdown.reduce((sum, r) => sum + r.netToProfessional, 0),
     [financialBreakdown]
   );
+  const totalDepositsCollected = useMemo(
+    () => financialBreakdown.reduce((sum, r) => sum + r.depositsCollected, 0),
+    [financialBreakdown]
+  );
   const completedAppointments = useMemo(
     () => appointments.filter((a) => a.status === 'completed' || a.status === 'confirmed'),
     [appointments]
   );
+
+  const generateWhatsAppSettlementText = (prof: Professional) => {
+    const summary = getProfessionalCommissionSummary(prof, appointments, services);
+    const dateStr = new Date().toLocaleDateString('es-AR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    });
+
+    return `*📋 RESUMEN DE LIQUIDACIÓN DE HONORARIOS & COMISIONES*
+🏛️ *${business.name}*
+👨‍⚕️ *Especialista:* ${prof.name} (${prof.specialty})
+🏢 *Consultorio:* ${prof.officeNumber || 'Consultorio'}
+📅 *Fecha de emisión:* ${dateStr}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 *DETALLE CONSOLIDADO:*
+• *Turnos Atendidos:* ${summary.completedAppointments || summary.totalAppointments} consultas
+• *Facturación Bruta Total:* $${summary.grossRevenue.toLocaleString('es-AR')}
+• *Regla de Comisión Clínica:* ${summary.commissionRateDisplay}
+• *Comisión de la Clínica:* $${summary.totalClinicCommission.toLocaleString('es-AR')}
+• *Señas Pre-cobradas:* $${summary.totalDepositsCollected.toLocaleString('es-AR')}
+• *GANANCIA NETA ESPECIALISTA:* $${summary.totalProfessionalNet.toLocaleString('es-AR')}
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+📌 *ESTADO DE LIQUIDACIÓN:*
+${
+  summary.pendingSettlementToProfessional > 0
+    ? `✅ *Saldo a transferir al profesional:* $${summary.pendingSettlementToProfessional.toLocaleString('es-AR')}`
+    : summary.pendingSettlementToClinic > 0
+    ? `⚠️ *Saldo a favor de la clínica:* $${summary.pendingSettlementToClinic.toLocaleString('es-AR')}`
+    : `✅ *Cuentas saldadas al 100%* ($0 pendiente)`
+}
+
+_Generado automáticamente desde ${business.name} vía Turnos Disponibles_`;
+  };
+
+  const handleCopySettlementText = (prof: Professional) => {
+    const text = generateWhatsAppSettlementText(prof);
+    navigator.clipboard.writeText(text);
+    setCopiedSettlementNote(true);
+    setTimeout(() => setCopiedSettlementNote(false), 2500);
+  };
+
+  const handleOpenWhatsAppSettlement = (prof: Professional) => {
+    const text = generateWhatsAppSettlementText(prof);
+    const cleanPhone = (prof.phone || '').replace(/[^0-9]/g, '');
+    const waLink = cleanPhone ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}` : `https://wa.me/?text=${encodeURIComponent(text)}`;
+    window.open(waLink, '_blank');
+  };
 
   const isOwnerOrAdmin = userRole === 'business_owner' || userRole === 'superadmin';
 
@@ -1924,6 +2052,10 @@ export function BusinessDashboard({
                   } else {
                     setEditingProf(null);
                     setProfAccessCode(`CONS-${Math.floor(1000 + Math.random() * 9000)}`);
+                    setProfCommissionEnabled(true);
+                    setProfCommissionType('percentage');
+                    setProfCommissionRate(20);
+                    setProfCommissionCollectionMode('split_on_deposit');
                     setShowProfModal(true);
                   }
                 }}
@@ -2005,9 +2137,19 @@ export function BusinessDashboard({
                           <Percent className="w-3.5 h-3.5 text-amber-600" />
                           Comisión de la Clínica:
                         </span>
-                        <span className="font-bold text-amber-900 bg-amber-50 px-2 py-0.5 rounded-md text-[11px] border border-amber-200">
-                          {prof.commissionRate !== undefined ? `${prof.commissionRate}%` : '20%'}
-                        </span>
+                        {prof.commissionEnabled === false || prof.commissionType === 'none' ? (
+                          <span className="font-bold text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-md text-[11px] border border-emerald-200">
+                            Sin comisión (100% staff)
+                          </span>
+                        ) : prof.commissionType === 'fixed' ? (
+                          <span className="font-bold text-sky-900 bg-sky-50 px-2 py-0.5 rounded-md text-[11px] border border-sky-200">
+                            ${(prof.commissionRate ?? 4000).toLocaleString('es-AR')} fijo / turno
+                          </span>
+                        ) : (
+                          <span className="font-bold text-amber-900 bg-amber-50 px-2 py-0.5 rounded-md text-[11px] border border-amber-200">
+                            {prof.commissionRate !== undefined ? `${prof.commissionRate}%` : '20%'} por consulta
+                          </span>
+                        )}
                       </div>
                     </div>
                   </div>
@@ -2029,10 +2171,15 @@ export function BusinessDashboard({
                         onClick={() => {
                           setEditingProf(prof);
                           setProfAccessCode(prof.accessCode || `CONS-${Math.floor(1000 + Math.random() * 9000)}`);
+                          const isEnabled = prof.commissionEnabled !== false && prof.commissionType !== 'none';
+                          setProfCommissionEnabled(isEnabled);
+                          setProfCommissionType(!isEnabled ? 'none' : (prof.commissionType || 'percentage'));
+                          setProfCommissionRate(prof.commissionRate !== undefined ? prof.commissionRate : 20);
+                          setProfCommissionCollectionMode(prof.commissionCollectionMode || 'split_on_deposit');
                           setShowProfModal(true);
                         }}
                         className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 cursor-pointer"
-                        title="Editar ficha del médico"
+                        title="Editar ficha del médico y comisiones"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
@@ -3086,10 +3233,10 @@ export function BusinessDashboard({
                 </div>
 
                 {/* Owner Financial KPI Cards */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                   <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs">
                     <div className="flex items-center justify-between text-slate-500 mb-1">
-                      <span className="text-xs font-semibold">Facturación Bruta Total</span>
+                      <span className="text-xs font-semibold">Facturación Bruta</span>
                       <DollarSign className="w-4 h-4 text-emerald-600" />
                     </div>
                     <div className="text-2xl font-extrabold text-slate-900">
@@ -3100,29 +3247,40 @@ export function BusinessDashboard({
 
                   <div className="bg-white p-5 rounded-3xl border border-teal-200 shadow-xs bg-teal-50/20">
                     <div className="flex items-center justify-between text-teal-900 mb-1">
-                      <span className="text-xs font-bold">Comisión / Ganancia Clínica</span>
+                      <span className="text-xs font-bold">Comisión Clínica</span>
                       <Coins className="w-4 h-4 text-teal-600" />
                     </div>
                     <div className="text-2xl font-extrabold text-teal-800">
                       ${totalClinicCommission.toLocaleString('es-AR')}
                     </div>
-                    <span className="text-[10px] text-teal-700 font-medium">Retención promedio por consultorios</span>
+                    <span className="text-[10px] text-teal-700 font-medium">Retención por % o monto fijo</span>
                   </div>
 
                   <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs">
                     <div className="flex items-center justify-between text-slate-500 mb-1">
-                      <span className="text-xs font-semibold">A Liquidar a Especialistas</span>
+                      <span className="text-xs font-semibold">Neto a Especialistas</span>
                       <Users className="w-4 h-4 text-blue-600" />
                     </div>
                     <div className="text-2xl font-extrabold text-slate-900">
                       ${totalNetToProfessionals.toLocaleString('es-AR')}
                     </div>
-                    <span className="text-[10px] text-slate-500 font-medium">Saldo neto a pagar a médicos</span>
+                    <span className="text-[10px] text-slate-500 font-medium">Honorarios médicos netos</span>
+                  </div>
+
+                  <div className="bg-white p-5 rounded-3xl border border-amber-200 shadow-xs bg-amber-50/20">
+                    <div className="flex items-center justify-between text-amber-900 mb-1">
+                      <span className="text-xs font-bold">Señas Recaudadas</span>
+                      <Receipt className="w-4 h-4 text-amber-600" />
+                    </div>
+                    <div className="text-2xl font-extrabold text-amber-800">
+                      ${totalDepositsCollected.toLocaleString('es-AR')}
+                    </div>
+                    <span className="text-[10px] text-amber-700 font-medium">Mercado Pago y Transferencias</span>
                   </div>
 
                   <div className="bg-white p-5 rounded-3xl border border-slate-200 shadow-xs">
                     <div className="flex items-center justify-between text-slate-500 mb-1">
-                      <span className="text-xs font-semibold">Turnos Atendidos Totales</span>
+                      <span className="text-xs font-semibold">Turnos Atendidos</span>
                       <CheckCircle className="w-4 h-4 text-emerald-600" />
                     </div>
                     <div className="text-2xl font-extrabold text-slate-900">
@@ -3134,16 +3292,17 @@ export function BusinessDashboard({
 
                 {/* Detailed Breakdown per Office / Specialist Table */}
                 <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden">
-                  <div className="p-4 border-b border-slate-100 flex items-center justify-between">
+                  <div className="p-4 border-b border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                     <div>
-                      <h4 className="font-bold text-slate-900 text-sm">
-                        Liquidación y Rendimiento por Consultorio / Especialista
+                      <h4 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                        <Wallet className="w-4 h-4 text-teal-600" />
+                        <span>Liquidación y Rendimiento por Consultorio / Especialista</span>
                       </h4>
                       <p className="text-[11px] text-slate-500">
-                        Cálculo automático de retención clínica según el porcentaje pactado con cada médico.
+                        Cálculo automático de comisiones (opcional: porcentaje, monto fijo o sin comisión) y liquidaciones para cada médico.
                       </p>
                     </div>
-                    <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-full">
+                    <span className="text-xs font-semibold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-full self-start sm:self-center">
                       {financialBreakdown.length} Consultorios Activos
                     </span>
                   </div>
@@ -3152,14 +3311,16 @@ export function BusinessDashboard({
                     <table className="w-full text-left text-xs text-slate-700">
                       <thead className="bg-slate-50 text-[11px] uppercase font-semibold text-slate-500 border-b border-slate-200">
                         <tr>
-                          <th className="px-4 py-3">Consultorio Asignado</th>
+                          <th className="px-4 py-3">Consultorio</th>
                           <th className="px-4 py-3">Especialista / Médico</th>
-                          <th className="px-4 py-3 text-center">Clave de Acceso</th>
-                          <th className="px-4 py-3 text-center">Turnos Atendidos</th>
+                          <th className="px-4 py-3 text-center">Turnos</th>
                           <th className="px-4 py-3 text-right">Facturación Bruta</th>
-                          <th className="px-4 py-3 text-center">% Comisión</th>
-                          <th className="px-4 py-3 text-right text-teal-700">Ganancia Clínica</th>
-                          <th className="px-4 py-3 text-right font-bold text-slate-900">A Liquidar al Médico</th>
+                          <th className="px-4 py-3 text-center">Regla de Comisión</th>
+                          <th className="px-4 py-3 text-right text-teal-700">Comisión Clínica</th>
+                          <th className="px-4 py-3 text-right text-amber-700">Señas</th>
+                          <th className="px-4 py-3 text-right font-bold text-slate-900">Neto al Médico</th>
+                          <th className="px-4 py-3 text-right">Saldo Pendiente</th>
+                          <th className="px-4 py-3 text-center">Acciones</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-slate-100">
@@ -3175,9 +3336,6 @@ export function BusinessDashboard({
                               <div className="font-semibold text-slate-900">{row.name}</div>
                               <div className="text-[11px] text-slate-500">{row.specialty}</div>
                             </td>
-                            <td className="px-4 py-3 text-center font-mono font-bold text-teal-800 text-[11px]">
-                              {row.accessCode}
-                            </td>
                             <td className="px-4 py-3 text-center font-bold">
                               {row.turnosCount}
                             </td>
@@ -3185,15 +3343,62 @@ export function BusinessDashboard({
                               ${row.grossRevenue.toLocaleString('es-AR')}
                             </td>
                             <td className="px-4 py-3 text-center">
-                              <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-900 font-bold text-[11px] border border-amber-200">
-                                {row.commissionRate}%
-                              </span>
+                              {!row.commissionEnabled || row.commissionType === 'none' ? (
+                                <span className="px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-900 font-bold text-[11px] border border-emerald-200">
+                                  Sin comisión
+                                </span>
+                              ) : row.commissionType === 'fixed' ? (
+                                <span className="px-2 py-0.5 rounded-md bg-sky-50 text-sky-900 font-bold text-[11px] border border-sky-200">
+                                  ${row.commissionRate.toLocaleString('es-AR')} Fijo
+                                </span>
+                              ) : (
+                                <span className="px-2 py-0.5 rounded-md bg-amber-50 text-amber-900 font-bold text-[11px] border border-amber-200">
+                                  {row.commissionRate}%
+                                </span>
+                              )}
                             </td>
                             <td className="px-4 py-3 text-right font-bold text-teal-700">
                               ${row.clinicCommission.toLocaleString('es-AR')}
                             </td>
+                            <td className="px-4 py-3 text-right font-medium text-amber-700">
+                              ${row.depositsCollected.toLocaleString('es-AR')}
+                            </td>
                             <td className="px-4 py-3 text-right font-extrabold text-slate-900">
                               ${row.netToProfessional.toLocaleString('es-AR')}
+                            </td>
+                            <td className="px-4 py-3 text-right text-[11px]">
+                              {row.pendingToProf > 0 ? (
+                                <span className="font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md border border-emerald-200">
+                                  A transferir: ${row.pendingToProf.toLocaleString('es-AR')}
+                                </span>
+                              ) : row.pendingToClinic > 0 ? (
+                                <span className="font-bold text-amber-800 bg-amber-50 px-2 py-0.5 rounded-md border border-amber-200">
+                                  A cobrar: ${row.pendingToClinic.toLocaleString('es-AR')}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400 font-medium">Saldado ($0)</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-center">
+                              <div className="flex items-center justify-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => setSelectedProfForSettlement(row.prof)}
+                                  className="px-2.5 py-1 rounded-lg bg-teal-50 hover:bg-teal-100 text-teal-800 font-bold text-[11px] transition cursor-pointer border border-teal-200 flex items-center gap-1"
+                                  title="Ver detalle de consultas y liquidación"
+                                >
+                                  <FileText className="w-3 h-3 text-teal-600" />
+                                  <span>Detalle</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenWhatsAppSettlement(row.prof)}
+                                  className="p-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold transition cursor-pointer border border-emerald-200"
+                                  title="Enviar liquidación consolidada por WhatsApp"
+                                >
+                                  <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
+                                </button>
+                              </div>
                             </td>
                           </tr>
                         ))}
@@ -3766,7 +3971,323 @@ export function BusinessDashboard({
                   ) : (
                     <>
                       <Check className="w-4 h-4 text-emerald-400" />
-                      <span>Guardar Configuración de Pagos</span>
+                      <span>Guardar Datos de Pago</span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {/* Política General de Comisiones & Alquiler de Consultorios (Sub-inquilinos / Staff) */}
+            <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-200 shadow-xs space-y-6">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-100">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-amber-500/10 text-amber-600 flex items-center justify-center font-bold">
+                    <Receipt className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-black text-slate-900 text-base">
+                        Política de Comisiones & Liquidación (Staff)
+                      </h4>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                          commissionPolicyEnabled && commissionPolicyType !== 'none'
+                            ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                            : 'bg-slate-100 text-slate-600 border border-slate-200'
+                        }`}
+                      >
+                        {commissionPolicyEnabled && commissionPolicyType !== 'none'
+                          ? 'Comisión Activa'
+                          : 'Sin Comisión (100% Staff)'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500 mt-0.5">
+                      Define si la clínica retiene un porcentaje o un monto fijo por cada turno atendido por los profesionales.
+                    </p>
+                  </div>
+                </div>
+
+                <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                  <input
+                    type="checkbox"
+                    checked={commissionPolicyEnabled}
+                    onChange={(e) => setCommissionPolicyEnabled(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-amber-500"></div>
+                </label>
+              </div>
+
+              {commissionPolicyEnabled ? (
+                <div className="space-y-5">
+                  {/* Tipo de Comisión */}
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                      Modalidad de Cobro de Comisión
+                    </label>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setCommissionPolicyType('percentage')}
+                        className={`p-3.5 rounded-2xl border text-left transition cursor-pointer flex flex-col justify-between ${
+                          commissionPolicyType === 'percentage'
+                            ? 'bg-amber-500/10 border-amber-500 text-amber-950 font-bold shadow-xs'
+                            : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between w-full mb-1">
+                          <span className="text-xs font-bold flex items-center gap-1.5">
+                            <Percent className="w-3.5 h-3.5 text-amber-600" />
+                            Porcentaje (%)
+                          </span>
+                          {commissionPolicyType === 'percentage' && (
+                            <div className="w-2 h-2 rounded-full bg-amber-500" />
+                          )}
+                        </div>
+                        <span className="text-[11px] text-slate-500 font-normal">
+                          Retiene un % del valor de cada servicio realizado.
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setCommissionPolicyType('fixed')}
+                        className={`p-3.5 rounded-2xl border text-left transition cursor-pointer flex flex-col justify-between ${
+                          commissionPolicyType === 'fixed'
+                            ? 'bg-teal-500/10 border-teal-500 text-teal-950 font-bold shadow-xs'
+                            : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between w-full mb-1">
+                          <span className="text-xs font-bold flex items-center gap-1.5">
+                            <DollarSign className="w-3.5 h-3.5 text-teal-600" />
+                            Monto Fijo ($ ARS)
+                          </span>
+                          {commissionPolicyType === 'fixed' && (
+                            <div className="w-2 h-2 rounded-full bg-teal-500" />
+                          )}
+                        </div>
+                        <span className="text-[11px] text-slate-500 font-normal">
+                          Canon fijo en pesos por cada turno atendido.
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setCommissionPolicyType('none')}
+                        className={`p-3.5 rounded-2xl border text-left transition cursor-pointer flex flex-col justify-between ${
+                          commissionPolicyType === 'none'
+                            ? 'bg-slate-900 text-white font-bold shadow-xs border-slate-900'
+                            : 'bg-white border-slate-200 text-slate-700 hover:border-slate-300'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between w-full mb-1">
+                          <span className="text-xs font-bold flex items-center gap-1.5">
+                            <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                            Sin Comisión (0%)
+                          </span>
+                          {commissionPolicyType === 'none' && (
+                            <div className="w-2 h-2 rounded-full bg-emerald-400" />
+                          )}
+                        </div>
+                        <span className={`text-[11px] font-normal ${commissionPolicyType === 'none' ? 'text-slate-300' : 'text-slate-500'}`}>
+                          El profesional percibe el 100% del honorario.
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Valor de la Comisión */}
+                  {commissionPolicyType !== 'none' && (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                          {commissionPolicyType === 'percentage'
+                            ? 'Porcentaje a cobrar al staff (%)'
+                            : 'Monto fijo por turno ($ ARS)'}
+                        </label>
+                        <div className="relative">
+                          <input
+                            type="number"
+                            min="0"
+                            max={commissionPolicyType === 'percentage' ? 100 : 1000000}
+                            step={commissionPolicyType === 'percentage' ? '1' : '500'}
+                            value={commissionPolicyRate}
+                            onChange={(e) => setCommissionPolicyRate(Math.max(0, Number(e.target.value)))}
+                            className="w-full pl-9 pr-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-sm font-black text-slate-900 focus:outline-none focus:ring-2 focus:ring-amber-500"
+                          />
+                          <span className="absolute left-3 top-2.5 text-xs text-slate-400 font-bold">
+                            {commissionPolicyType === 'percentage' ? '%' : '$'}
+                          </span>
+                        </div>
+
+                        {/* Presets rápidos */}
+                        <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                          <span className="text-[10px] text-slate-400 font-semibold mr-1">Rápidos:</span>
+                          {commissionPolicyType === 'percentage' ? (
+                            <>
+                              {[10, 15, 20, 30, 50].map((rate) => (
+                                <button
+                                  key={rate}
+                                  type="button"
+                                  onClick={() => setCommissionPolicyRate(rate)}
+                                  className={`px-2 py-0.5 rounded-lg text-[10px] font-bold cursor-pointer transition ${
+                                    commissionPolicyRate === rate
+                                      ? 'bg-amber-500 text-slate-950 font-black'
+                                      : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                                  }`}
+                                >
+                                  {rate}%
+                                </button>
+                              ))}
+                            </>
+                          ) : (
+                            <>
+                              {[2000, 3000, 4000, 5000, 8000].map((rate) => (
+                                <button
+                                  key={rate}
+                                  type="button"
+                                  onClick={() => setCommissionPolicyRate(rate)}
+                                  className={`px-2 py-0.5 rounded-lg text-[10px] font-bold cursor-pointer transition ${
+                                    commissionPolicyRate === rate
+                                      ? 'bg-teal-500 text-slate-950 font-black'
+                                      : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-100'
+                                  }`}
+                                >
+                                  ${(rate / 1000).toFixed(0)}k
+                                </button>
+                              ))}
+                            </>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Modalidad de Liquidación */}
+                      <div>
+                        <label className="block text-xs font-bold text-slate-700 mb-1.5">
+                          Modalidad de Liquidación / Retención
+                        </label>
+                        <select
+                          value={commissionPolicyCollectionMode}
+                          onChange={(e) =>
+                            setCommissionPolicyCollectionMode(
+                              e.target.value as 'split_on_deposit' | 'manual_settlement' | 'direct_to_clinic' | 'direct_to_professional'
+                            )
+                          }
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 bg-white text-xs font-medium focus:outline-none focus:ring-2 focus:ring-amber-500"
+                        >
+                          <option value="split_on_deposit">
+                            🛡️ Split con Seña: La clínica retiene la seña como pago de comisión
+                          </option>
+                          <option value="manual_settlement">
+                            📋 Liquidación Periódica: Especialista abona su comisión acumulada
+                          </option>
+                          <option value="direct_to_clinic">
+                            🏥 Cobro Centralizado en Clínica: La clínica abona el neto al especialista
+                          </option>
+                          <option value="direct_to_professional">
+                            💳 Cobro Directo por Especialista: Cada profesional cobra en su propia cuenta
+                          </option>
+                        </select>
+                        <p className="text-[11px] text-slate-500 mt-1.5">
+                          El módulo financiero del panel calculará los saldos a favor o en contra automáticamente.
+                        </p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Simulación Ilustrativa */}
+                  <div className="bg-gradient-to-br from-amber-50/70 to-orange-50/50 p-4 rounded-2xl border border-amber-200/80">
+                    <h5 className="text-xs font-black text-amber-950 uppercase tracking-wide mb-2 flex items-center gap-1.5">
+                      <Calculator className="w-3.5 h-3.5 text-amber-600" />
+                      <span>Ejemplo de Liquidación (Consulta estándar de $20.000 ARS):</span>
+                    </h5>
+                    {commissionPolicyType === 'none' ? (
+                      <p className="text-xs text-amber-900">
+                        El profesional recibe <strong>$20.000 ARS</strong> netos (100%). La clínica no retiene comisión.
+                      </p>
+                    ) : (
+                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+                        <div className="bg-white/80 p-2.5 rounded-xl border border-amber-200">
+                          <span className="block text-[10px] text-slate-500 uppercase font-semibold">Valor Consulta</span>
+                          <span className="font-bold text-slate-900 text-sm">$20.000</span>
+                        </div>
+                        <div className="bg-white/80 p-2.5 rounded-xl border border-amber-200">
+                          <span className="block text-[10px] text-amber-700 uppercase font-bold">Comisión Clínica</span>
+                          <span className="font-black text-amber-700 text-sm">
+                            $
+                            {(commissionPolicyType === 'percentage'
+                              ? (20000 * commissionPolicyRate) / 100
+                              : Math.min(commissionPolicyRate, 20000)
+                            ).toLocaleString('es-AR')}
+                          </span>
+                        </div>
+                        <div className="bg-white/80 p-2.5 rounded-xl border border-amber-200">
+                          <span className="block text-[10px] text-emerald-700 uppercase font-bold">Ganancia Staff</span>
+                          <span className="font-black text-emerald-700 text-sm">
+                            $
+                            {(commissionPolicyType === 'percentage'
+                              ? 20000 - (20000 * commissionPolicyRate) / 100
+                              : Math.max(0, 20000 - commissionPolicyRate)
+                            ).toLocaleString('es-AR')}
+                          </span>
+                        </div>
+                        <div className="bg-white/80 p-2.5 rounded-xl border border-amber-200">
+                          <span className="block text-[10px] text-sky-700 uppercase font-bold">Regla Aplicada</span>
+                          <span className="font-bold text-sky-900 text-xs">
+                            {commissionPolicyType === 'percentage' ? `${commissionPolicyRate}%` : `$${commissionPolicyRate.toLocaleString('es-AR')} Fijo`}
+                          </span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ) : (
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs text-slate-600 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-slate-400 shrink-0" />
+                  <span>
+                    El cobro de comisiones está <strong>desactivado</strong>. Todos los ingresos por consulta corresponden 100% al profesional o especialista que atiende el turno.
+                  </span>
+                </div>
+              )}
+
+              {/* Botones de Acción de Política */}
+              <div className="pt-4 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3">
+                <button
+                  type="button"
+                  onClick={handleApplyPolicyToAllProfessionals}
+                  disabled={applyingPolicyToAll || professionals.length === 0}
+                  className="w-full sm:w-auto px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs border border-slate-300 transition cursor-pointer flex items-center justify-center gap-2"
+                >
+                  {applyingPolicyToAll ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-slate-700 border-t-transparent rounded-full animate-spin" />
+                      <span>Aplicando a {professionals.length} profesionales...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Users className="w-3.5 h-3.5 text-slate-600" />
+                      <span>Propagar esta regla a todos los profesionales ({professionals.length})</span>
+                    </>
+                  )}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleSavePayments}
+                  disabled={paymentSaving}
+                  className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-2"
+                >
+                  {paymentSaving ? (
+                    <>
+                      <div className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                      <span>Guardando política...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="w-4 h-4" />
+                      <span>Guardar Política de Comisiones</span>
                     </>
                   )}
                 </button>
@@ -3945,8 +4466,10 @@ export function BusinessDashboard({
                   active: formData.get('active') === 'on',
                   officeNumber: (formData.get('officeNumber') as string) || `Consultorio ${professionals.length + 1}`,
                   accessCode: profAccessCode || (formData.get('accessCode') as string) || `CONS-${Math.floor(1000 + Math.random() * 9000)}`,
-                  commissionRate: Number(formData.get('commissionRate') || 20),
-                  commissionType: 'percentage' as const,
+                  commissionEnabled: profCommissionEnabled,
+                  commissionType: profCommissionEnabled ? profCommissionType : 'none',
+                  commissionRate: profCommissionEnabled ? Number(profCommissionRate || 0) : 0,
+                  commissionCollectionMode: profCommissionCollectionMode,
                   serviceIds: services.map((s) => s.id),
                 };
 
@@ -3973,7 +4496,7 @@ export function BusinessDashboard({
                 }
                 setShowProfModal(false);
               }}
-              className="space-y-3 text-xs"
+              className="space-y-3.5 text-xs max-h-[80vh] overflow-y-auto pr-1"
             >
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Nombre Completo *</label>
@@ -3998,35 +4521,18 @@ export function BusinessDashboard({
                 />
               </div>
 
-              {/* Office Number & Clinic Commission */}
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    Consultorio Asignado *
-                  </label>
-                  <input
-                    type="text"
-                    name="officeNumber"
-                    required
-                    defaultValue={editingProf?.officeNumber || `Consultorio ${professionals.length + 1}`}
-                    placeholder="Ej. Consultorio 1, Box Dental 2"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">
-                    Comisión Clínica (%)
-                  </label>
-                  <input
-                    type="number"
-                    name="commissionRate"
-                    min={0}
-                    max={100}
-                    defaultValue={editingProf?.commissionRate !== undefined ? editingProf.commissionRate : 20}
-                    placeholder="Ej. 20"
-                    className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
-                  />
-                </div>
+              <div>
+                <label className="block font-semibold text-slate-700 mb-1">
+                  Consultorio Asignado *
+                </label>
+                <input
+                  type="text"
+                  name="officeNumber"
+                  required
+                  defaultValue={editingProf?.officeNumber || `Consultorio ${professionals.length + 1}`}
+                  placeholder="Ej. Consultorio 1, Box Dental 2"
+                  className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white"
+                />
               </div>
 
               {/* Unique Access Code with Generator */}
@@ -4057,8 +4563,184 @@ export function BusinessDashboard({
                   />
                 </div>
                 <p className="text-[10px] text-teal-800">
-                  Esta es la clave privada asignada con la que el médico accederá a su Panel de Administración privado y autónomo.
+                  Clave privada con la que el especialista ingresa a su panel autónomo.
                 </p>
+              </div>
+
+              {/* Complete Commission Configuration Section */}
+              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h5 className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                      <Coins className="w-3.5 h-3.5 text-teal-600" />
+                      <span>Comisión de la Clínica</span>
+                    </h5>
+                    <p className="text-[11px] text-slate-500">
+                      Opcional: configura si la clínica retiene comisión por cada consulta.
+                    </p>
+                  </div>
+                  <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                    <input
+                      type="checkbox"
+                      checked={profCommissionEnabled}
+                      onChange={(e) => {
+                        const val = e.target.checked;
+                        setProfCommissionEnabled(val);
+                        if (val && profCommissionType === 'none') {
+                          setProfCommissionType('percentage');
+                          setProfCommissionRate(20);
+                        }
+                      }}
+                      className="sr-only peer"
+                    />
+                    <div className="w-9 h-5 bg-slate-300 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-teal-600"></div>
+                  </label>
+                </div>
+
+                {profCommissionEnabled ? (
+                  <div className="space-y-3 pt-2 border-t border-slate-200/80">
+                    {/* Commission Type Selector */}
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1.5">
+                        Tipo de Retención / Cobro:
+                      </label>
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setProfCommissionType('percentage');
+                            if (profCommissionRate > 100) setProfCommissionRate(20);
+                          }}
+                          className={`px-3 py-2 rounded-xl text-xs font-bold border transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                            profCommissionType === 'percentage'
+                              ? 'bg-teal-500 text-slate-950 border-teal-600 shadow-xs'
+                              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          <Percent className="w-3.5 h-3.5" />
+                          <span>Porcentaje (%)</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setProfCommissionType('fixed');
+                            if (profCommissionRate <= 100) setProfCommissionRate(4000);
+                          }}
+                          className={`px-3 py-2 rounded-xl text-xs font-bold border transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                            profCommissionType === 'fixed'
+                              ? 'bg-teal-500 text-slate-950 border-teal-600 shadow-xs'
+                              : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                          }`}
+                        >
+                          <DollarSign className="w-3.5 h-3.5" />
+                          <span>Monto Fijo ($ ARS)</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Rate / Amount Input & Presets */}
+                    <div>
+                      <div className="flex items-center justify-between mb-1">
+                        <label className="text-[11px] font-semibold text-slate-700">
+                          {profCommissionType === 'percentage'
+                            ? 'Porcentaje por Consulta:'
+                            : 'Monto Fijo por Turno:'}
+                        </label>
+                        <span className="text-[11px] font-bold text-teal-800">
+                          {profCommissionType === 'percentage'
+                            ? `${profCommissionRate}%`
+                            : `$${Number(profCommissionRate || 0).toLocaleString('es-AR')}`}
+                        </span>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          name="commissionRate"
+                          min={0}
+                          max={profCommissionType === 'percentage' ? 100 : 500000}
+                          value={profCommissionRate}
+                          onChange={(e) => setProfCommissionRate(Number(e.target.value))}
+                          placeholder={profCommissionType === 'percentage' ? 'Ej. 20' : 'Ej. 4000'}
+                          className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white font-bold text-slate-900"
+                        />
+                        <span className="absolute right-3 top-2 font-bold text-slate-400 text-xs">
+                          {profCommissionType === 'percentage' ? '%' : 'ARS'}
+                        </span>
+                      </div>
+
+                      {/* Quick Presets */}
+                      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                        <span className="text-[10px] text-slate-400 font-medium">Sugeridos:</span>
+                        {profCommissionType === 'percentage'
+                          ? [10, 15, 20, 25, 30, 50].map((val) => (
+                              <button
+                                key={val}
+                                type="button"
+                                onClick={() => setProfCommissionRate(val)}
+                                className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition cursor-pointer ${
+                                  profCommissionRate === val
+                                    ? 'bg-teal-600 text-white'
+                                    : 'bg-slate-200/80 text-slate-700 hover:bg-slate-300'
+                                }`}
+                              >
+                                {val}%
+                              </button>
+                            ))
+                          : [2000, 3000, 4000, 5000, 8000, 10000].map((val) => (
+                              <button
+                                key={val}
+                                type="button"
+                                onClick={() => setProfCommissionRate(val)}
+                                className={`px-2 py-0.5 rounded-md text-[10px] font-bold transition cursor-pointer ${
+                                  profCommissionRate === val
+                                    ? 'bg-teal-600 text-white'
+                                    : 'bg-slate-200/80 text-slate-700 hover:bg-slate-300'
+                                }`}
+                              >
+                                ${(val / 1000).toFixed(0)}k
+                              </button>
+                            ))}
+                      </div>
+                    </div>
+
+                    {/* Collection / Retention Mode */}
+                    <div>
+                      <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                        Modalidad de Liquidación / Cobro:
+                      </label>
+                      <select
+                        name="commissionCollectionMode"
+                        value={profCommissionCollectionMode}
+                        onChange={(e: any) => setProfCommissionCollectionMode(e.target.value)}
+                        className="w-full px-3 py-2 rounded-xl border border-slate-300 bg-white text-xs font-medium text-slate-800"
+                      >
+                        <option value="split_on_deposit">
+                          💳 Retención Automática vía Seña (Mercado Pago)
+                        </option>
+                        <option value="manual_settlement">
+                          📑 Liquidación Periódica en Consultorio
+                        </option>
+                        <option value="direct_to_clinic">
+                          🏥 Cobro Centralizado por Clínica (Transferir Neto)
+                        </option>
+                      </select>
+                      <p className="text-[10px] text-slate-500 mt-1">
+                        {profCommissionCollectionMode === 'split_on_deposit'
+                          ? 'La seña abonada por el paciente entra a cuenta de la comisión de la clínica de forma automática.'
+                          : profCommissionCollectionMode === 'manual_settlement'
+                          ? 'El profesional cobra el total en mano y liquida la comisión periódicamente según el reporte.'
+                          : 'La clínica cobra el 100% de la consulta y le transfiere el saldo neto al profesional.'}
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 text-[11px] flex items-center gap-2">
+                    <CheckCircle className="w-4 h-4 text-emerald-600 shrink-0" />
+                    <span>
+                      <strong>Sin comisión:</strong> El especialista percibe el 100% del valor de cada consulta atendida (0% de retención).
+                    </span>
+                  </div>
+                )}
               </div>
 
               <div>
@@ -4120,15 +4802,210 @@ export function BusinessDashboard({
               <div className="pt-2">
                 <button
                   type="submit"
-                  className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white font-bold transition"
+                  className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white font-bold transition shadow-xs cursor-pointer"
                 >
-                  Guardar Profesional
+                  Guardar Profesional & Comisiones
                 </button>
               </div>
             </form>
           </div>
         </div>
       )}
+
+      {/* MODAL: DETALLE DE LIQUIDACIÓN Y CONSULTAS DEL ESPECIALISTA (DUEÑO) */}
+      {selectedProfForSettlement && (() => {
+        const summary = getProfessionalCommissionSummary(selectedProfForSettlement, appointments, services);
+        const profApps = appointments.filter(
+          (a) => a.professionalId === selectedProfForSettlement.id && (a.status === 'completed' || a.status === 'confirmed')
+        );
+        const serviceMap = new Map<string, Service>(services.map((s) => [s.id, s]));
+
+        return (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4">
+            <div className="bg-white rounded-3xl max-w-2xl w-full p-6 shadow-2xl border border-slate-200 max-h-[90vh] flex flex-col justify-between">
+              <div>
+                {/* Header */}
+                <div className="flex items-start justify-between pb-4 border-b border-slate-100">
+                  <div className="flex items-center gap-3">
+                    <img
+                      src={selectedProfForSettlement.photoUrl || 'https://images.unsplash.com/photo-1537368910025-700350fe46c7?w=120'}
+                      alt={selectedProfForSettlement.name}
+                      className="w-12 h-12 rounded-2xl object-cover border border-slate-200"
+                    />
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-bold text-slate-900 text-base">
+                          Liquidación: {selectedProfForSettlement.name}
+                        </h3>
+                        <span className="px-2 py-0.5 rounded-md bg-teal-50 text-teal-800 font-bold text-[10px] border border-teal-200">
+                          {selectedProfForSettlement.officeNumber || 'Consultorio'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-500">
+                        {selectedProfForSettlement.specialty} • Regla: <strong>{summary.commissionRateDisplay}</strong>
+                      </p>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => setSelectedProfForSettlement(null)}
+                    className="p-1.5 rounded-full text-slate-400 hover:text-slate-600 cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                {/* Metrics Summary Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 my-4 text-xs">
+                  <div className="p-3 bg-slate-50 rounded-2xl border border-slate-200">
+                    <span className="text-[11px] text-slate-500 block">Facturación Bruta:</span>
+                    <span className="text-base font-extrabold text-slate-900">
+                      ${summary.grossRevenue.toLocaleString('es-AR')}
+                    </span>
+                    <span className="text-[10px] text-slate-400 block mt-0.5">
+                      {summary.completedAppointments || summary.totalAppointments} turnos atendidos
+                    </span>
+                  </div>
+
+                  <div className="p-3 bg-teal-50 rounded-2xl border border-teal-200">
+                    <span className="text-[11px] text-teal-800 font-semibold block">Comisión Clínica:</span>
+                    <span className="text-base font-extrabold text-teal-800">
+                      ${summary.totalClinicCommission.toLocaleString('es-AR')}
+                    </span>
+                    <span className="text-[10px] text-teal-600 block mt-0.5">
+                      {summary.commissionRateDisplay}
+                    </span>
+                  </div>
+
+                  <div className="p-3 bg-emerald-50 rounded-2xl border border-emerald-200">
+                    <span className="text-[11px] text-emerald-800 font-semibold block">Neto al Médico:</span>
+                    <span className="text-base font-extrabold text-emerald-800">
+                      ${summary.totalProfessionalNet.toLocaleString('es-AR')}
+                    </span>
+                    <span className="text-[10px] text-emerald-600 block mt-0.5">
+                      Honorarios netos
+                    </span>
+                  </div>
+
+                  <div className="p-3 bg-amber-50 rounded-2xl border border-amber-200">
+                    <span className="text-[11px] text-amber-800 font-semibold block">Señas Cobradas:</span>
+                    <span className="text-base font-extrabold text-amber-800">
+                      ${summary.totalDepositsCollected.toLocaleString('es-AR')}
+                    </span>
+                    <span className="text-[10px] text-amber-700 block mt-0.5">
+                      Retención directa
+                    </span>
+                  </div>
+                </div>
+
+                {/* Settlement Balance Notice */}
+                <div className={`p-3 rounded-2xl text-xs flex items-center justify-between mb-4 border ${
+                  summary.pendingSettlementToProfessional > 0
+                    ? 'bg-emerald-50 text-emerald-950 border-emerald-200'
+                    : summary.pendingSettlementToClinic > 0
+                    ? 'bg-amber-50 text-amber-950 border-amber-200'
+                    : 'bg-slate-50 text-slate-800 border-slate-200'
+                }`}>
+                  <div className="flex items-center gap-2">
+                    <Wallet className="w-4 h-4 text-teal-600 shrink-0" />
+                    <div>
+                      <span className="font-bold">Estado de Cuenta de la Liquidación:</span>
+                      <p className="text-[11px] text-slate-600">
+                        {summary.pendingSettlementToProfessional > 0
+                          ? `Saldo a transferir al médico por señas retenidas: $${summary.pendingSettlementToProfessional.toLocaleString('es-AR')}`
+                          : summary.pendingSettlementToClinic > 0
+                          ? `Saldo a cobrar al médico por honorarios cobrados en mano: $${summary.pendingSettlementToClinic.toLocaleString('es-AR')}`
+                          : 'Cuentas perfectamente equilibradas ($0 pendiente).'}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Table of Consultations */}
+                <div className="border border-slate-200 rounded-2xl overflow-hidden max-h-56 overflow-y-auto">
+                  <table className="w-full text-left text-xs">
+                    <thead className="bg-slate-50 text-[10px] uppercase font-semibold text-slate-500 sticky top-0 border-b border-slate-200">
+                      <tr>
+                        <th className="px-3 py-2">Fecha / Turno</th>
+                        <th className="px-3 py-2">Paciente</th>
+                        <th className="px-3 py-2">Servicio</th>
+                        <th className="px-3 py-2 text-right">Precio</th>
+                        <th className="px-3 py-2 text-right text-teal-700">Comisión</th>
+                        <th className="px-3 py-2 text-right font-bold text-slate-900">Neto Médico</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100">
+                      {profApps.length === 0 ? (
+                        <tr>
+                          <td colSpan={6} className="text-center py-6 text-slate-400 text-xs">
+                            No hay turnos completados registrados para este especialista aún.
+                          </td>
+                        </tr>
+                      ) : (
+                        profApps.map((app) => {
+                          const srv = serviceMap.get(app.serviceId);
+                          const calc = calculateAppointmentCommission(app, selectedProfForSettlement, srv);
+                          return (
+                            <tr key={app.id} className="hover:bg-slate-50/70">
+                              <td className="px-3 py-2 font-mono text-[11px] text-slate-700">
+                                {formatDateShort(app.date)} {app.startTime}
+                              </td>
+                              <td className="px-3 py-2 font-medium text-slate-900">
+                                {app.customerName}
+                              </td>
+                              <td className="px-3 py-2 text-slate-600">
+                                {srv?.name || 'Consulta General'}
+                              </td>
+                              <td className="px-3 py-2 text-right font-medium">
+                                ${calc.servicePrice.toLocaleString('es-AR')}
+                              </td>
+                              <td className="px-3 py-2 text-right text-teal-700 font-bold">
+                                ${calc.clinicCommission.toLocaleString('es-AR')}
+                              </td>
+                              <td className="px-3 py-2 text-right font-extrabold text-slate-900">
+                                ${calc.professionalNet.toLocaleString('es-AR')}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-4 mt-4 border-t border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-2.5">
+                <div className="text-[11px] text-slate-500 flex items-center gap-1">
+                  <Info className="w-3.5 h-3.5 text-teal-600 shrink-0" />
+                  <span>Copia o envía el desglose oficial al WhatsApp del profesional.</span>
+                </div>
+
+                <div className="flex items-center gap-2 w-full sm:w-auto">
+                  <button
+                    type="button"
+                    onClick={() => handleCopySettlementText(selectedProfForSettlement)}
+                    className="flex-1 sm:flex-none px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 font-bold text-xs transition cursor-pointer flex items-center justify-center gap-1.5"
+                  >
+                    <Copy className="w-3.5 h-3.5 text-slate-600" />
+                    <span>{copiedSettlementNote ? '¡Copiado!' : 'Copiar para WhatsApp'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => handleOpenWhatsAppSettlement(selectedProfForSettlement)}
+                    className="flex-1 sm:flex-none px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition cursor-pointer shadow-xs flex items-center justify-center gap-1.5"
+                  >
+                    <MessageCircle className="w-3.5 h-3.5" />
+                    <span>Enviar por WhatsApp</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* MODAL: CREAR / EDITAR SERVICIO */}
       {showServiceModal && (

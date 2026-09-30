@@ -77,6 +77,12 @@ export interface Business {
   bankName?: string;
   paymentInstructions?: string;
 
+  // Política General de Comisiones & Alquiler de Consultorios (Sub-inquilinos / Staff)
+  commissionPolicyEnabled?: boolean;
+  commissionPolicyType?: 'percentage' | 'fixed' | 'none';
+  commissionPolicyRate?: number;
+  commissionPolicyCollectionMode?: 'split_on_deposit' | 'manual_settlement' | 'direct_to_clinic' | 'direct_to_professional';
+
   // Plan Experiencia AI: WhatsApp Bot & Assistant 24/7
   aiBotEnabled?: boolean;
   aiBotName?: string;
@@ -102,9 +108,29 @@ export interface Professional {
   serviceIds: string[];
   officeNumber?: string; // Número de consultorio / box asignado (ej: "Consultorio 1", "Consultorio 2")
   accessCode?: string; // Clave Única de Acceso asignada por el dueño para el Staff (ej: "STAFF-4821")
-  commissionRate?: number; // Comisión de la clínica por paciente / consulta (ej: 20%)
-  commissionType?: 'percentage' | 'fixed'; // Tipo de comisión ('percentage' o 'fixed')
+  commissionEnabled?: boolean; // Si la clínica cobra comisión a este profesional (Opcional)
+  commissionRate?: number; // Comisión de la clínica por paciente / consulta (ej: 20% o $4.000)
+  commissionType?: 'percentage' | 'fixed' | 'none'; // Tipo de comisión ('percentage', 'fixed' o 'none')
   userId?: string; // ID de usuario vinculado
+
+  // Configuración propia de Pagos, Señas y Mercado Pago del Profesional (Staff)
+  paymentsEnabled?: boolean;
+  depositRequired?: boolean;
+  depositType?: 'fixed' | 'percentage';
+  depositAmount?: number;
+  mpAlias?: string;
+  mpPaymentLink?: string;
+  mpPublicKey?: string;
+  mpAccessToken?: string;
+  bankName?: string;
+  bankAccountHolder?: string;
+  bankAlias?: string;
+  bankCbu?: string;
+  paymentInstructions?: string;
+
+  // Lógica de Comisiones y Cobro de la Clínica (Preparación para liquidación / cobro directo)
+  commissionCollectionMode?: 'direct_to_clinic' | 'direct_to_professional' | 'split_on_deposit' | 'manual_settlement';
+  clinicCommissionRetained?: boolean; // Si la clínica retiene la seña como pago de comisión
 }
 
 export interface Service {
@@ -186,6 +212,14 @@ export interface Appointment {
   paymentMethod?: 'mercadopago' | 'transfer' | 'cash';
   depositAmount?: number;
   cancellationReason?: string;
+
+  // Lógica de Comisiones y Cobro de la Clínica
+  commissionRate?: number;
+  commissionType?: 'percentage' | 'fixed' | 'none';
+  calculatedCommission?: number; // Monto calculado de la comisión para la clínica
+  professionalEarnings?: number; // Ganancia neta para el especialista
+  commissionStatus?: 'pending_settlement' | 'settled' | 'retained_from_deposit' | 'waived';
+  depositCollectedBy?: 'clinic' | 'professional'; // Entidad que recaudó la seña
   createdAt: string;
   updatedAt: string;
 }

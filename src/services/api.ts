@@ -2217,3 +2217,9 @@ export {
   type AvailabilityValidationResult,
   type WorkingHourConflict,
 } from '../lib/availabilityValidation';
+export {
+  calculateAppointmentCommission,
+  getProfessionalCommissionSummary,
+  type CommissionCalculationResult,
+  type ProfessionalCommissionSummary,
+} from '../lib/commissionEngine';

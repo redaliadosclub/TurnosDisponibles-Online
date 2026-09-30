@@ -15,6 +15,11 @@ import {
   type AvailabilityValidationResult,
   type WorkingHourConflict,
 } from '../lib/availabilityValidation';
+import {
+  getProfessionalCommissionSummary,
+  calculateAppointmentCommission,
+  type ProfessionalCommissionSummary,
+} from '../lib/commissionEngine';
 import { formatDateShort } from '../utils/dateUtils';
 import { generateWaMeLink } from '../lib/notifications';
 import {
@@ -52,6 +57,15 @@ import {
   ShieldAlert,
   AlertTriangle,
   Info,
+  CreditCard,
+  Building,
+  Wallet,
+  DollarSign,
+  Receipt,
+  Percent,
+  Coins,
+  Calculator,
+  FileText,
 } from 'lucide-react';
 
 interface StaffWorkspaceProps {
@@ -73,7 +87,7 @@ export function StaffWorkspace({
   onSwitchToOwner,
   onUserUpdate,
 }: StaffWorkspaceProps) {
-  const [activeTab, setActiveTab] = useState<'agenda' | 'customers' | 'hours' | 'services' | 'analytics'>('agenda');
+  const [activeTab, setActiveTab] = useState<'agenda' | 'customers' | 'hours' | 'payments' | 'services' | 'analytics'>('agenda');
   const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -99,6 +113,24 @@ export function StaffWorkspace({
   const [myHoursMessage, setMyHoursMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [validationResult, setValidationResult] = useState<AvailabilityValidationResult | null>(null);
 
+  // Payments, Deposit & Mercado Pago State for this Staff Specialist
+  const [useCustomPayments, setUseCustomPayments] = useState<boolean>(false);
+  const [staffPaymentsEnabled, setStaffPaymentsEnabled] = useState<boolean>(false);
+  const [staffDepositRequired, setStaffDepositRequired] = useState<boolean>(false);
+  const [staffDepositType, setStaffDepositType] = useState<'fixed' | 'percentage'>('fixed');
+  const [staffDepositAmount, setStaffDepositAmount] = useState<number>(5000);
+  const [staffMpAlias, setStaffMpAlias] = useState<string>('');
+  const [staffMpPaymentLink, setStaffMpPaymentLink] = useState<string>('');
+  const [staffMpPublicKey, setStaffMpPublicKey] = useState<string>('');
+  const [staffMpAccessToken, setStaffMpAccessToken] = useState<string>('');
+  const [staffBankName, setStaffBankName] = useState<string>('Banco Santander');
+  const [staffBankAccountHolder, setStaffBankAccountHolder] = useState<string>('');
+  const [staffBankAlias, setStaffBankAlias] = useState<string>('');
+  const [staffBankCbu, setStaffBankCbu] = useState<string>('');
+  const [staffPaymentInstructions, setStaffPaymentInstructions] = useState<string>('');
+  const [savingStaffPayments, setSavingStaffPayments] = useState<boolean>(false);
+  const [staffPaymentMessage, setStaffPaymentMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
   const DAYS_ORDER = [
     { day: 1, label: 'Lunes' },
     { day: 2, label: 'Martes' },
@@ -109,11 +141,14 @@ export function StaffWorkspace({
     { day: 0, label: 'Domingo' },
   ];
 
-  // Modals
+  // Modals & Tools
   const [showNewAppointmentModal, setShowNewAppointmentModal] = useState(false);
   const [showTimeOffModal, setShowTimeOffModal] = useState(false);
   const [showServiceModal, setShowServiceModal] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
+  const [simulatedPrice, setSimulatedPrice] = useState<number>(20000);
+  const [selectedAppointmentForReceipt, setSelectedAppointmentForReceipt] = useState<Appointment | null>(null);
+  const [copiedReceiptText, setCopiedReceiptText] = useState(false);
 
   // Load Business Data
   const loadData = async () => {
@@ -471,6 +506,180 @@ export function StaffWorkspace({
       type: 'success',
       text: 'Se ajustaron tus turnos automáticamente a los días de apertura y límites de inactividad de la clínica.',
     });
+  };
+
+  // Staff Payment Settings Sync
+  useEffect(() => {
+    if (assignedProfessional) {
+      const hasCustom =
+        assignedProfessional.paymentsEnabled !== undefined ||
+        assignedProfessional.depositRequired !== undefined ||
+        Boolean(assignedProfessional.mpAlias) ||
+        Boolean(assignedProfessional.mpPaymentLink) ||
+        Boolean(assignedProfessional.bankCbu) ||
+        Boolean(assignedProfessional.bankAlias);
+      setUseCustomPayments(hasCustom);
+      setStaffPaymentsEnabled(
+        assignedProfessional.paymentsEnabled ?? business.paymentsEnabled ?? true
+      );
+      setStaffDepositRequired(
+        assignedProfessional.depositRequired ?? business.depositRequired ?? false
+      );
+      setStaffDepositType(
+        assignedProfessional.depositType ?? business.depositType ?? 'fixed'
+      );
+      setStaffDepositAmount(
+        assignedProfessional.depositAmount ?? business.depositAmount ?? 5000
+      );
+      setStaffMpAlias(assignedProfessional.mpAlias || '');
+      setStaffMpPaymentLink(assignedProfessional.mpPaymentLink || '');
+      setStaffMpPublicKey(assignedProfessional.mpPublicKey || '');
+      setStaffMpAccessToken(assignedProfessional.mpAccessToken || '');
+      setStaffBankName(assignedProfessional.bankName || 'Banco Santander');
+      setStaffBankAccountHolder(assignedProfessional.bankAccountHolder || assignedProfessional.name);
+      setStaffBankAlias(assignedProfessional.bankAlias || '');
+      setStaffBankCbu(assignedProfessional.bankCbu || '');
+      setStaffPaymentInstructions(assignedProfessional.paymentInstructions || '');
+    }
+  }, [assignedProfessional, business]);
+
+  // Handler for Saving Specialist's Payments & Mercado Pago Configuration
+  const handleSaveStaffPayments = async () => {
+    if (!assignedProfessional) return;
+    try {
+      setSavingStaffPayments(true);
+      setStaffPaymentMessage(null);
+      const updated = await api.updateProfessional(business.id, assignedProfessional.id, {
+        paymentsEnabled: staffPaymentsEnabled,
+        depositRequired: staffDepositRequired,
+        depositType: staffDepositType,
+        depositAmount: Number(staffDepositAmount),
+        mpAlias: staffMpAlias.trim(),
+        mpPaymentLink: staffMpPaymentLink.trim(),
+        mpPublicKey: staffMpPublicKey.trim(),
+        mpAccessToken: staffMpAccessToken.trim(),
+        bankName: staffBankName.trim(),
+        bankAccountHolder: staffBankAccountHolder.trim(),
+        bankAlias: staffBankAlias.trim(),
+        bankCbu: staffBankCbu.trim(),
+        paymentInstructions: staffPaymentInstructions.trim(),
+      });
+      setProfessionals((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+      setUseCustomPayments(true);
+      setStaffPaymentMessage({
+        type: 'success',
+        text: '¡Configuración de señas y Mercado Pago guardada con éxito para tu consultorio! Los pacientes verán tus datos y montos de seña al reservar contigo.',
+      });
+    } catch (err: any) {
+      setStaffPaymentMessage({
+        type: 'error',
+        text: err.message || 'Error al guardar la configuración de cobros.',
+      });
+    } finally {
+      setSavingStaffPayments(false);
+    }
+  };
+
+  const handleResetStaffPaymentsToClinic = async () => {
+    if (!assignedProfessional) return;
+    if (
+      !confirm(
+        '¿Deseas volver a usar los datos generales de seña y Mercado Pago de la clínica? Se restablecerán tus datos bancarios y montos propios.'
+      )
+    ) {
+      return;
+    }
+    try {
+      setSavingStaffPayments(true);
+      const updated = await api.updateProfessional(business.id, assignedProfessional.id, {
+        paymentsEnabled: undefined,
+        depositRequired: undefined,
+        depositType: undefined,
+        depositAmount: undefined,
+        mpAlias: undefined,
+        mpPaymentLink: undefined,
+        mpPublicKey: undefined,
+        mpAccessToken: undefined,
+        bankName: undefined,
+        bankAccountHolder: undefined,
+        bankAlias: undefined,
+        bankCbu: undefined,
+        paymentInstructions: undefined,
+      });
+      setProfessionals((prev) => prev.map((p) => (p.id === updated.id ? updated : p)));
+      setUseCustomPayments(false);
+      setStaffPaymentsEnabled(business.paymentsEnabled ?? true);
+      setStaffDepositRequired(business.depositRequired ?? false);
+      setStaffDepositType(business.depositType ?? 'fixed');
+      setStaffDepositAmount(business.depositAmount ?? 5000);
+      setStaffMpAlias(business.mpAlias || '');
+      setStaffMpPaymentLink(business.mpPaymentLink || '');
+      setStaffBankName(business.bankName || 'Banco Santander');
+      setStaffBankAccountHolder(business.bankAccountHolder || business.name);
+      setStaffBankAlias(business.bankAlias || '');
+      setStaffBankCbu(business.bankCbu || '');
+      setStaffPaymentMessage({
+        type: 'success',
+        text: 'Se han restablecido los cobros. Tu consultorio vuelve a utilizar las cuentas y señas generales de la clínica.',
+      });
+    } catch (err: any) {
+      setStaffPaymentMessage({
+        type: 'error',
+        text: err.message || 'Error al restablecer la configuración.',
+      });
+    } finally {
+      setSavingStaffPayments(false);
+    }
+  };
+
+  // Commission Summary calculation for this doctor's appointments
+  const staffCommissionSummary = useMemo(() => {
+    if (!assignedProfessional) return null;
+    return getProfessionalCommissionSummary(assignedProfessional, appointments, services);
+  }, [assignedProfessional, appointments, services]);
+
+  const generateAppointmentReceiptText = (app: Appointment) => {
+    if (!assignedProfessional) return '';
+    const srv = services.find((s) => s.id === app.serviceId);
+    const calc = calculateAppointmentCommission(app, assignedProfessional, srv);
+    const dateStr = formatDateShort(app.date);
+
+    return `*🧾 COMPROBANTE DE TURNO & DESGLOSE DE HONORARIOS*
+🏛️ *${business.name}*
+👨‍⚕️ *Especialista:* ${assignedProfessional.name} (${assignedProfessional.officeNumber || 'Consultorio'})
+👤 *Paciente:* ${app.customerName}
+🔢 *Código de Reserva:* #${app.bookingCode}
+📅 *Fecha:* ${dateStr} a las ${app.startTime} hs
+💼 *Servicio:* ${srv?.name || 'Consulta Médica'}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+💰 *DESGLOSE FINANCIERO:*
+• *Valor Total de la Consulta:* $${calc.servicePrice.toLocaleString('es-AR')}
+• *Comisión de la Clínica:* ${
+      calc.commissionEnabled
+        ? `-$${calc.clinicCommission.toLocaleString('es-AR')} (${calc.commissionType === 'fixed' ? 'Monto Fijo' : `${calc.commissionRate}%`})`
+        : '$0 (Sin comisión / 100% especialista)'
+    }
+• *HONORARIO NETO MÉDICO:* +$${calc.professionalNet.toLocaleString('es-AR')}
+━━━━━━━━━━━━━━━━━━━━━━━━━━
+💳 *ESTADO DE COBROS & SEÑAS:*
+• *Seña Previa:* $${calc.depositAmount.toLocaleString('es-AR')} (${app.paymentMethod === 'mercadopago' ? 'Mercado Pago' : app.paymentMethod === 'transfer' ? 'Transferencia Bancaria' : 'Efectivo / No requerida'})
+• *Saldo a Cobrar en Consultorio:* $${calc.balanceToPayInOffice.toLocaleString('es-AR')}
+📌 *Liquidación:* ${calc.settlementNote}`;
+  };
+
+  const handleCopyReceiptText = (app: Appointment) => {
+    const text = generateAppointmentReceiptText(app);
+    navigator.clipboard.writeText(text);
+    setCopiedReceiptText(true);
+    setTimeout(() => setCopiedReceiptText(false), 2500);
+  };
+
+  const handleSendWhatsAppReceipt = (app: Appointment) => {
+    const text = generateAppointmentReceiptText(app);
+    const cleanPhone = (app.customerPhone || '').replace(/[^0-9]/g, '');
+    const waLink = cleanPhone ? `https://wa.me/${cleanPhone}?text=${encodeURIComponent(text)}` : `https://wa.me/?text=${encodeURIComponent(text)}`;
+    window.open(waLink, '_blank');
   };
 
   // Helper to ensure all 7 days exist for editing
@@ -881,6 +1090,22 @@ export function StaffWorkspace({
 
             <button
               type="button"
+              onClick={() => setActiveTab('payments')}
+              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl font-bold transition cursor-pointer whitespace-nowrap ${
+                activeTab === 'payments'
+                  ? 'bg-teal-500 text-slate-950 shadow-sm'
+                  : 'text-slate-400 hover:text-white hover:bg-slate-900'
+              }`}
+            >
+              <CreditCard className="w-3.5 h-3.5" />
+              <span>Señas & Mercado Pago</span>
+              {useCustomPayments && staffDepositRequired && (
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              )}
+            </button>
+
+            <button
+              type="button"
               onClick={() => setActiveTab('services')}
               className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl font-bold transition cursor-pointer whitespace-nowrap ${
                 activeTab === 'services'
@@ -998,6 +1223,78 @@ export function StaffWorkspace({
         ) : (
           /* Active Consultorio Workspace */
           <div className="space-y-6">
+            {/* Top Financial & Commission Summary Card */}
+            {staffCommissionSummary && (
+              <div className="bg-gradient-to-r from-slate-950 via-slate-900 to-slate-950 p-4 sm:p-5 rounded-3xl border border-slate-800 shadow-sm space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2.5 border-b border-slate-800/80">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-bold text-white flex items-center gap-1.5">
+                      <Wallet className="w-4 h-4 text-teal-400" />
+                      <span>Liquidación & Honorarios de {assignedProfessional.name}</span>
+                    </span>
+                    {!staffCommissionSummary.commissionEnabled || staffCommissionSummary.commissionType === 'none' ? (
+                      <span className="text-[10px] font-bold text-emerald-300 bg-emerald-950/60 px-2.5 py-0.5 rounded-full border border-emerald-500/30">
+                        🎉 Sin comisión de clínica (100% honorario propio)
+                      </span>
+                    ) : staffCommissionSummary.commissionType === 'fixed' ? (
+                      <span className="text-[10px] font-bold text-sky-300 bg-sky-950/60 px-2.5 py-0.5 rounded-full border border-sky-500/30">
+                        🏷️ Comisión Clínica: ${staffCommissionSummary.commissionRate.toLocaleString('es-AR')} Fijo / turno
+                      </span>
+                    ) : (
+                      <span className="text-[10px] font-bold text-amber-300 bg-amber-950/60 px-2.5 py-0.5 rounded-full border border-amber-500/30">
+                        📊 Comisión Clínica: {staffCommissionSummary.commissionRate}% por consulta
+                      </span>
+                    )}
+                  </div>
+                  <span className="text-[11px] text-slate-400 font-mono">
+                    {assignedProfessional.officeNumber || 'Consultorio'} • Clave: {assignedProfessional.accessCode}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-xs">
+                  <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800/90">
+                    <span className="text-slate-400 text-[11px] block">Facturación Bruta:</span>
+                    <span className="text-base font-extrabold text-white">
+                      ${staffCommissionSummary.grossRevenue.toLocaleString('es-AR')}
+                    </span>
+                    <span className="text-[10px] text-slate-500 block mt-0.5">
+                      {staffCommissionSummary.completedAppointments || staffCommissionSummary.totalAppointments} turnos registrados
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800/90">
+                    <span className="text-slate-400 text-[11px] block">Deducción Clínica:</span>
+                    <span className="text-base font-extrabold text-teal-400">
+                      -${staffCommissionSummary.totalClinicCommission.toLocaleString('es-AR')}
+                    </span>
+                    <span className="text-[10px] text-teal-500/80 block mt-0.5">
+                      {staffCommissionSummary.commissionRateDisplay}
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800/90">
+                    <span className="text-slate-400 text-[11px] block">Mis Honorarios Netos:</span>
+                    <span className="text-base font-extrabold text-emerald-400">
+                      +${staffCommissionSummary.totalProfessionalNet.toLocaleString('es-AR')}
+                    </span>
+                    <span className="text-[10px] text-emerald-500/80 block mt-0.5">
+                      Ganancia profesional neta
+                    </span>
+                  </div>
+
+                  <div className="bg-slate-950/80 p-3 rounded-xl border border-slate-800/90">
+                    <span className="text-slate-400 text-[11px] block">Señas Cobradas:</span>
+                    <span className="text-base font-extrabold text-amber-400">
+                      ${staffCommissionSummary.totalDepositsCollected.toLocaleString('es-AR')}
+                    </span>
+                    <span className="text-[10px] text-amber-500/80 block mt-0.5">
+                      Mercado Pago / Banco
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Top Workspace KPI Bar */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
               <div className="bg-slate-950 p-4 rounded-2xl border border-slate-800 shadow-xs">
@@ -1192,8 +1489,35 @@ export function StaffWorkspace({
                                 </span>
                               </div>
 
+                              {srv && (
+                                <div className="flex items-center gap-2 mt-1.5 flex-wrap text-[11px]">
+                                  <span className="font-mono font-bold text-white bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                                    Honorario: ${srv.price.toLocaleString('es-AR')}
+                                  </span>
+                                  {assignedProfessional.commissionEnabled !== false && assignedProfessional.commissionType !== 'none' ? (
+                                    <>
+                                      <span className="text-teal-400 bg-teal-950/60 px-2 py-0.5 rounded border border-teal-500/20 font-medium">
+                                        Comisión: ${calculateAppointmentCommission(app, assignedProfessional, srv).clinicCommission.toLocaleString('es-AR')}
+                                      </span>
+                                      <span className="text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/20 font-bold">
+                                        Tu Neto: ${calculateAppointmentCommission(app, assignedProfessional, srv).professionalNet.toLocaleString('es-AR')}
+                                      </span>
+                                    </>
+                                  ) : (
+                                    <span className="text-emerald-400 bg-emerald-950/60 px-2 py-0.5 rounded border border-emerald-500/20 font-bold">
+                                      100% Neto (${srv.price.toLocaleString('es-AR')})
+                                    </span>
+                                  )}
+                                  {app.depositAmount ? (
+                                    <span className="text-amber-400 bg-amber-950/60 px-2 py-0.5 rounded border border-amber-500/20">
+                                      Seña pagada: ${app.depositAmount.toLocaleString('es-AR')} (Cobrar: ${Math.max(0, srv.price - app.depositAmount).toLocaleString('es-AR')})
+                                    </span>
+                                  ) : null}
+                                </div>
+                              )}
+
                               {app.notes && (
-                                <p className="text-[11px] text-slate-400 mt-1 italic bg-slate-950/60 px-2 py-1 rounded border border-slate-800/80">
+                                <p className="text-[11px] text-slate-400 mt-1.5 italic bg-slate-950/60 px-2 py-1 rounded border border-slate-800/80">
                                   "{app.notes}"
                                 </p>
                               )}
@@ -1202,6 +1526,17 @@ export function StaffWorkspace({
 
                           {/* Quick Actions */}
                           <div className="flex items-center gap-2 self-end md:self-center shrink-0">
+                            {/* Receipt / Financial Breakdown Button */}
+                            <button
+                              type="button"
+                              onClick={() => setSelectedAppointmentForReceipt(app)}
+                              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-teal-300 border border-slate-700 text-xs font-semibold transition cursor-pointer"
+                              title="Ver desglose financiero, liquidación y recibo de honorarios"
+                            >
+                              <Receipt className="w-3.5 h-3.5 text-teal-400" />
+                              <span className="hidden sm:inline">Desglose & Cobro</span>
+                            </button>
+
                             {/* WhatsApp Button */}
                             <button
                               type="button"
@@ -1928,7 +2263,649 @@ export function StaffWorkspace({
               </div>
             )}
 
-            {/* TAB 4: MIS SERVICIOS & HONORARIOS */}
+            {/* TAB 4: SEÑAS Y MERCADO PAGO */}
+            {activeTab === 'payments' && (
+              <div className="space-y-6 animate-in fade-in">
+                {/* Header & Status Card */}
+                <div className="bg-slate-950 rounded-3xl p-5 sm:p-6 border border-slate-800 shadow-sm space-y-4">
+                  <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 pb-4 border-b border-slate-800">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h3 className="text-base font-extrabold text-white flex items-center gap-2">
+                          <CreditCard className="w-4 h-4 text-teal-400" />
+                          <span>Señas y Cobro con Mercado Pago: {assignedProfessional.name}</span>
+                        </h3>
+                        {useCustomPayments && staffDepositRequired ? (
+                          <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-bold flex items-center gap-1">
+                            <CheckCircle2 className="w-3 h-3" />
+                            <span>Seña Propia Activa</span>
+                          </span>
+                        ) : useCustomPayments ? (
+                          <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-slate-800 text-slate-400 border border-slate-700 font-bold flex items-center gap-1">
+                            <span>Cobros Propios (Sin Seña Obligatoria)</span>
+                          </span>
+                        ) : (
+                          <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-sky-500/15 text-sky-400 border border-sky-500/30 font-bold flex items-center gap-1">
+                            <Building2 className="w-3 h-3" />
+                            <span>Heredado de la Clínica</span>
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-400 max-w-3xl">
+                        Personaliza los montos de seña previa y tus cuentas de cobro directo (Mercado Pago y CBU). Tus pacientes verán tus datos exclusivos al reservar turno con vos.
+                      </p>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-2">
+                      {useCustomPayments && (
+                        <button
+                          type="button"
+                          onClick={handleResetStaffPaymentsToClinic}
+                          disabled={savingStaffPayments}
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-white border border-slate-800 text-xs font-semibold transition cursor-pointer"
+                          title="Volver a utilizar los datos de pago y señas generales de la clínica"
+                        >
+                          <RotateCcw className="w-3.5 h-3.5" />
+                          <span>Restablecer a Clínica</span>
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        onClick={handleSaveStaffPayments}
+                        disabled={savingStaffPayments}
+                        className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-xs transition cursor-pointer shadow-xs"
+                      >
+                        {savingStaffPayments ? (
+                          <>
+                            <div className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                            <span>Guardando...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Save className="w-3.5 h-3.5" />
+                            <span>Guardar Cobros & Seña</span>
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Feedback Message */}
+                  {staffPaymentMessage && (
+                    <div
+                      className={`p-3.5 rounded-2xl text-xs flex items-center justify-between gap-3 animate-in fade-in ${
+                        staffPaymentMessage.type === 'success'
+                          ? 'bg-emerald-950/40 border border-emerald-800/60 text-emerald-300'
+                          : 'bg-rose-950/40 border border-rose-800/60 text-rose-300'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        {staffPaymentMessage.type === 'success' ? (
+                          <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+                        ) : (
+                          <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+                        )}
+                        <span>{staffPaymentMessage.text}</span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setStaffPaymentMessage(null)}
+                        className="text-slate-400 hover:text-white"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Commission Calculation & Direct Collection Preparation Card */}
+                  {staffCommissionSummary && (() => {
+                    const simService: Service = {
+                      price: simulatedPrice,
+                      id: 'sim_srv',
+                      businessId: business.id,
+                      name: 'Simulación de Consulta',
+                      description: 'Servicio de prueba para simulación',
+                      durationMinutes: 30,
+                      currency: 'ARS',
+                      active: true,
+                      assignedProfessionalIds: [],
+                    };
+                    const simDeposit = staffDepositRequired && staffPaymentsEnabled
+                      ? staffDepositType === 'percentage'
+                        ? Math.round((simulatedPrice * (staffDepositAmount || 30)) / 100)
+                        : Number(staffDepositAmount || 5000)
+                      : 0;
+                    const simCalc = calculateAppointmentCommission({ depositAmount: simDeposit }, assignedProfessional, simService);
+
+                    return (
+                      <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-slate-950 p-5 sm:p-6 rounded-2xl border border-teal-500/20 space-y-5 shadow-sm">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-800">
+                          <div>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-0.5 rounded-full bg-teal-500/10 text-teal-400 border border-teal-500/30">
+                                Lógica de Comisiones & Liquidación
+                              </span>
+                              {!staffCommissionSummary.commissionEnabled || staffCommissionSummary.commissionType === 'none' ? (
+                                <span className="text-[11px] font-bold text-emerald-400 bg-emerald-950/60 px-2.5 py-0.5 rounded-md border border-emerald-500/30">
+                                  🎉 Sin comisión (100% para ti)
+                                </span>
+                              ) : staffCommissionSummary.commissionType === 'fixed' ? (
+                                <span className="text-[11px] font-bold text-sky-400 bg-sky-950/60 px-2.5 py-0.5 rounded-md border border-sky-500/30">
+                                  🏷️ ${staffCommissionSummary.commissionRate.toLocaleString('es-AR')} fijo por consulta
+                                </span>
+                              ) : (
+                                <span className="text-[11px] font-bold text-amber-400 bg-amber-950/60 px-2.5 py-0.5 rounded-md border border-amber-500/30">
+                                  📊 {staffCommissionSummary.commissionRate}% de comisión por consulta
+                                </span>
+                              )}
+                            </div>
+                            <h4 className="text-sm font-bold text-white mt-1.5 flex items-center gap-2">
+                              <Wallet className="w-4 h-4 text-teal-400" />
+                              <span>Resumen de Honorarios & Saldo Acumulado</span>
+                            </h4>
+                          </div>
+                          <span className="text-[11px] text-slate-400 italic">
+                            {assignedProfessional.officeNumber || 'Consultorio'} • {assignedProfessional.specialty}
+                          </span>
+                        </div>
+
+                        {/* Consolidated KPI Grid */}
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
+                          <div className="bg-slate-950/90 p-3.5 rounded-xl border border-slate-800">
+                            <span className="text-slate-400 text-[11px] block">Facturación Bruta:</span>
+                            <span className="text-base font-extrabold text-white">
+                              ${staffCommissionSummary.grossRevenue.toLocaleString('es-AR')}
+                            </span>
+                            <span className="text-[10px] text-slate-500 block mt-0.5">
+                              {staffCommissionSummary.totalAppointments} turnos registrados
+                            </span>
+                          </div>
+
+                          <div className="bg-slate-950/90 p-3.5 rounded-xl border border-slate-800">
+                            <span className="text-slate-400 text-[11px] block">
+                              Comisión Clínica ({staffCommissionSummary.commissionEnabled ? staffCommissionSummary.commissionType === 'fixed' ? `$${staffCommissionSummary.commissionRate.toLocaleString('es-AR')}` : `${staffCommissionSummary.commissionRate}%` : '0%'}):
+                            </span>
+                            <span className="text-base font-extrabold text-teal-400">
+                              ${staffCommissionSummary.totalClinicCommission.toLocaleString('es-AR')}
+                            </span>
+                            <span className="text-[10px] text-teal-500/80 block mt-0.5">
+                              Retención de la clínica
+                            </span>
+                          </div>
+
+                          <div className="bg-slate-950/90 p-3.5 rounded-xl border border-slate-800">
+                            <span className="text-slate-400 text-[11px] block">Tu Ganancia Neta:</span>
+                            <span className="text-base font-extrabold text-emerald-400">
+                              ${staffCommissionSummary.totalProfessionalNet.toLocaleString('es-AR')}
+                            </span>
+                            <span className="text-[10px] text-emerald-500/80 block mt-0.5">
+                              Honorarios netos para ti
+                            </span>
+                          </div>
+
+                          <div className="bg-slate-950/90 p-3.5 rounded-xl border border-slate-800">
+                            <span className="text-slate-400 text-[11px] block">Señas Recaudadas:</span>
+                            <span className="text-base font-extrabold text-amber-400">
+                              ${staffCommissionSummary.totalDepositsCollected.toLocaleString('es-AR')}
+                            </span>
+                            <span className="text-[10px] text-amber-500/80 block mt-0.5">
+                              Anticipos ingresados
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Settlement Status Banner */}
+                        <div className={`p-3 rounded-xl border text-xs flex items-center justify-between ${
+                          staffCommissionSummary.pendingSettlementToProfessional > 0
+                            ? 'bg-emerald-950/40 text-emerald-200 border-emerald-500/30'
+                            : staffCommissionSummary.pendingSettlementToClinic > 0
+                            ? 'bg-amber-950/40 text-amber-200 border-amber-500/30'
+                            : 'bg-slate-950/60 text-slate-300 border-slate-800'
+                        }`}>
+                          <div className="flex items-center gap-2">
+                            <Coins className="w-4 h-4 text-teal-400 shrink-0" />
+                            <span>
+                              <strong>Estado de Liquidación: </strong>
+                              {staffCommissionSummary.pendingSettlementToProfessional > 0
+                                ? `Saldo acumulado a tu favor: $${staffCommissionSummary.pendingSettlementToProfessional.toLocaleString('es-AR')} (la clínica te transferirá este monto recaudado en señas).`
+                                : staffCommissionSummary.pendingSettlementToClinic > 0
+                                ? `Saldo acumulado a favor de la clínica: $${staffCommissionSummary.pendingSettlementToClinic.toLocaleString('es-AR')} (por honorarios cobrados presencialmente).`
+                                : 'Cuentas perfectamente equilibradas y al día ($0 pendiente).'}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Interactive Real-Time Split Simulator */}
+                        <div className="bg-slate-950/70 p-4 rounded-xl border border-slate-800/90 space-y-3">
+                          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <Calculator className="w-4 h-4 text-teal-400" />
+                              <span className="text-xs font-bold text-white">
+                                Simulador Interactivo de Honorarios & Split
+                              </span>
+                            </div>
+                            <span className="text-[10px] text-slate-400">
+                              Prueba cualquier monto de consulta y observa el desglose exacto
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <div className="relative w-44">
+                              <span className="absolute left-3 top-2 font-bold text-teal-400 text-xs">$</span>
+                              <input
+                                type="number"
+                                min={1000}
+                                step={1000}
+                                value={simulatedPrice}
+                                onChange={(e) => setSimulatedPrice(Math.max(0, Number(e.target.value)))}
+                                className="w-full pl-7 pr-3 py-1.5 rounded-lg bg-slate-900 border border-slate-700 text-white font-bold text-xs"
+                              />
+                            </div>
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              {[10000, 15000, 20000, 30000, 50000].map((val) => (
+                                <button
+                                  key={val}
+                                  type="button"
+                                  onClick={() => setSimulatedPrice(val)}
+                                  className={`px-2 py-1 rounded-md text-[10px] font-bold transition cursor-pointer ${
+                                    simulatedPrice === val
+                                      ? 'bg-teal-500 text-slate-950'
+                                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                                  }`}
+                                >
+                                  ${(val / 1000).toFixed(0)}k
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Simulation Result Split */}
+                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2 border-t border-slate-800/80 text-[11px]">
+                            <div className="bg-slate-900/90 p-2.5 rounded-lg border border-slate-800">
+                              <span className="text-slate-400 block text-[10px]">Valor Consulta:</span>
+                              <span className="font-extrabold text-white text-xs">
+                                ${simCalc.servicePrice.toLocaleString('es-AR')}
+                              </span>
+                            </div>
+                            <div className="bg-slate-900/90 p-2.5 rounded-lg border border-slate-800">
+                              <span className="text-slate-400 block text-[10px]">Comisión Clínica:</span>
+                              <span className="font-extrabold text-teal-400 text-xs">
+                                ${simCalc.clinicCommission.toLocaleString('es-AR')}
+                              </span>
+                            </div>
+                            <div className="bg-slate-900/90 p-2.5 rounded-lg border border-slate-800">
+                              <span className="text-slate-400 block text-[10px]">Tu Honorario Neto:</span>
+                              <span className="font-extrabold text-emerald-400 text-xs">
+                                ${simCalc.professionalNet.toLocaleString('es-AR')}
+                              </span>
+                            </div>
+                            <div className="bg-slate-900/90 p-2.5 rounded-lg border border-slate-800">
+                              <span className="text-slate-400 block text-[10px]">A Cobrar en Mano:</span>
+                              <span className="font-extrabold text-amber-300 text-xs">
+                                ${simCalc.balanceToPayInOffice.toLocaleString('es-AR')}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="text-[11px] text-slate-400 bg-slate-950/50 p-2.5 rounded-xl border border-slate-800/80 flex items-start gap-2">
+                          <Info className="w-4 h-4 text-teal-400 shrink-0 mt-0.5" />
+                          <span>
+                            <strong>Transparencia Total:</strong> Cada consulta calcula de forma automática la comisión de la clínica ({staffCommissionSummary.commissionRateDisplay}) y tu ingreso neto. Si activas señas previas con Mercado Pago, el sistema soporta la retención automática para simplificar las liquidaciones.
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+
+                {/* Form Body */}
+                <div className="bg-slate-950 rounded-3xl p-5 sm:p-7 border border-slate-800 space-y-6">
+                  {/* Toggle Seña Previa */}
+                  <div className="flex items-center justify-between p-4 rounded-2xl bg-slate-900/80 border border-slate-800">
+                    <div>
+                      <h4 className="font-bold text-white text-sm flex items-center gap-2">
+                        <CreditCard className="w-4 h-4 text-teal-400" />
+                        <span>Exigir Seña Previa para Confirmar Turnos en mi Consultorio</span>
+                      </h4>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Si se activa, los pacientes deberán abonar una seña (vía Mercado Pago o CBU) para asegurar su turno contigo.
+                      </p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={staffDepositRequired && staffPaymentsEnabled}
+                        onChange={(e) => {
+                          setStaffDepositRequired(e.target.checked);
+                          setStaffPaymentsEnabled(e.target.checked);
+                        }}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-teal-500"></div>
+                    </label>
+                  </div>
+
+                  {/* Modalidad y Monto de la Seña */}
+                  {(staffDepositRequired || staffPaymentsEnabled) && (
+                    <div className="p-4 rounded-2xl bg-slate-900 border border-slate-800 space-y-4 animate-in fade-in">
+                      <div className="flex items-center justify-between">
+                        <h4 className="font-bold text-teal-400 text-xs uppercase tracking-wide flex items-center gap-2">
+                          <DollarSign className="w-3.5 h-3.5" />
+                          <span>1. Modalidad y Monto de la Seña</span>
+                        </h4>
+                        <span className="text-[11px] text-slate-500">
+                          Configuración exclusiva de tu consultorio
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-300 mb-1">
+                            Tipo de Seña
+                          </label>
+                          <select
+                            value={staffDepositType}
+                            onChange={(e) => setStaffDepositType(e.target.value as 'fixed' | 'percentage')}
+                            className="w-full px-3.5 py-2.5 rounded-xl border border-slate-700 bg-slate-950 text-xs font-medium text-white focus:outline-none focus:border-teal-500"
+                          >
+                            <option value="fixed">Monto Fijo en Pesos ($ ARS)</option>
+                            <option value="percentage">Porcentaje del Servicio (%)</option>
+                          </select>
+                        </div>
+
+                        <div>
+                          <label className="block text-xs font-semibold text-slate-300 mb-1">
+                            {staffDepositType === 'fixed' ? 'Monto de Seña ($ ARS)' : 'Porcentaje de Seña (%)'}
+                          </label>
+                          <div className="relative">
+                            <input
+                              type="number"
+                              min="0"
+                              step={staffDepositType === 'fixed' ? '500' : '5'}
+                              value={staffDepositAmount}
+                              onChange={(e) => setStaffDepositAmount(Number(e.target.value))}
+                              className="w-full pl-8 pr-3.5 py-2.5 rounded-xl border border-slate-700 bg-slate-950 text-xs font-bold text-white font-mono focus:outline-none focus:border-teal-500"
+                            />
+                            <span className="absolute left-3 top-2.5 text-xs text-slate-500 font-bold">
+                              {staffDepositType === 'fixed' ? '$' : '%'}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="text-[11px] text-slate-300 bg-slate-950 p-3 rounded-xl border border-slate-800">
+                        💡 <strong>Ejemplo en reservas:</strong>{' '}
+                        {staffDepositType === 'fixed' ? (
+                          <span>
+                            Cualquier turno agendado contigo solicitará una seña fija de <strong>${staffDepositAmount.toLocaleString('es-AR')} ARS</strong>. El saldo restante se cobra presencialmente en el consultorio.
+                          </span>
+                        ) : (
+                          <span>
+                            Para una consulta de $25.000 con el <strong>{staffDepositAmount}%</strong>, el paciente abonará una seña de <strong>${((25000 * staffDepositAmount) / 100).toLocaleString('es-AR')} ARS</strong> para reservar.
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Mercado Pago Section */}
+                  <div className="space-y-4 pt-4 border-t border-slate-800">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-sky-500/10 text-sky-400 border border-sky-500/20 flex items-center justify-center font-bold text-xs">
+                        MP
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-white text-sm">Mercado Pago (Cobro Directo)</h4>
+                        <p className="text-xs text-slate-400">
+                          El paciente podrá transferirte la seña abriendo su app de Mercado Pago o mediante tu link de pago.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-300 mb-1">
+                          Alias de Mercado Pago / CVU *
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="ej. camila.dermato.mp"
+                          value={staffMpAlias}
+                          onChange={(e) => setStaffMpAlias(e.target.value)}
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-700 bg-slate-900 text-xs font-mono text-white focus:outline-none focus:border-teal-500"
+                        />
+                        <span className="text-[10px] text-slate-500 mt-1 block">
+                          El paciente podrá copiar tu Alias con 1 solo clic en su celular.
+                        </span>
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-300 mb-1">
+                          Link de Pago Directo (opcional)
+                        </label>
+                        <input
+                          type="url"
+                          placeholder="https://mpago.la/..."
+                          value={staffMpPaymentLink}
+                          onChange={(e) => setStaffMpPaymentLink(e.target.value)}
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-700 bg-slate-900 text-xs text-white focus:outline-none focus:border-teal-500"
+                        />
+                        <span className="text-[10px] text-slate-500 mt-1 block">
+                          Link generado desde tu app de Mercado Pago para cobro con tarjeta o débito.
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Bank Transfer Section */}
+                  <div className="space-y-4 pt-4 border-t border-slate-800">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-teal-500/10 text-teal-400 border border-teal-500/20 flex items-center justify-center font-bold text-xs">
+                        <Building className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <h4 className="font-bold text-white text-sm">Transferencia Bancaria Directa (CBU / Alias)</h4>
+                        <p className="text-xs text-slate-400">
+                          Para pacientes que prefieran transferirte desde Santander, Galicia, BBVA, Nación, Brubank, etc.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-300 mb-1">
+                          Banco
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="ej. Banco Santander / Galicia / BBVA"
+                          value={staffBankName}
+                          onChange={(e) => setStaffBankName(e.target.value)}
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-700 bg-slate-900 text-xs text-white focus:outline-none focus:border-teal-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-300 mb-1">
+                          Titular de la Cuenta
+                        </label>
+                        <input
+                          type="text"
+                          placeholder={`ej. ${assignedProfessional.name}`}
+                          value={staffBankAccountHolder}
+                          onChange={(e) => setStaffBankAccountHolder(e.target.value)}
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-700 bg-slate-900 text-xs text-white focus:outline-none focus:border-teal-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-300 mb-1">
+                          Alias CBU / CVU
+                        </label>
+                        <input
+                          type="text"
+                          placeholder="ej. DRA.CAMILA.CONSULTORIO"
+                          value={staffBankAlias}
+                          onChange={(e) => setStaffBankAlias(e.target.value)}
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-700 bg-slate-900 text-xs font-mono text-white focus:outline-none focus:border-teal-500"
+                        />
+                      </div>
+
+                      <div>
+                        <label className="block text-xs font-semibold text-slate-300 mb-1">
+                          CBU / CVU (22 dígitos)
+                        </label>
+                        <input
+                          type="text"
+                          maxLength={22}
+                          placeholder="ej. 0720000000000000000000"
+                          value={staffBankCbu}
+                          onChange={(e) => setStaffBankCbu(e.target.value)}
+                          className="w-full px-3.5 py-2.5 rounded-xl border border-slate-700 bg-slate-900 text-xs font-mono text-white focus:outline-none focus:border-teal-500"
+                        />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Instrucciones de Pago */}
+                  <div className="space-y-2 pt-4 border-t border-slate-800">
+                    <label className="block text-xs font-semibold text-slate-300">
+                      Instrucciones de Pago para el Paciente (opcional)
+                    </label>
+                    <textarea
+                      rows={2}
+                      placeholder="ej. Una vez abonada la seña, favor de enviar el comprobante por WhatsApp para validar tu reserva en el consultorio."
+                      value={staffPaymentInstructions}
+                      onChange={(e) => setStaffPaymentInstructions(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-700 bg-slate-900 text-xs text-white focus:outline-none focus:border-teal-500"
+                    />
+                  </div>
+
+                  {/* Bottom Save Button */}
+                  <div className="pt-4 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
+                    <div className="text-xs text-slate-500 flex items-center gap-1.5">
+                      <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+                      <span>Tus datos de pago son privados y solo se mostrarán a tus pacientes al agendar.</span>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={handleSaveStaffPayments}
+                      disabled={savingStaffPayments}
+                      className="w-full sm:w-auto px-6 py-2.5 rounded-2xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-xs shadow-md transition cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      {savingStaffPayments ? (
+                        <>
+                          <div className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin" />
+                          <span>Guardando cambios...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Save className="w-4 h-4" />
+                          <span>Guardar Configuración de Señas & Cobro</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Turnos & Commission Deduction History Table */}
+                <div className="bg-slate-950 rounded-3xl p-5 sm:p-6 border border-slate-800 shadow-sm space-y-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-slate-800">
+                    <div>
+                      <h4 className="text-sm font-bold text-white flex items-center gap-2">
+                        <FileText className="w-4 h-4 text-teal-400" />
+                        <span>Historial de Turnos & Deducciones de Comisión</span>
+                      </h4>
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Registro transparente de cada turno atendido, el split de comisión aplicado y tu ganancia neta.
+                      </p>
+                    </div>
+                    <span className="text-[11px] text-teal-400 font-mono bg-slate-900 px-3 py-1 rounded-full border border-slate-800 self-start sm:self-center">
+                      Regla: {staffCommissionSummary?.commissionRateDisplay || 'Sin comisión'}
+                    </span>
+                  </div>
+
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs text-slate-300">
+                      <thead className="bg-slate-900 text-[10px] uppercase font-semibold text-slate-400 border-b border-slate-800">
+                        <tr>
+                          <th className="px-3 py-2.5">Fecha / Turno</th>
+                          <th className="px-3 py-2.5">Paciente</th>
+                          <th className="px-3 py-2.5">Servicio</th>
+                          <th className="px-3 py-2.5 text-right">Valor Consulta</th>
+                          <th className="px-3 py-2.5 text-right text-teal-400">Deducción Clínica</th>
+                          <th className="px-3 py-2.5 text-right text-emerald-400 font-bold">Tu Honorario Neto</th>
+                          <th className="px-3 py-2.5 text-right text-amber-400">Seña</th>
+                          <th className="px-3 py-2.5 text-right text-slate-400">A Cobrar en Mano</th>
+                          <th className="px-3 py-2.5 text-center">Acción</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-slate-800/60">
+                        {myAppointments.filter((a) => a.status !== 'cancelled').length === 0 ? (
+                          <tr>
+                            <td colSpan={9} className="text-center py-6 text-slate-500 text-xs">
+                              No hay turnos registrados en este consultorio aún.
+                            </td>
+                          </tr>
+                        ) : (
+                          myAppointments
+                            .filter((a) => a.status !== 'cancelled')
+                            .map((app) => {
+                              const srv = services.find((s) => s.id === app.serviceId);
+                              const calc = calculateAppointmentCommission(app, assignedProfessional, srv);
+                              const isCompleted = app.status === 'completed';
+
+                              return (
+                                <tr key={app.id} className="hover:bg-slate-900/60 transition">
+                                  <td className="px-3 py-2.5 font-mono text-[11px] text-slate-300">
+                                    {formatDateShort(app.date)} {app.startTime}
+                                  </td>
+                                  <td className="px-3 py-2.5">
+                                    <div className="font-semibold text-white">{app.customerName}</div>
+                                    <div className="text-[10px] text-slate-500 font-mono">#{app.bookingCode}</div>
+                                  </td>
+                                  <td className="px-3 py-2.5 text-slate-300">
+                                    {srv?.name || 'Consulta'}
+                                  </td>
+                                  <td className="px-3 py-2.5 text-right font-medium text-white">
+                                    ${calc.servicePrice.toLocaleString('es-AR')}
+                                  </td>
+                                  <td className="px-3 py-2.5 text-right font-medium text-teal-400">
+                                    {calc.commissionEnabled ? `-$${calc.clinicCommission.toLocaleString('es-AR')}` : '$0'}
+                                  </td>
+                                  <td className="px-3 py-2.5 text-right font-extrabold text-emerald-400">
+                                    +${calc.professionalNet.toLocaleString('es-AR')}
+                                  </td>
+                                  <td className="px-3 py-2.5 text-right text-amber-400 font-medium">
+                                    ${calc.depositAmount.toLocaleString('es-AR')}
+                                  </td>
+                                  <td className="px-3 py-2.5 text-right text-slate-300 font-medium">
+                                    ${calc.balanceToPayInOffice.toLocaleString('es-AR')}
+                                  </td>
+                                  <td className="px-3 py-2.5 text-center">
+                                    <button
+                                      type="button"
+                                      onClick={() => setSelectedAppointmentForReceipt(app)}
+                                      className="px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 text-teal-300 border border-slate-700 text-[10px] font-bold transition cursor-pointer"
+                                      title="Ver recibo y desglose"
+                                    >
+                                      Recibo
+                                    </button>
+                                  </td>
+                                </tr>
+                              );
+                            })
+                        )}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 5: MIS SERVICIOS & HONORARIOS */}
             {activeTab === 'services' && (
               <div className="bg-slate-950 rounded-3xl p-5 sm:p-6 border border-slate-800 shadow-sm space-y-4">
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-4 border-b border-slate-800">
@@ -2407,6 +3384,138 @@ export function StaffWorkspace({
           </div>
         </div>
       )}
+
+      {/* MODAL: DESGLOSE FINANCIERO Y COBRO DE TURNO (STAFF) */}
+      {selectedAppointmentForReceipt && assignedProfessional && (() => {
+        const srv = services.find((s) => s.id === selectedAppointmentForReceipt.serviceId);
+        const calc = calculateAppointmentCommission(selectedAppointmentForReceipt, assignedProfessional, srv);
+        const isCompleted = selectedAppointmentForReceipt.status === 'completed';
+
+        return (
+          <div className="fixed inset-0 z-50 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+            <div className="bg-slate-900 rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-800 space-y-5">
+              {/* Header */}
+              <div className="flex items-start justify-between pb-3.5 border-b border-slate-800">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-teal-500/10 text-teal-400 border border-teal-500/20 flex items-center justify-center font-bold">
+                    <Receipt className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-white text-base">
+                      Comprobante & Desglose de Honorarios
+                    </h3>
+                    <p className="text-xs text-slate-400">
+                      Turno #{selectedAppointmentForReceipt.bookingCode} • {formatDateShort(selectedAppointmentForReceipt.date)} - {selectedAppointmentForReceipt.startTime} hs
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setSelectedAppointmentForReceipt(null)}
+                  className="p-1 rounded-lg text-slate-400 hover:text-white"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Patient & Service Summary */}
+              <div className="p-3.5 rounded-2xl bg-slate-950/80 border border-slate-800/90 space-y-2 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Paciente:</span>
+                  <span className="font-bold text-white text-sm">{selectedAppointmentForReceipt.customerName}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Teléfono:</span>
+                  <span className="font-mono text-slate-300">{selectedAppointmentForReceipt.customerPhone}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Servicio / Tratamiento:</span>
+                  <span className="font-semibold text-teal-300">{srv?.name || 'Consulta Médica'}</span>
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-slate-400">Consultorio:</span>
+                  <span className="font-medium text-slate-200">{assignedProfessional.officeNumber || 'Consultorio'}</span>
+                </div>
+              </div>
+
+              {/* Financial Calculation Cards */}
+              <div className="space-y-2.5 text-xs">
+                <div className="flex items-center justify-between p-3 rounded-xl bg-slate-950/90 border border-slate-800">
+                  <span className="text-slate-300 font-medium">1. Valor Total del Servicio:</span>
+                  <span className="text-base font-extrabold text-white">
+                    ${calc.servicePrice.toLocaleString('es-AR')}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between p-3 rounded-xl bg-teal-950/30 border border-teal-500/20">
+                  <div>
+                    <span className="text-teal-300 font-semibold block">2. Deducción Comisión Clínica:</span>
+                    <span className="text-[10px] text-teal-500/80">
+                      {calc.commissionEnabled
+                        ? `Regla: ${calc.commissionType === 'fixed' ? `$${calc.commissionRate.toLocaleString('es-AR')} fijo` : `${calc.commissionRate}% por consulta`}`
+                        : 'Sin comisión (100% especialista)'}
+                    </span>
+                  </div>
+                  <span className="text-base font-extrabold text-teal-400">
+                    {calc.commissionEnabled ? `-$${calc.clinicCommission.toLocaleString('es-AR')}` : '$0'}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between p-3 rounded-xl bg-emerald-950/30 border border-emerald-500/20">
+                  <div>
+                    <span className="text-emerald-300 font-bold block">3. Tu Honorario Neto a Percibir:</span>
+                    <span className="text-[10px] text-emerald-500/80">Ganancia neta del especialista</span>
+                  </div>
+                  <span className="text-lg font-black text-emerald-400">
+                    +${calc.professionalNet.toLocaleString('es-AR')}
+                  </span>
+                </div>
+
+                {/* Deposit Split Info */}
+                <div className="p-3 rounded-xl bg-slate-950/90 border border-slate-800 space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-slate-400">Seña Abonada por Paciente:</span>
+                    <span className="font-bold text-amber-400">
+                      ${calc.depositAmount.toLocaleString('es-AR')}
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between text-[11px]">
+                    <span className="text-slate-400">Saldo Restante a Cobrar en Consultorio:</span>
+                    <span className="font-bold text-white">
+                      ${calc.balanceToPayInOffice.toLocaleString('es-AR')}
+                    </span>
+                  </div>
+                  <p className="text-[10px] text-slate-500 italic pt-1 border-t border-slate-800/80">
+                    💡 {calc.settlementNote}
+                  </p>
+                </div>
+              </div>
+
+              {/* Actions */}
+              <div className="pt-3 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleCopyReceiptText(selectedAppointmentForReceipt)}
+                  className="w-full sm:w-auto px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer"
+                >
+                  <Copy className="w-3.5 h-3.5 text-slate-400" />
+                  <span>{copiedReceiptText ? '¡Copiado!' : 'Copiar para WhatsApp'}</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => handleSendWhatsAppReceipt(selectedAppointmentForReceipt)}
+                  className="w-full sm:w-auto px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-slate-950 text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer shadow-xs"
+                >
+                  <MessageCircle className="w-3.5 h-3.5" />
+                  <span>Enviar por WhatsApp</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
