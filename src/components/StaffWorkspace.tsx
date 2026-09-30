@@ -10,6 +10,11 @@ import {
   User,
 } from '../types';
 import { api } from '../services/api';
+import {
+  validateStaffWorkingHoursAgainstClinic,
+  type AvailabilityValidationResult,
+  type WorkingHourConflict,
+} from '../lib/availabilityValidation';
 import { formatDateShort } from '../utils/dateUtils';
 import { generateWaMeLink } from '../lib/notifications';
 import {
@@ -43,6 +48,10 @@ import {
   Sun,
   Moon,
   CalendarDays,
+  ShieldCheck,
+  ShieldAlert,
+  AlertTriangle,
+  Info,
 } from 'lucide-react';
 
 interface StaffWorkspaceProps {
@@ -88,6 +97,7 @@ export function StaffWorkspace({
   const [isEditingMyHours, setIsEditingMyHours] = useState(false);
   const [savingMyHours, setSavingMyHours] = useState(false);
   const [myHoursMessage, setMyHoursMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [validationResult, setValidationResult] = useState<AvailabilityValidationResult | null>(null);
 
   const DAYS_ORDER = [
     { day: 1, label: 'Lunes' },
@@ -420,6 +430,49 @@ export function StaffWorkspace({
     });
   }, [assignedProfessional, hasCustomHours, myCustomHours, clinicGeneralHours, DAYS_ORDER]);
 
+  // Validación lógica en tiempo real de los horarios del staff frente a la inactividad y feriados de la clínica
+  const liveValidation = useMemo(() => {
+    if (!isEditingMyHours || !assignedProfessional) return null;
+    return validateStaffWorkingHoursAgainstClinic(myHoursDraft, clinicGeneralHours, timeOffs);
+  }, [isEditingMyHours, myHoursDraft, clinicGeneralHours, timeOffs, assignedProfessional]);
+
+  // Resumen de horarios y días de inactividad de la clínica para referencia del staff
+  const clinicScheduleSummary = useMemo(() => {
+    return DAYS_ORDER.map((d) => {
+      const found = clinicGeneralHours.find((c) => c.dayOfWeek === d.day);
+      if (!found || !found.enabled || found.shifts.length === 0) {
+        return { day: d.day, label: d.label, active: false, text: 'Inactivo / Cerrado' };
+      }
+      const shiftsText = found.shifts.map((s) => `${s.start} a ${s.end} hs`).join(', ');
+      return { day: d.day, label: d.label, active: true, text: shiftsText };
+    });
+  }, [clinicGeneralHours, DAYS_ORDER]);
+
+  // Auto-ajuste de turnos a los días de apertura y límites de inactividad de la clínica
+  const handleAutoFitToClinicHours = () => {
+    if (!assignedProfessional) return;
+    setMyHoursDraft((prev) =>
+      prev.map((item) => {
+        const cDay = clinicGeneralHours.find((c) => c.dayOfWeek === item.dayOfWeek);
+        if (!cDay || !cDay.enabled || cDay.shifts.length === 0) {
+          return { ...item, enabled: false, shifts: [] };
+        }
+        const cMin = cDay.shifts[0].start;
+        const cMax = cDay.shifts[cDay.shifts.length - 1].end;
+        const currentShifts = item.shifts.length > 0 ? item.shifts : cDay.shifts;
+        const clampedShifts = currentShifts.map((s) => ({
+          start: s.start < cMin ? cMin : s.start,
+          end: s.end > cMax ? cMax : s.end,
+        }));
+        return { ...item, enabled: true, shifts: clampedShifts };
+      })
+    );
+    setMyHoursMessage({
+      type: 'success',
+      text: 'Se ajustaron tus turnos automáticamente a los días de apertura y límites de inactividad de la clínica.',
+    });
+  };
+
   // Helper to ensure all 7 days exist for editing
   const ensureAllDaysForStaff = (sourceHours: WorkingHours[], profId: string): WorkingHours[] => {
     const profHours = sourceHours.filter((w) => w.professionalId === profId);
@@ -470,11 +523,13 @@ export function StaffWorkspace({
     setMyHoursDraft(ensureAllDaysForStaff(workingHours, assignedProfessional.id));
     setIsEditingMyHours(true);
     setMyHoursMessage(null);
+    setValidationResult(null);
   };
 
   const handleCancelEditingMyHours = () => {
     setIsEditingMyHours(false);
     setMyHoursMessage(null);
+    setValidationResult(null);
   };
 
   const handleToggleMyDay = (dayNum: number) => {
@@ -634,16 +689,40 @@ export function StaffWorkspace({
         businessId: business.id,
         professionalId: assignedProfessional.id,
       }));
+
+      // Validación lógica a través de la capa de servicios contra inactividad y feriados de la clínica
+      const validation = await api.validateStaffAvailability(business.id, payload, {
+        strictOperatingHours: true,
+      });
+
+      if (!validation.valid) {
+        setValidationResult(validation);
+        setMyHoursMessage({
+          type: 'error',
+          text: `Conflicto de disponibilidad: se encontraron ${validation.errors.length} inconsistencia(s) con las horas de inactividad o días de cierre de la clínica. Revisa los días marcados antes de guardar.`,
+        });
+        setSavingMyHours(false);
+        return;
+      }
+
       await api.updateWorkingHours(business.id, payload);
       const reloaded = await api.getWorkingHours(business.id);
       setWorkingHours(reloaded);
       setIsEditingMyHours(false);
+      setValidationResult(validation);
+
+      let successText =
+        '¡Disponibilidad y rangos de atención guardados con éxito de forma independiente a la clínica! Los pacientes solo podrán agendar en tus franjas activas.';
+      if (validation.warnings.length > 0) {
+        successText += ` (Se detectaron ${validation.warnings.length} aviso(s) sobre feriados de la clínica que mantendrán la agenda pausada en esas fechas específicas).`;
+      }
+
       setMyHoursMessage({
         type: 'success',
-        text: '¡Tus horarios y días de atención han sido guardados con éxito! Los pacientes que reserven contigo en el portal solo verán turnos dentro de tus rangos configurados.',
+        text: successText,
       });
     } catch (err: any) {
-      setMyHoursMessage({ type: 'error', text: err.message || 'Error al guardar tus horarios' });
+      setMyHoursMessage({ type: 'error', text: err.message || 'Error al guardar disponibilidad' });
     } finally {
       setSavingMyHours(false);
     }
@@ -794,7 +873,10 @@ export function StaffWorkspace({
               }`}
             >
               <Clock className="w-3.5 h-3.5" />
-              <span>Mis Horarios & Días Libres</span>
+              <span>Configuración de Disponibilidad</span>
+              {hasCustomHours && (
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+              )}
             </button>
 
             <button
@@ -1247,7 +1329,7 @@ export function StaffWorkspace({
               </div>
             )}
 
-            {/* TAB 3: MIS HORARIOS & DÍAS LIBRES */}
+            {/* TAB 3: CONFIGURACIÓN DE DISPONIBILIDAD */}
             {activeTab === 'hours' && (
               <div className="bg-slate-950 rounded-3xl p-5 sm:p-6 border border-slate-800 shadow-sm space-y-6">
                 {/* Header & Status */}
@@ -1256,24 +1338,22 @@ export function StaffWorkspace({
                     <div className="flex items-center gap-2 flex-wrap">
                       <h3 className="text-base font-extrabold text-white flex items-center gap-2">
                         <Clock className="w-4 h-4 text-teal-400" />
-                        <span>Horarios y Días de Atención de {assignedProfessional.name}</span>
+                        <span>Configuración de Disponibilidad: {assignedProfessional.name}</span>
                       </h3>
                       {hasCustomHours ? (
                         <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-bold flex items-center gap-1">
                           <CheckCircle2 className="w-3 h-3" />
-                          <span>Horarios Personalizados Activos</span>
+                          <span>Disponibilidad Independiente Activa</span>
                         </span>
                       ) : (
                         <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-sky-500/15 text-sky-400 border border-sky-500/30 font-bold flex items-center gap-1">
                           <Building2 className="w-3 h-3" />
-                          <span>Heredados de la Clínica</span>
+                          <span>Heredados de la Clínica (Por Defecto)</span>
                         </span>
                       )}
                     </div>
                     <p className="text-xs text-slate-400">
-                      {hasCustomHours
-                        ? 'Tus pacientes solo verán turnos en los días y rangos horarios que tú definas aquí (tienen prioridad sobre la clínica).'
-                        : 'Actualmente estás usando los horarios generales de la clínica. Puedes personalizar tus días de atención y franjas horarias con total autonomía.'}
+                      Define tus propios rangos horarios y días de atención específicos. Estos datos se guardan de forma 100% independiente a la configuración general de la clínica, validándose automáticamente contra las horas de inactividad o días feriados configurados por el dueño en el BusinessDashboard.
                     </p>
                   </div>
 
@@ -1307,7 +1387,7 @@ export function StaffWorkspace({
                           className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-xs transition cursor-pointer shadow-xs"
                         >
                           <Edit2 className="w-3.5 h-3.5" />
-                          <span>Editar Mis Horarios & Días</span>
+                          <span>Editar Disponibilidad & Días</span>
                         </button>
                       </>
                     ) : (
@@ -1323,11 +1403,15 @@ export function StaffWorkspace({
                         <button
                           type="button"
                           onClick={handleSaveMyHours}
-                          disabled={savingMyHours}
-                          className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition cursor-pointer shadow-xs"
+                          disabled={savingMyHours || (liveValidation?.errors.length ?? 0) > 0}
+                          className={`flex items-center gap-1.5 px-4 py-1.5 rounded-xl font-bold text-xs transition cursor-pointer shadow-xs ${
+                            (liveValidation?.errors.length ?? 0) > 0
+                              ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40 cursor-not-allowed'
+                              : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950'
+                          }`}
                         >
                           <Save className="w-3.5 h-3.5" />
-                          <span>{savingMyHours ? 'Guardando...' : 'Guardar Mis Horarios'}</span>
+                          <span>{savingMyHours ? 'Guardando...' : 'Guardar Disponibilidad'}</span>
                         </button>
                       </>
                     )}
@@ -1358,6 +1442,92 @@ export function StaffWorkspace({
                     >
                       <X className="w-3.5 h-3.5" />
                     </button>
+                  </div>
+                )}
+
+                {/* Clinic Reference Guide: Operating Hours & Inactive Days */}
+                <div className="bg-slate-900/60 p-4 rounded-2xl border border-slate-800 space-y-2">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <span className="text-xs font-bold text-slate-300 flex items-center gap-1.5">
+                      <Building2 className="w-3.5 h-3.5 text-teal-400" />
+                      <span>Marco de Funcionamiento de la Clínica (Configurado por Dirección):</span>
+                    </span>
+                    <span className="text-[11px] text-slate-500">
+                      Tus horarios propios deben operar en los días y dentro de los límites de apertura del establecimiento
+                    </span>
+                  </div>
+                  <div className="flex flex-wrap gap-2 pt-1 text-[11px]">
+                    {clinicScheduleSummary.map((c) => (
+                      <span
+                        key={c.day}
+                        className={`px-2.5 py-1 rounded-xl font-mono border ${
+                          c.active
+                            ? 'bg-slate-950/80 border-slate-800 text-slate-300'
+                            : 'bg-rose-950/20 border-rose-900/40 text-rose-400 font-semibold'
+                        }`}
+                      >
+                        <span className="font-sans font-bold text-slate-400 mr-1">{c.label}:</span>
+                        {c.text}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                {/* VALIDATION CONFLICTS BANNER (WHEN EDITING) */}
+                {isEditingMyHours && liveValidation?.hasConflicts && (
+                  <div className="space-y-3 animate-in fade-in">
+                    {/* Blocking Errors: Inactivity or Clinic Closed Days */}
+                    {liveValidation.errors.length > 0 && (
+                      <div className="p-4 rounded-2xl bg-rose-950/40 border border-rose-800/80 text-xs text-rose-200 space-y-3">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 font-bold text-rose-300">
+                            <ShieldAlert className="w-4 h-4 text-rose-400 shrink-0" />
+                            <span>
+                              Conflicto con Horas de Inactividad o Cierres de la Clínica ({liveValidation.errors.length}):
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleAutoFitToClinicHours}
+                            className="flex items-center gap-1 px-3 py-1 rounded-xl bg-rose-500/20 hover:bg-rose-500/30 text-rose-200 border border-rose-500/40 font-semibold transition cursor-pointer self-start sm:self-auto text-[11px]"
+                          >
+                            <Sparkles className="w-3 h-3" />
+                            <span>Ajustar Automáticamente a Horarios de la Clínica</span>
+                          </button>
+                        </div>
+                        <ul className="space-y-1.5 pl-6 list-disc">
+                          {liveValidation.errors.map((err, idx) => (
+                            <li key={idx} className="text-slate-300">
+                              <strong className="text-rose-300">{err.dayLabel}:</strong> {err.message}
+                              {err.suggestedAction && (
+                                <span className="block text-[11px] text-teal-400 font-sans mt-0.5">
+                                  💡 Sugerencia: {err.suggestedAction}
+                                </span>
+                              )}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+
+                    {/* Non-blocking Warnings: Clinic Holidays or General Blocks */}
+                    {liveValidation.warnings.length > 0 && (
+                      <div className="p-3.5 rounded-2xl bg-amber-950/30 border border-amber-800/50 text-xs text-amber-200 space-y-2">
+                        <div className="flex items-center gap-2 font-bold text-amber-300">
+                          <AlertTriangle className="w-4 h-4 text-amber-400 shrink-0" />
+                          <span>
+                            Avisos de Feriados y Bloqueos Institucionales Programados ({liveValidation.warnings.length}):
+                          </span>
+                        </div>
+                        <ul className="space-y-1 pl-5 list-disc text-slate-300 text-[11px]">
+                          {liveValidation.warnings.map((w, idx) => (
+                            <li key={idx}>
+                              <strong className="text-amber-300">{w.dayLabel}:</strong> {w.message}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -1415,7 +1585,7 @@ export function StaffWorkspace({
                       <div className="flex items-center gap-2.5">
                         <Sparkles className="w-4 h-4 text-teal-400 shrink-0" />
                         <span className="text-slate-300">
-                          ¿Necesitas cambiar tus días o atender en turnos cortados (mañana y tarde)?
+                          ¿Deseas configurar tus propios días u horarios de atención específicos?
                         </span>
                       </div>
                       <button
@@ -1423,13 +1593,13 @@ export function StaffWorkspace({
                         onClick={handleStartEditingMyHours}
                         className="px-3.5 py-1.5 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-xs transition cursor-pointer self-start sm:self-auto shrink-0 shadow-xs"
                       >
-                        Personalizar Mis Horarios
+                        Configurar Mi Disponibilidad
                       </button>
                     </div>
                   </div>
                 )}
 
-                {/* MODE 2: INTERACTIVE SCHEDULE EDITOR */}
+                {/* MODE 2: INTERACTIVE SCHEDULE & AVAILABILITY EDITOR */}
                 {isEditingMyHours && (
                   <div className="space-y-5 animate-in fade-in">
                     {/* Presets and Helpers Bar */}
@@ -1489,6 +1659,15 @@ export function StaffWorkspace({
                           <Building2 className="w-3.5 h-3.5 text-sky-400" />
                           <span>Copiar de la Clínica</span>
                         </button>
+
+                        <button
+                          type="button"
+                          onClick={handleAutoFitToClinicHours}
+                          className="flex items-center gap-1 px-3 py-1 rounded-xl bg-teal-500/15 hover:bg-teal-500/25 text-teal-300 border border-teal-500/30 text-xs font-semibold transition cursor-pointer"
+                        >
+                          <ShieldCheck className="w-3.5 h-3.5 text-teal-400" />
+                          <span>Ajustar a Límites de Clínica</span>
+                        </button>
                       </div>
                     </div>
 
@@ -1499,15 +1678,23 @@ export function StaffWorkspace({
                         const isEnabled = daySchedule?.enabled ?? false;
                         const shifts = daySchedule?.shifts ?? [];
 
+                        const dayErrors = liveValidation?.errors.filter((e) => e.dayOfWeek === day) || [];
+                        const dayWarnings = liveValidation?.warnings.filter((w) => w.dayOfWeek === day) || [];
+                        const hasDayError = dayErrors.length > 0;
+                        const hasDayWarning = dayWarnings.length > 0;
+
                         return (
                           <div
                             key={day}
                             className={`p-4 rounded-2xl border transition ${
-                              isEnabled
+                              hasDayError
+                                ? 'bg-rose-950/20 border-rose-500/70 shadow-sm'
+                                : isEnabled
                                 ? 'bg-slate-900 border-slate-800 shadow-xs'
                                 : 'bg-slate-950/60 border-slate-900 opacity-60'
                             }`}
                           >
+                            {/* Day Header */}
                             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-800/80">
                               <div className="flex items-center gap-3">
                                 <label className="relative inline-flex items-center cursor-pointer">
@@ -1520,9 +1707,17 @@ export function StaffWorkspace({
                                   <div className="w-10 h-5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-teal-500"></div>
                                 </label>
                                 <div>
-                                  <span className="text-sm font-bold text-white uppercase tracking-wider">
-                                    {label}
-                                  </span>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-sm font-bold text-white uppercase tracking-wider">
+                                      {label}
+                                    </span>
+                                    {hasDayError && (
+                                      <span className="text-[10px] px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/40 font-bold flex items-center gap-1">
+                                        <ShieldAlert className="w-3 h-3 text-rose-400" />
+                                        <span>Conflicto con Clínica</span>
+                                      </span>
+                                    )}
+                                  </div>
                                   <span className="block text-[11px] text-slate-400">
                                     {isEnabled
                                       ? `${shifts.length} ${shifts.length === 1 ? 'rango de atención' : 'rangos horarios'}`
@@ -1542,6 +1737,36 @@ export function StaffWorkspace({
                                 </button>
                               )}
                             </div>
+
+                            {/* Specific Conflict Badges for this day */}
+                            {hasDayError && (
+                              <div className="mt-3 p-2.5 rounded-xl bg-rose-950/40 border border-rose-800/60 text-xs text-rose-200 space-y-1">
+                                {dayErrors.map((err, idx) => (
+                                  <div key={idx} className="flex items-start gap-1.5">
+                                    <ShieldAlert className="w-3.5 h-3.5 text-rose-400 shrink-0 mt-0.5" />
+                                    <div>
+                                      <span className="font-semibold">{err.message}</span>
+                                      {err.suggestedAction && (
+                                        <p className="text-[11px] text-teal-400 mt-0.5">
+                                          Sugerencia: {err.suggestedAction}
+                                        </p>
+                                      )}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {hasDayWarning && !hasDayError && (
+                              <div className="mt-3 p-2 rounded-xl bg-amber-950/30 border border-amber-800/50 text-[11px] text-amber-300 space-y-1">
+                                {dayWarnings.map((w, idx) => (
+                                  <div key={idx} className="flex items-start gap-1.5">
+                                    <AlertTriangle className="w-3.5 h-3.5 text-amber-400 shrink-0 mt-0.5" />
+                                    <span>{w.message}</span>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
 
                             {/* Shifts Inputs */}
                             {isEnabled ? (
@@ -1621,14 +1846,23 @@ export function StaffWorkspace({
                       </button>
 
                       <div className="flex items-center gap-2">
+                        {liveValidation?.errors.length ? (
+                          <span className="text-xs text-rose-400 font-semibold">
+                            Corrige los conflictos señalados para habilitar el guardado
+                          </span>
+                        ) : null}
                         <button
                           type="button"
                           onClick={handleSaveMyHours}
-                          disabled={savingMyHours}
-                          className="flex items-center gap-2 px-5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-950 font-bold text-xs transition cursor-pointer shadow-md"
+                          disabled={savingMyHours || (liveValidation?.errors.length ?? 0) > 0}
+                          className={`flex items-center gap-2 px-5 py-2 rounded-xl font-bold text-xs transition cursor-pointer shadow-md ${
+                            (liveValidation?.errors.length ?? 0) > 0
+                              ? 'bg-rose-500/20 text-rose-300 border border-rose-500/40 cursor-not-allowed'
+                              : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950'
+                          }`}
                         >
                           <Save className="w-4 h-4" />
-                          <span>{savingMyHours ? 'Guardando...' : 'Guardar Mis Horarios & Días'}</span>
+                          <span>{savingMyHours ? 'Guardando...' : 'Guardar Disponibilidad'}</span>
                         </button>
                       </div>
                     </div>

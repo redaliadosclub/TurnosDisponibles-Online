@@ -8,6 +8,7 @@ import {
   formatBusinessWhatsAppAlert,
   generateWaMeLink,
 } from './src/lib/notifications';
+import { validateStaffWorkingHoursAgainstClinic } from './src/lib/availabilityValidation';
 
 let aiClient: GoogleGenAI | null = null;
 function getGenAI(): GoogleGenAI | null {
@@ -574,9 +575,41 @@ async function startServer() {
     res.json(hours);
   });
 
+  app.post('/api/businesses/:businessId/working-hours/validate', (req, res) => {
+    const hours = req.body;
+    if (!Array.isArray(hours)) {
+      return res.status(400).json({ error: 'Body debe ser un array de WorkingHours' });
+    }
+    const allHours = db.getWorkingHours(req.params.businessId);
+    const clinicHours = allHours.filter((h) => h.professionalId === null);
+    const timeOffs = db.getTimeOffs(req.params.businessId);
+    const clinicTimeOffs = timeOffs.filter((to) => to.professionalId === null);
+
+    const validation = validateStaffWorkingHoursAgainstClinic(hours, clinicHours, clinicTimeOffs);
+    res.json(validation);
+  });
+
   app.put('/api/businesses/:businessId/working-hours', (req, res) => {
-    const hours = db.updateWorkingHours(req.params.businessId, req.body);
-    res.json(hours);
+    const hours = req.body;
+    const enforceValidation = req.query.validate === 'true';
+
+    if (enforceValidation && Array.isArray(hours) && hours[0]?.professionalId) {
+      const allHours = db.getWorkingHours(req.params.businessId);
+      const clinicHours = allHours.filter((h) => h.professionalId === null);
+      const timeOffs = db.getTimeOffs(req.params.businessId);
+      const clinicTimeOffs = timeOffs.filter((to) => to.professionalId === null);
+
+      const validation = validateStaffWorkingHoursAgainstClinic(hours, clinicHours, clinicTimeOffs);
+      if (!validation.valid) {
+        return res.status(400).json({
+          error: 'Conflicto con horarios de inactividad o días de cierre de la clínica',
+          validation,
+        });
+      }
+    }
+
+    const updated = db.updateWorkingHours(req.params.businessId, hours);
+    res.json(updated);
   });
 
   app.post('/api/businesses/:businessId/working-hours/reset', (req, res) => {

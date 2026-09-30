@@ -14,6 +14,11 @@ import {
 } from '../types';
 import { calculateAvailability } from '../lib/availabilityEngine';
 import {
+  validateStaffWorkingHoursAgainstClinic,
+  AvailabilityValidationResult,
+  WorkingHourConflict,
+} from '../lib/availabilityValidation';
+import {
   formatCustomerWhatsAppMessage,
   formatBusinessWhatsAppAlert,
   generateWaMeLink,
@@ -1710,8 +1715,42 @@ class ApiService {
     return this.workingHours.filter((w) => w.businessId === businessId);
   }
 
-  async updateWorkingHours(businessId: string, hours: WorkingHours[]): Promise<WorkingHours[]> {
+  async validateStaffAvailability(
+    businessId: string,
+    staffHours: WorkingHours[],
+    options?: { strictOperatingHours?: boolean; referenceDateRangeDays?: number }
+  ): Promise<AvailabilityValidationResult> {
+    const allHours = await this.getWorkingHours(businessId);
+    const clinicHours = allHours.filter((h) => h.professionalId === null);
+    const allTimeOffs = await this.getTimeOffs(businessId);
+    const clinicTimeOffs = allTimeOffs.filter((to) => to.professionalId === null);
+
+    return validateStaffWorkingHoursAgainstClinic(
+      staffHours,
+      clinicHours,
+      clinicTimeOffs,
+      options
+    );
+  }
+
+  async updateWorkingHours(
+    businessId: string,
+    hours: WorkingHours[],
+    options?: { enforceClinicValidation?: boolean }
+  ): Promise<WorkingHours[]> {
     const targetProfId = hours[0]?.professionalId ?? null;
+
+    // Si es configuración de un profesional y se exige validación
+    if (targetProfId && options?.enforceClinicValidation) {
+      const validation = await this.validateStaffAvailability(businessId, hours, {
+        strictOperatingHours: true,
+      });
+      if (!validation.valid) {
+        const errorDetails = validation.errors.map((e) => e.message).join(' | ');
+        throw new Error(`Conflicto de disponibilidad con la clínica: ${errorDetails}`);
+      }
+    }
+
     this.workingHours = this.workingHours
       .filter((w) => !(w.businessId === businessId && w.professionalId === targetProfId))
       .concat(hours);
@@ -2173,3 +2212,8 @@ class ApiService {
 
 export const api = new ApiService();
 export const localStore = api;
+export {
+  validateStaffWorkingHoursAgainstClinic,
+  type AvailabilityValidationResult,
+  type WorkingHourConflict,
+} from '../lib/availabilityValidation';
