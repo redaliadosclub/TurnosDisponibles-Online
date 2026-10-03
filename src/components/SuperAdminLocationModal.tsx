@@ -72,16 +72,16 @@ export function SuperAdminLocationModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 p-6 text-white flex items-center justify-between">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
+        {/* Header - Fixed at top */}
+        <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 p-5 sm:p-6 text-white flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-300">
+            <div className="w-10 h-10 rounded-2xl bg-indigo-500/20 border border-indigo-400/30 flex items-center justify-center text-indigo-300 shrink-0">
               <Compass className="w-5 h-5" />
             </div>
             <div>
-              <h3 className="font-extrabold text-lg leading-tight">Ciudad o Zona por Defecto</h3>
+              <h3 className="font-extrabold text-base sm:text-lg leading-tight">Ciudad o Zona por Defecto</h3>
               <p className="text-xs text-slate-300">
                 Controla qué localidad se filtra automáticamente al abrir el portal
               </p>
@@ -90,14 +90,14 @@ export function SuperAdminLocationModal({
           <button
             type="button"
             onClick={onClose}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer"
+            className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-slate-800 transition-colors cursor-pointer shrink-0"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Content */}
-        <div className="p-6 space-y-5">
+        {/* Scrollable Content Body */}
+        <div className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
           <div className="bg-indigo-50/70 border border-indigo-200 rounded-2xl p-4 text-xs text-indigo-900 flex items-start gap-3">
             <Sparkles className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
             <div>
@@ -190,26 +190,26 @@ export function SuperAdminLocationModal({
               <span>¡Zona por defecto guardada! El portal ahora priorizará esta localidad.</span>
             </div>
           )}
+        </div>
 
-          {/* Footer */}
-          <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-200">
-            <button
-              type="button"
-              onClick={onClose}
-              className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors cursor-pointer"
-            >
-              Cancelar
-            </button>
-            <button
-              type="button"
-              onClick={handleSave}
-              disabled={loading}
-              className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition shadow-sm flex items-center gap-2 cursor-pointer"
-            >
-              <Check className="w-4 h-4" />
-              <span>Guardar Configuración</span>
-            </button>
-          </div>
+        {/* Footer - Fixed at bottom */}
+        <div className="flex items-center justify-end gap-3 p-4 sm:px-6 bg-slate-50 border-t border-slate-200 shrink-0">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors cursor-pointer"
+          >
+            Cancelar
+          </button>
+          <button
+            type="button"
+            onClick={handleSave}
+            disabled={loading}
+            className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold transition shadow-sm flex items-center gap-2 cursor-pointer"
+          >
+            <Check className="w-4 h-4" />
+            <span>Guardar Configuración</span>
+          </button>
         </div>
       </div>
     </div>
