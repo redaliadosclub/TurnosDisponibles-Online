@@ -15,6 +15,7 @@ import {
   Zap,
   Bot,
   ExternalLink,
+  Clock,
 } from 'lucide-react';
 import { Business, BusinessPlan } from '../types';
 import { getSaasConfig, buildWhatsAppPlanLink } from '../lib/saasConfig';
@@ -47,6 +48,7 @@ export function SaaSCheckoutModal({
   const saasConfig = getSaasConfig();
   const [selectedMethod, setSelectedMethod] = useState<'mercadopago' | 'transfer'>('mercadopago');
   const [transferRef, setTransferRef] = useState('');
+  const [mpRef, setMpRef] = useState('');
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -108,18 +110,18 @@ export function SaaSCheckoutModal({
     setTimeout(() => setCopiedField(null), 2500);
   };
 
-  const handlePayMercadoPago = async () => {
+  const handlePayMercadoPago = async (instantDemo: boolean = false) => {
     try {
       setIsProcessing(true);
-      // Simula proceso seguro de pasarela oficial con token de autorización
-      await new Promise((resolve) => setTimeout(resolve, 1500));
-      const authCode = `MP-AUTH-${Math.floor(100000 + Math.random() * 900000)}`;
-      
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      const authCode = mpRef.trim().toUpperCase() || `MP-OP-${Math.floor(10000000 + Math.random() * 90000000)}`;
+      const status = instantDemo ? 'approved' : 'pending_approval';
+
       await onPaymentConfirmed(targetPlan, {
         method: 'mercadopago',
         reference: authCode,
         amount: planInfo.price,
-        status: 'approved',
+        status,
       });
 
       setPaymentReceipt({
@@ -127,7 +129,7 @@ export function SaaSCheckoutModal({
         date: new Date().toLocaleString('es-AR'),
         amount: planInfo.price,
         plan: planInfo.name,
-        status: 'approved',
+        status,
       });
       setIsSuccess(true);
     } catch (err: any) {
@@ -405,29 +407,55 @@ export function SaaSCheckoutModal({
                   </div>
                 )}
 
-                <div className="pt-1 space-y-2">
+                {/* Paso 2: Registrar Operación para Aprobación de SuperAdmin */}
+                <div className="p-3.5 bg-white rounded-2xl border border-slate-200 space-y-3">
+                  <div className="flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-amber-600" />
+                    <span className="text-xs font-bold text-slate-900">
+                      Paso 2: Registrar Nro. de Operación / Comprobante
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500">
+                    Al terminar en Mercado Pago, copia el número de operación que figura en tu comprobante y pégalo aquí para que el SuperAdmin verifique el ingreso y active tu plan:
+                  </p>
+                  <input
+                    type="text"
+                    placeholder="Ej. Operación # 849201948 o e-mail de tu cuenta MP"
+                    value={mpRef}
+                    onChange={(e) => setMpRef(e.target.value)}
+                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-sky-500 bg-white"
+                  />
+
                   <button
                     type="button"
                     disabled={isProcessing}
-                    onClick={handlePayMercadoPago}
-                    className="w-full py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs transition flex items-center justify-center gap-2 cursor-pointer shadow-sm disabled:opacity-50"
+                    onClick={() => handlePayMercadoPago(false)}
+                    className="w-full py-3 rounded-xl bg-slate-900 hover:bg-black text-white font-black text-xs transition flex items-center justify-center gap-2 cursor-pointer shadow-md disabled:opacity-50"
                   >
                     {isProcessing ? (
                       <>
                         <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                        <span>Validando suscripción...</span>
+                        <span>Enviando comprobante a SuperAdmin...</span>
                       </>
                     ) : (
                       <>
-                        <CheckCircle2 className="w-4 h-4 text-emerald-400" />
-                        <span>Confirmar Activación de {planInfo.name}</span>
+                        <Clock className="w-4 h-4 text-amber-400" />
+                        <span>Notificar Pago a SuperAdmin (Bandeja de Aprobación)</span>
                       </>
                     )}
                   </button>
 
-                  <p className="text-[11px] text-center text-slate-500">
-                    💡 Si estás en fase de pruebas o ya realizaste el débito en Mercado Pago, pulsa "Confirmar Activación" para desbloquear tus funciones al instante.
-                  </p>
+                  <div className="pt-1 flex items-center justify-between border-t border-slate-100">
+                    <span className="text-[10px] text-slate-400">¿Probando la plataforma?</span>
+                    <button
+                      type="button"
+                      disabled={isProcessing}
+                      onClick={() => handlePayMercadoPago(true)}
+                      className="text-[10px] font-bold text-teal-600 hover:text-teal-800 underline cursor-pointer"
+                    >
+                      ⚡ Activar instantáneamente (Modo Demo)
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
