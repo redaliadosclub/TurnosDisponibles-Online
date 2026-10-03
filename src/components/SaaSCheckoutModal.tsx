@@ -379,53 +379,56 @@ export function SaaSCheckoutModal({
                 </p>
 
                 {mpSubscriptionLink && (
-                  <div className="p-3 bg-white rounded-xl border border-sky-200 space-y-2">
+                  <div className="p-3.5 bg-white rounded-2xl border border-sky-200 space-y-2.5 shadow-xs">
                     <div className="flex items-center justify-between">
-                      <span className="text-[11px] font-bold text-sky-950 flex items-center gap-1.5">
-                        <CreditCard className="w-3.5 h-3.5 text-sky-600" />
-                        Enlace de Suscripción Recurrente
+                      <span className="text-xs font-bold text-sky-950 flex items-center gap-1.5">
+                        <CreditCard className="w-4 h-4 text-sky-600" />
+                        Pasarela Oficial de Mercado Pago
                       </span>
-                      <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                        Débito Automático
+                      <span className="text-[10px] text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200">
+                        Débito Automático Mensual
                       </span>
                     </div>
-                    <p className="text-[11px] text-slate-500">
-                      Serás redirigido a la pasarela oficial de Mercado Pago para ingresar tu tarjeta de crédito o débito.
+                    <p className="text-xs text-slate-600">
+                      Al pulsar a continuación, se abrirá la pasarela oficial de Mercado Pago para que ingreses tu tarjeta de crédito/débito o pagues con saldo en cuenta.
                     </p>
                     <a
                       href={mpSubscriptionLink}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="w-full py-2.5 rounded-xl bg-sky-600 hover:bg-sky-700 text-white font-bold text-xs flex items-center justify-center gap-1.5 transition shadow-sm"
+                      className="w-full py-3 rounded-xl bg-[#009ee3] hover:bg-[#0081bb] text-white font-black text-xs flex items-center justify-center gap-2 transition shadow-md cursor-pointer"
                     >
-                      <span>Abrir Checkout Oficial en Mercado Pago</span>
+                      <CreditCard className="w-4 h-4" />
+                      <span>Ir a Pagar {planInfo.price} a Mercado Pago</span>
                       <ExternalLink className="w-3.5 h-3.5" />
                     </a>
                   </div>
                 )}
 
-                <button
-                  type="button"
-                  disabled={isProcessing}
-                  onClick={handlePayMercadoPago}
-                  className="w-full py-3.5 rounded-2xl bg-[#009ee3] hover:bg-[#0081bb] text-white font-extrabold text-xs transition flex items-center justify-center gap-2 cursor-pointer shadow-md disabled:opacity-50"
-                >
-                  {isProcessing ? (
-                    <>
-                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                      <span>Validando transacción segura...</span>
-                    </>
-                  ) : (
-                    <>
-                      <CreditCard className="w-4 h-4" />
-                      <span>
-                        {mpSubscriptionLink
-                          ? `Confirmar Activación de ${planInfo.name}`
-                          : `Abonar ${planInfo.price} con Mercado Pago`}
-                      </span>
-                    </>
-                  )}
-                </button>
+                <div className="pt-1 space-y-2">
+                  <button
+                    type="button"
+                    disabled={isProcessing}
+                    onClick={handlePayMercadoPago}
+                    className="w-full py-3 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-extrabold text-xs transition flex items-center justify-center gap-2 cursor-pointer shadow-sm disabled:opacity-50"
+                  >
+                    {isProcessing ? (
+                      <>
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        <span>Validando suscripción...</span>
+                      </>
+                    ) : (
+                      <>
+                        <CheckCircle2 className="w-4 h-4 text-emerald-400" />
+                        <span>Confirmar Activación de {planInfo.name}</span>
+                      </>
+                    )}
+                  </button>
+
+                  <p className="text-[11px] text-center text-slate-500">
+                    💡 Si estás en fase de pruebas o ya realizaste el débito en Mercado Pago, pulsa "Confirmar Activación" para desbloquear tus funciones al instante.
+                  </p>
+                </div>
               </div>
             )}
 
