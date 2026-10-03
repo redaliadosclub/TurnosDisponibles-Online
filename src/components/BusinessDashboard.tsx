@@ -500,6 +500,8 @@ export function BusinessDashboard({
       reference: string;
       amount: string;
       status: 'pending_approval' | 'approved';
+      receiptUrl?: string;
+      receiptFileName?: string;
     }
   ) => {
     try {
@@ -512,6 +514,8 @@ export function BusinessDashboard({
           reference: details.reference,
           method: details.method,
           status: details.status,
+          receiptUrl: details.receiptUrl,
+          receiptFileName: details.receiptFileName,
           submittedAt: new Date().toISOString(),
           approvedAt: isApproved ? new Date().toISOString() : undefined,
           paidAt: new Date().toISOString(),
@@ -524,7 +528,7 @@ export function BusinessDashboard({
         );
       } else {
         setPlanSuccessNotice(
-          `¡Comprobante de transferencia registrado (Ref: ${details.reference})! Tu solicitud para ascender al Plan ${plan.toUpperCase()} ha sido enviada a la bandeja de aprobación del SuperAdmin.`
+          `¡Comprobante registrado (Ref: ${details.reference})! Tu solicitud para ascender al Plan ${plan.toUpperCase()} ha sido enviada a la bandeja de aprobación del SuperAdmin.`
         );
       }
       setTimeout(() => setPlanSuccessNotice(null), 8000);
@@ -5787,6 +5791,7 @@ _Generado automáticamente desde ${business.name} vía Turnos Disponibles_`;
         business={business}
         targetPlan={targetPlanForCheckout}
         triggerReason={plansModalReason}
+        isSuperAdmin={userRole === 'superadmin'}
         onPaymentConfirmed={handlePaymentConfirmed}
       />
 

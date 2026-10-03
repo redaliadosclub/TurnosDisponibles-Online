@@ -14,6 +14,10 @@ import {
   Sparkles,
   ArrowRight,
   Filter,
+  Eye,
+  FileText,
+  Download,
+  ExternalLink,
 } from 'lucide-react';
 import { Business, BusinessPlan } from '../types';
 import { api } from '../services/api';
@@ -37,6 +41,16 @@ export function SuperAdminReceiptsInboxModal({
   const [searchQuery, setSearchQuery] = useState('');
   const [processingId, setProcessingId] = useState<string | null>(null);
   const [copiedRef, setCopiedRef] = useState<string | null>(null);
+  const [viewingReceipt, setViewingReceipt] = useState<{
+    url: string;
+    fileName?: string;
+    businessName: string;
+    plan: string;
+    expectedAmount: string;
+    declaredAmount: string;
+    reference: string;
+    business: Business;
+  } | null>(null);
 
   if (!isOpen) return null;
 
@@ -243,6 +257,17 @@ export function SuperAdminReceiptsInboxModal({
               const isApproved = status === 'approved';
               const isRejected = status === 'rejected';
 
+              const expectedAmount =
+                payment.plan === 'pro'
+                  ? saasConfig.proPlan.price
+                  : payment.plan === 'business'
+                  ? saasConfig.aiPlan.price
+                  : saasConfig.freePlan.price;
+
+              const cleanDecl = payment.amount.replace(/\D/g, '');
+              const cleanExp = expectedAmount.replace(/\D/g, '');
+              const isMatchingAmount = cleanDecl && cleanExp && cleanDecl === cleanExp;
+
               const whatsappChat = buildWhatsAppPlanLink(
                 biz.whatsappNumber || biz.phone,
                 `Hola ${biz.name}, te escribo desde la administración de TurnosDisponibles sobre tu comprobante de suscripción (Ref: ${payment.reference}) para el Plan ${payment.plan.toUpperCase()}.`
@@ -259,7 +284,7 @@ export function SuperAdminReceiptsInboxModal({
                       : 'bg-rose-50/30 border-rose-200'
                   }`}
                 >
-                  <div className="space-y-1.5 flex-1">
+                  <div className="space-y-2 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-black text-slate-900 text-sm">{biz.name}</span>
                       <span className="font-mono text-[10px] text-slate-500 bg-slate-100 px-2 py-0.5 rounded-full">
@@ -285,14 +310,30 @@ export function SuperAdminReceiptsInboxModal({
                       )}
                     </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs pt-1">
+                    {/* Comparisons & Details Grid */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs pt-1 bg-white/70 p-3 rounded-xl border border-slate-200/80">
                       <div>
                         <span className="text-[10px] text-slate-400 block font-bold uppercase">Plan Solicitado</span>
                         <span className="font-black text-slate-900 uppercase">Plan {payment.plan}</span>
                       </div>
                       <div>
-                        <span className="text-[10px] text-slate-400 block font-bold uppercase">Importe</span>
-                        <span className="font-black text-emerald-700">{payment.amount}</span>
+                        <span className="text-[10px] text-slate-400 block font-bold uppercase">Tarifa Oficial Esperada</span>
+                        <span className="font-bold text-slate-700">{expectedAmount}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-slate-400 block font-bold uppercase">Monto Declarado / Pagado</span>
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="font-black text-emerald-700">{payment.amount}</span>
+                          {isMatchingAmount ? (
+                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-emerald-100 text-emerald-800">
+                              ✓ Coincide
+                            </span>
+                          ) : (
+                            <span className="text-[9px] font-bold px-1.5 py-0.2 rounded bg-amber-100 text-amber-800">
+                              ⚠️ Dif. Tarifa
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <div>
                         <span className="text-[10px] text-slate-400 block font-bold uppercase">Método</span>
@@ -300,27 +341,63 @@ export function SuperAdminReceiptsInboxModal({
                           {payment.method === 'mercadopago' ? 'Mercado Pago' : 'Transferencia Bancaria'}
                         </span>
                       </div>
-                      <div>
-                        <span className="text-[10px] text-slate-400 block font-bold uppercase">Fecha de Envío</span>
-                        <span className="text-slate-600 text-[11px]">
-                          {payment.submittedAt ? new Date(payment.submittedAt).toLocaleDateString('es-AR') : 'Reciente'}
-                        </span>
-                      </div>
                     </div>
 
-                    <div className="flex items-center gap-2 pt-1 text-xs">
-                      <span className="text-slate-500 font-medium">Nro. Comprobante / Ref:</span>
-                      <span className="font-mono font-black text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-200">
-                        {payment.reference}
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => handleCopy(payment.reference)}
-                        className="text-slate-400 hover:text-slate-700 p-1 rounded"
-                        title="Copiar referencia"
-                      >
-                        {copiedRef === payment.reference ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
-                      </button>
+                    {/* Receipt File Preview + Reference */}
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-1 text-xs">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-slate-500 font-medium">Nro. Ref:</span>
+                        <span className="font-mono font-black text-slate-900 bg-white px-2 py-0.5 rounded border border-slate-200">
+                          {payment.reference}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleCopy(payment.reference)}
+                          className="text-slate-400 hover:text-slate-700 p-1 rounded"
+                          title="Copiar referencia"
+                        >
+                          {copiedRef === payment.reference ? <Check className="w-3.5 h-3.5 text-emerald-600" /> : <Copy className="w-3.5 h-3.5" />}
+                        </button>
+                        <span className="text-slate-400 text-[10px]">
+                          • {payment.submittedAt ? new Date(payment.submittedAt).toLocaleString('es-AR') : 'Reciente'}
+                        </span>
+                      </div>
+
+                      {/* File attachment preview button */}
+                      {payment.receiptUrl ? (
+                        <button
+                          type="button"
+                          onClick={() =>
+                            setViewingReceipt({
+                              url: payment.receiptUrl!,
+                              fileName: payment.receiptFileName,
+                              businessName: biz.name,
+                              plan: payment.plan,
+                              expectedAmount,
+                              declaredAmount: payment.amount,
+                              reference: payment.reference,
+                              business: biz,
+                            })
+                          }
+                          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-50 hover:bg-teal-100 text-teal-800 border border-teal-200 text-xs font-bold transition cursor-pointer self-start sm:self-auto"
+                        >
+                          {payment.receiptUrl.startsWith('data:image/') ? (
+                            <img
+                              src={payment.receiptUrl}
+                              alt="Thumbnail"
+                              className="w-5 h-5 rounded object-cover border border-teal-300"
+                            />
+                          ) : (
+                            <FileText className="w-4 h-4 text-teal-700" />
+                          )}
+                          <Eye className="w-3.5 h-3.5" />
+                          <span>Ver Archivo de Comprobante</span>
+                        </button>
+                      ) : (
+                        <span className="text-[11px] text-slate-400 italic">
+                          (Sin archivo adjunto • solo Nro. Operación)
+                        </span>
+                      )}
                     </div>
 
                     {payment.adminNote && (
@@ -384,6 +461,105 @@ export function SuperAdminReceiptsInboxModal({
           </button>
         </div>
       </div>
+
+      {/* FULLSCREEN RECEIPT VIEWER LIGHTBOX */}
+      {viewingReceipt && (
+        <div className="fixed inset-0 z-[60] bg-black/85 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-slate-900 text-white rounded-3xl max-w-3xl w-full max-h-[92vh] flex flex-col overflow-hidden border border-slate-700 shadow-2xl">
+            {/* Lightbox Header */}
+            <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+              <div>
+                <h4 className="font-bold text-sm text-white flex items-center gap-2">
+                  <FileText className="w-4 h-4 text-teal-400" />
+                  <span>Comprobante de {viewingReceipt.businessName}</span>
+                </h4>
+                <div className="flex items-center gap-2 text-[11px] text-slate-400 mt-0.5">
+                  <span>Plan: <strong className="text-teal-300 uppercase">{viewingReceipt.plan}</strong></span>
+                  <span>•</span>
+                  <span>Tarifa Oficial: <strong className="text-slate-300">{viewingReceipt.expectedAmount}</strong></span>
+                  <span>•</span>
+                  <span>Declarado: <strong className="text-emerald-400">{viewingReceipt.declaredAmount}</strong></span>
+                  <span>•</span>
+                  <span>Ref: <strong className="text-slate-200 font-mono">{viewingReceipt.reference}</strong></span>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <a
+                  href={viewingReceipt.url}
+                  download={viewingReceipt.fileName || `comprobante-${viewingReceipt.businessName}.png`}
+                  className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition cursor-pointer"
+                  title="Descargar comprobante"
+                >
+                  <Download className="w-4 h-4" />
+                </a>
+                <button
+                  type="button"
+                  onClick={() => setViewingReceipt(null)}
+                  className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition cursor-pointer"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Lightbox Body (Image / PDF Viewer) */}
+            <div className="flex-1 p-4 overflow-auto flex items-center justify-center bg-slate-950/60 min-h-[300px]">
+              {viewingReceipt.url.startsWith('data:image/') || viewingReceipt.url.startsWith('http') ? (
+                <img
+                  src={viewingReceipt.url}
+                  alt="Comprobante en alta resolución"
+                  className="max-h-[65vh] w-auto object-contain rounded-xl border border-slate-800 shadow-lg"
+                />
+              ) : (
+                <div className="p-8 text-center space-y-3">
+                  <FileText className="w-16 h-16 text-teal-400 mx-auto" />
+                  <p className="text-sm font-semibold text-slate-200">
+                    Documento PDF adjunto: {viewingReceipt.fileName || 'comprobante.pdf'}
+                  </p>
+                  <a
+                    href={viewingReceipt.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-2 px-4 py-2 bg-teal-600 hover:bg-teal-700 text-white font-bold text-xs rounded-xl shadow-md transition"
+                  >
+                    <span>Abrir PDF en pestaña nueva</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
+                </div>
+              )}
+            </div>
+
+            {/* Lightbox Footer Actions */}
+            <div className="p-4 border-t border-slate-800 bg-slate-900 flex flex-wrap items-center justify-between gap-3">
+              <span className="text-xs text-slate-400">
+                Verifica que el titular, importe y fecha coincidan con el extracto bancario.
+              </span>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setViewingReceipt(null)}
+                  className="px-3 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-semibold cursor-pointer"
+                >
+                  Cerrar Visor
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const biz = viewingReceipt.business;
+                    setViewingReceipt(null);
+                    handleApprove(biz);
+                  }}
+                  className="px-4 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-black shadow-md flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                  <span>Aprobar Este Pago Ahora</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

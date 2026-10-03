@@ -16,6 +16,11 @@ import {
   Bot,
   ExternalLink,
   Clock,
+  Upload,
+  FileText,
+  Image as ImageIcon,
+  Trash2,
+  Eye,
 } from 'lucide-react';
 import { Business, BusinessPlan } from '../types';
 import { getSaasConfig, buildWhatsAppPlanLink } from '../lib/saasConfig';
@@ -26,6 +31,7 @@ interface SaaSCheckoutModalProps {
   business: Business;
   targetPlan: BusinessPlan;
   triggerReason?: string;
+  isSuperAdmin?: boolean;
   onPaymentConfirmed: (
     plan: BusinessPlan,
     details: {
@@ -33,6 +39,8 @@ interface SaaSCheckoutModalProps {
       reference: string;
       amount: string;
       status: 'pending_approval' | 'approved';
+      receiptUrl?: string;
+      receiptFileName?: string;
     }
   ) => Promise<void>;
 }
@@ -43,12 +51,16 @@ export function SaaSCheckoutModal({
   business,
   targetPlan,
   triggerReason,
+  isSuperAdmin = false,
   onPaymentConfirmed,
 }: SaaSCheckoutModalProps) {
   const saasConfig = getSaasConfig();
   const [selectedMethod, setSelectedMethod] = useState<'mercadopago' | 'transfer'>('mercadopago');
   const [transferRef, setTransferRef] = useState('');
   const [mpRef, setMpRef] = useState('');
+  const [receiptFileUrl, setReceiptFileUrl] = useState<string | null>(null);
+  const [receiptFileName, setReceiptFileName] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
   const [copiedField, setCopiedField] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
@@ -110,6 +122,30 @@ export function SaaSCheckoutModal({
     setTimeout(() => setCopiedField(null), 2500);
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (file.size > 5 * 1024 * 1024) {
+      setUploadError('El archivo no debe superar los 5MB.');
+      return;
+    }
+    setUploadError(null);
+    setReceiptFileName(file.name);
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      setReceiptFileUrl(reader.result as string);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveFile = () => {
+    setReceiptFileUrl(null);
+    setReceiptFileName(null);
+    setUploadError(null);
+  };
+
   const handlePayMercadoPago = async (instantDemo: boolean = false) => {
     try {
       setIsProcessing(true);
@@ -122,6 +158,8 @@ export function SaaSCheckoutModal({
         reference: authCode,
         amount: planInfo.price,
         status,
+        receiptUrl: receiptFileUrl || undefined,
+        receiptFileName: receiptFileName || undefined,
       });
 
       setPaymentReceipt({
@@ -157,6 +195,8 @@ export function SaaSCheckoutModal({
         reference: refClean,
         amount: planInfo.price,
         status: 'pending_approval',
+        receiptUrl: receiptFileUrl || undefined,
+        receiptFileName: receiptFileName || undefined,
       });
 
       setPaymentReceipt({
@@ -418,13 +458,79 @@ export function SaaSCheckoutModal({
                   <p className="text-[11px] text-slate-500">
                     Al terminar en Mercado Pago, copia el número de operación que figura en tu comprobante y pégalo aquí para que el SuperAdmin verifique el ingreso y active tu plan:
                   </p>
-                  <input
-                    type="text"
-                    placeholder="Ej. Operación # 849201948 o e-mail de tu cuenta MP"
-                    value={mpRef}
-                    onChange={(e) => setMpRef(e.target.value)}
-                    className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-sky-500 bg-white"
-                  />
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 mb-1">
+                      Nro. de Operación o Correo de tu Cuenta Mercado Pago:
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Ej. Operación # 849201948 o tu-email@gmail.com"
+                      value={mpRef}
+                      onChange={(e) => setMpRef(e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-sky-500 bg-white"
+                    />
+                  </div>
+
+                  {/* File Upload Box (Mercado Pago) */}
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-slate-700 flex items-center justify-between">
+                      <span>Adjuntar Comprobante o Captura (Opcional):</span>
+                      <span className="text-[10px] text-slate-400 font-normal">JPG, PNG o PDF (Máx 5MB)</span>
+                    </label>
+
+                    {receiptFileUrl ? (
+                      <div className="p-3 bg-white rounded-xl border border-sky-200 flex items-center justify-between gap-3 shadow-xs">
+                        <div className="flex items-center gap-2.5 overflow-hidden">
+                          {receiptFileUrl.startsWith('data:image/') ? (
+                            <img
+                              src={receiptFileUrl}
+                              alt="Comprobante"
+                              className="w-10 h-10 rounded-lg object-cover border border-slate-200 shrink-0"
+                            />
+                          ) : (
+                            <div className="w-10 h-10 rounded-lg bg-sky-50 text-sky-700 flex items-center justify-center shrink-0">
+                              <FileText className="w-5 h-5" />
+                            </div>
+                          )}
+                          <div className="overflow-hidden">
+                            <span className="block text-xs font-bold text-slate-800 truncate">
+                              {receiptFileName || 'Comprobante adjunto'}
+                            </span>
+                            <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
+                              <Check className="w-3 h-3" /> Archivo cargado correctamente
+                            </span>
+                          </div>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={handleRemoveFile}
+                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                          title="Quitar comprobante"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ) : (
+                      <label className="border-2 border-dashed border-slate-300 hover:border-sky-500 rounded-xl p-3 flex flex-col items-center justify-center gap-1 text-center cursor-pointer bg-white transition hover:bg-sky-50/20">
+                        <Upload className="w-5 h-5 text-slate-400" />
+                        <span className="text-xs font-semibold text-slate-700">
+                          Haz clic para subir captura de pantalla de Mercado Pago
+                        </span>
+                        <span className="text-[10px] text-slate-400">
+                          Facilita la verificación instantánea del SuperAdmin
+                        </span>
+                        <input
+                          type="file"
+                          accept="image/*,application/pdf"
+                          onChange={handleFileChange}
+                          className="hidden"
+                        />
+                      </label>
+                    )}
+                    {uploadError && (
+                      <span className="text-[11px] text-rose-600 font-semibold block">{uploadError}</span>
+                    )}
+                  </div>
 
                   <button
                     type="button"
@@ -445,17 +551,19 @@ export function SaaSCheckoutModal({
                     )}
                   </button>
 
-                  <div className="pt-1 flex items-center justify-between border-t border-slate-100">
-                    <span className="text-[10px] text-slate-400">¿Probando la plataforma?</span>
-                    <button
-                      type="button"
-                      disabled={isProcessing}
-                      onClick={() => handlePayMercadoPago(true)}
-                      className="text-[10px] font-bold text-teal-600 hover:text-teal-800 underline cursor-pointer"
-                    >
-                      ⚡ Activar instantáneamente (Modo Demo)
-                    </button>
-                  </div>
+                  {isSuperAdmin && (
+                    <div className="pt-2 flex items-center justify-between border-t border-slate-100">
+                      <span className="text-[10px] text-slate-400 font-mono">Acceso Desarrollador / SuperAdmin:</span>
+                      <button
+                        type="button"
+                        disabled={isProcessing}
+                        onClick={() => handlePayMercadoPago(true)}
+                        className="text-[10px] font-bold text-teal-600 hover:text-teal-800 underline cursor-pointer"
+                      >
+                        ⚡ Activar instantáneamente (Modo Demo)
+                      </button>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -511,6 +619,67 @@ export function SaaSCheckoutModal({
                     onChange={(e) => setTransferRef(e.target.value)}
                     className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-xs focus:ring-2 focus:ring-teal-500 bg-white"
                   />
+                </div>
+
+                {/* File Upload Box (Transferencia) */}
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700 flex items-center justify-between">
+                    <span>Adjuntar Foto / Archivo del Comprobante (Recomendado):</span>
+                    <span className="text-[10px] text-slate-400 font-normal">JPG, PNG o PDF (Máx 5MB)</span>
+                  </label>
+
+                  {receiptFileUrl ? (
+                    <div className="p-3 bg-white rounded-xl border border-teal-200 flex items-center justify-between gap-3 shadow-xs">
+                      <div className="flex items-center gap-2.5 overflow-hidden">
+                        {receiptFileUrl.startsWith('data:image/') ? (
+                          <img
+                            src={receiptFileUrl}
+                            alt="Comprobante"
+                            className="w-10 h-10 rounded-lg object-cover border border-slate-200 shrink-0"
+                          />
+                        ) : (
+                          <div className="w-10 h-10 rounded-lg bg-teal-50 text-teal-700 flex items-center justify-center shrink-0">
+                            <FileText className="w-5 h-5" />
+                          </div>
+                        )}
+                        <div className="overflow-hidden">
+                          <span className="block text-xs font-bold text-slate-800 truncate">
+                            {receiptFileName || 'Comprobante adjunto'}
+                          </span>
+                          <span className="text-[10px] text-emerald-600 font-semibold flex items-center gap-1">
+                            <Check className="w-3 h-3" /> Archivo cargado correctamente
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={handleRemoveFile}
+                        className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                        title="Quitar comprobante"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <label className="border-2 border-dashed border-slate-300 hover:border-teal-500 rounded-xl p-3 flex flex-col items-center justify-center gap-1 text-center cursor-pointer bg-white transition hover:bg-teal-50/20">
+                      <Upload className="w-5 h-5 text-slate-400" />
+                      <span className="text-xs font-semibold text-slate-700">
+                        Haz clic para subir foto o comprobante bancario
+                      </span>
+                      <span className="text-[10px] text-slate-400">
+                        Acelera la aprobación de tu plan por el SuperAdmin
+                      </span>
+                      <input
+                        type="file"
+                        accept="image/*,application/pdf"
+                        onChange={handleFileChange}
+                        className="hidden"
+                      />
+                    </label>
+                  )}
+                  {uploadError && (
+                    <span className="text-[11px] text-rose-600 font-semibold block">{uploadError}</span>
+                  )}
                 </div>
 
                 <button

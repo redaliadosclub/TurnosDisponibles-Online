@@ -88,6 +88,8 @@ export interface Business {
     approvedAt?: string;
     adminNote?: string;
     paidAt?: string;
+    receiptUrl?: string;
+    receiptFileName?: string;
   };
 
   // Política General de Comisiones & Alquiler de Consultorios (Sub-inquilinos / Staff)
