@@ -12,6 +12,8 @@ import {
   Phone,
   HelpCircle,
   Building2,
+  CreditCard,
+  ShieldCheck,
 } from 'lucide-react';
 import {
   getSaasConfig,
@@ -430,6 +432,218 @@ export function SuperAdminWhatsAppPricingModal({
                 }
                 className="w-full px-3 py-2 bg-white rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
               />
+            </div>
+          </div>
+
+          {/* Section 5: Datos Bancarios Oficiales para Suscripciones SaaS */}
+          <div className="bg-emerald-50/60 p-5 rounded-2xl border border-emerald-200 space-y-3">
+            <div className="flex items-center gap-2">
+              <Building2 className="w-4 h-4 text-emerald-700" />
+              <h4 className="text-xs font-bold text-emerald-950 uppercase tracking-wider">
+                5. Cuenta Bancaria Oficial de la Plataforma (para recibir transferencias)
+              </h4>
+            </div>
+            <p className="text-[11px] text-emerald-800">
+              Estos datos se le muestran automáticamente a los dueños de clínicas en el Checkout al momento de pagar una suscripción por transferencia.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                  Alias Bancario Oficial
+                </label>
+                <input
+                  type="text"
+                  value={config.bankDetails?.alias || ''}
+                  onChange={(e) =>
+                    setConfig({
+                      ...config,
+                      bankDetails: {
+                        ...(config.bankDetails || DEFAULT_SAAS_CONFIG.bankDetails!),
+                        alias: e.target.value,
+                      },
+                    })
+                  }
+                  placeholder="TURNOS.ONLINE.SAAS"
+                  className="w-full px-3 py-2 bg-white rounded-xl border border-slate-200 text-xs font-mono font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                  CBU / CVU Oficial (22 dígitos)
+                </label>
+                <input
+                  type="text"
+                  value={config.bankDetails?.cbu || ''}
+                  onChange={(e) =>
+                    setConfig({
+                      ...config,
+                      bankDetails: {
+                        ...(config.bankDetails || DEFAULT_SAAS_CONFIG.bankDetails!),
+                        cbu: e.target.value,
+                      },
+                    })
+                  }
+                  placeholder="0000003100019283746501"
+                  className="w-full px-3 py-2 bg-white rounded-xl border border-slate-200 text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                  Nombre del Banco / Billetera
+                </label>
+                <input
+                  type="text"
+                  value={config.bankDetails?.bankName || ''}
+                  onChange={(e) =>
+                    setConfig({
+                      ...config,
+                      bankDetails: {
+                        ...(config.bankDetails || DEFAULT_SAAS_CONFIG.bankDetails!),
+                        bankName: e.target.value,
+                      },
+                    })
+                  }
+                  placeholder="Banco Santander / Mercado Pago"
+                  className="w-full px-3 py-2 bg-white rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                  Titular de la Cuenta
+                </label>
+                <input
+                  type="text"
+                  value={config.bankDetails?.accountHolder || ''}
+                  onChange={(e) =>
+                    setConfig({
+                      ...config,
+                      bankDetails: {
+                        ...(config.bankDetails || DEFAULT_SAAS_CONFIG.bankDetails!),
+                        accountHolder: e.target.value,
+                      },
+                    })
+                  }
+                  placeholder="TurnosDisponibles Online SaaS"
+                  className="w-full px-3 py-2 bg-white rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </div>
+
+              <div className="sm:col-span-2">
+                <label className="block text-[11px] font-semibold text-slate-700 mb-1">
+                  CUIT / CUIL del Titular
+                </label>
+                <input
+                  type="text"
+                  value={config.bankDetails?.cuit || ''}
+                  onChange={(e) =>
+                    setConfig({
+                      ...config,
+                      bankDetails: {
+                        ...(config.bankDetails || DEFAULT_SAAS_CONFIG.bankDetails!),
+                        cuit: e.target.value,
+                      },
+                    })
+                  }
+                  placeholder="30-71829401-4"
+                  className="w-full px-3 py-2 bg-white rounded-xl border border-slate-200 text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-teal-500"
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Section 6: Links Oficiales de Mercado Pago para Suscripción Recurrente */}
+          <div className="bg-sky-50/60 p-5 rounded-2xl border border-sky-200 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <CreditCard className="w-4 h-4 text-sky-700" />
+                <h4 className="text-xs font-bold text-sky-950 uppercase tracking-wider">
+                  6. Mercado Pago: Links Oficiales de Cobro Recurrente (SaaS)
+                </h4>
+              </div>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-100 text-sky-800 border border-sky-300">
+                Débito Automático Mensual
+              </span>
+            </div>
+            <p className="text-[11px] text-sky-900 leading-relaxed">
+              Pega aquí los enlaces de suscripción creados en tu cuenta de Mercado Pago (o links de cobro directo). Cuando el dueño de la clínica elija Mercado Pago en el Checkout, el sistema lo dirigirá a este enlace oficial para adherir su tarjeta al cobro mensual recurrente.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-700">
+                    Link de Suscripción Oficial • Plan Pro
+                  </label>
+                  {config.mercadoPagoConfig?.subscriptionLinkPro && (
+                    <a
+                      href={config.mercadoPagoConfig.subscriptionLinkPro}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[10px] text-sky-600 hover:text-sky-800 font-semibold inline-flex items-center gap-0.5"
+                    >
+                      Probar <ExternalLink className="w-2.5 h-2.5" />
+                    </a>
+                  )}
+                </div>
+                <input
+                  type="url"
+                  value={config.mercadoPagoConfig?.subscriptionLinkPro || ''}
+                  onChange={(e) =>
+                    setConfig({
+                      ...config,
+                      mercadoPagoConfig: {
+                        ...(config.mercadoPagoConfig || DEFAULT_SAAS_CONFIG.mercadoPagoConfig!),
+                        subscriptionLinkPro: e.target.value,
+                      },
+                    })
+                  }
+                  placeholder="https://mpago.la/turnos-pro"
+                  className="w-full px-3 py-2 bg-white rounded-xl border border-slate-200 text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                />
+                <span className="text-[10px] text-slate-400 mt-0.5 block">
+                  Link de suscripción mensual al valor de {config.proPlan.price}
+                </span>
+              </div>
+
+              <div>
+                <div className="flex items-center justify-between mb-1">
+                  <label className="block text-[11px] font-semibold text-slate-700">
+                    Link de Suscripción Oficial • Plan Experiencia AI
+                  </label>
+                  {config.mercadoPagoConfig?.subscriptionLinkAi && (
+                    <a
+                      href={config.mercadoPagoConfig.subscriptionLinkAi}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[10px] text-sky-600 hover:text-sky-800 font-semibold inline-flex items-center gap-0.5"
+                    >
+                      Probar <ExternalLink className="w-2.5 h-2.5" />
+                    </a>
+                  )}
+                </div>
+                <input
+                  type="url"
+                  value={config.mercadoPagoConfig?.subscriptionLinkAi || ''}
+                  onChange={(e) =>
+                    setConfig({
+                      ...config,
+                      mercadoPagoConfig: {
+                        ...(config.mercadoPagoConfig || DEFAULT_SAAS_CONFIG.mercadoPagoConfig!),
+                        subscriptionLinkAi: e.target.value,
+                      },
+                    })
+                  }
+                  placeholder="https://mpago.la/turnos-ai"
+                  className="w-full px-3 py-2 bg-white rounded-xl border border-slate-200 text-xs font-mono text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500"
+                />
+                <span className="text-[10px] text-slate-400 mt-0.5 block">
+                  Link de suscripción mensual al valor de {config.aiPlan.price}
+                </span>
+              </div>
             </div>
           </div>
 

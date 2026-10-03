@@ -77,6 +77,19 @@ export interface Business {
   bankName?: string;
   paymentInstructions?: string;
 
+  // SaaS Subscription Payment Tracking & Approval
+  lastPlanPayment?: {
+    plan: BusinessPlan;
+    amount: string;
+    reference: string;
+    method: 'mercadopago' | 'transfer' | 'manual';
+    status?: 'pending_approval' | 'approved' | 'rejected';
+    submittedAt?: string;
+    approvedAt?: string;
+    adminNote?: string;
+    paidAt?: string;
+  };
+
   // Política General de Comisiones & Alquiler de Consultorios (Sub-inquilinos / Staff)
   commissionPolicyEnabled?: boolean;
   commissionPolicyType?: 'percentage' | 'fixed' | 'none';

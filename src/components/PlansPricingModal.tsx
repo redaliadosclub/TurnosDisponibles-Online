@@ -7,7 +7,9 @@ interface PlansPricingModalProps {
   isOpen: boolean;
   onClose: () => void;
   currentPlan?: BusinessPlan;
-  onSelectPlan?: (plan: BusinessPlan) => void;
+  onSelectPlan?: (plan: BusinessPlan) => Promise<void> | void;
+  recommendedPlan?: BusinessPlan;
+  triggerReason?: string;
 }
 
 export function PlansPricingModal({
@@ -15,8 +17,11 @@ export function PlansPricingModal({
   onClose,
   currentPlan,
   onSelectPlan,
+  recommendedPlan,
+  triggerReason,
 }: PlansPricingModalProps) {
   const [config, setConfig] = useState<SaasPlanConfig>(getSaasConfig);
+  const [isChangingPlan, setIsChangingPlan] = useState<BusinessPlan | null>(null);
 
   useEffect(() => {
     const handleUpdate = () => setConfig(getSaasConfig());
@@ -25,6 +30,16 @@ export function PlansPricingModal({
   }, []);
 
   if (!isOpen) return null;
+
+  const handlePlanClick = async (plan: BusinessPlan) => {
+    if (!onSelectPlan) return;
+    try {
+      setIsChangingPlan(plan);
+      await onSelectPlan(plan);
+    } finally {
+      setIsChangingPlan(null);
+    }
+  };
 
   const freeLink = buildWhatsAppPlanLink(config.whatsappNumber, config.freePlan.whatsappMessage);
   const proLink = buildWhatsAppPlanLink(config.whatsappNumber, config.proPlan.whatsappMessage);
@@ -49,7 +64,7 @@ export function PlansPricingModal({
               </h3>
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              Comienzas 15 días gratis con el Plan PRO completo. Luego eliges el plan que mejor se adapte a tu negocio.
+              Puedes cambiar de plan en cualquier momento según el crecimiento y necesidad de tu clínica.
             </p>
           </div>
           <button
@@ -61,6 +76,26 @@ export function PlansPricingModal({
           </button>
         </div>
 
+        {/* Trigger Reason / Contextual intelligent upgrade banner */}
+        {triggerReason && (
+          <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-300 flex items-start gap-3 shadow-xs">
+            <div className="p-2 rounded-xl bg-amber-500 text-white shrink-0 mt-0.5">
+              <Sparkles className="w-4 h-4" />
+            </div>
+            <div>
+              <h4 className="text-xs font-black text-amber-950 uppercase tracking-wide flex items-center gap-1.5">
+                <span>Recomendación Inteligente de Crecimiento</span>
+                <span className="text-[10px] bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full font-bold">
+                  Siguiente Escalón
+                </span>
+              </h4>
+              <p className="text-xs text-amber-900 mt-1 leading-relaxed font-medium">
+                {triggerReason}
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Banner informativo de prueba PRO 15 días */}
         <div className="mb-6 p-4 rounded-2xl bg-teal-50 border border-teal-200 flex items-center justify-between gap-3 text-xs">
           <div className="flex items-center gap-2.5 text-teal-900">
@@ -69,7 +104,7 @@ export function PlansPricingModal({
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-teal-500"></span>
             </span>
             <span>
-              <strong>Estrategia Híbrida:</strong> Inicias con 15 días de acceso total al Plan PRO sin tarjeta. Si luego no contratas, tu cuenta no se borra: conservas el <strong>Plan Base Free</strong> de hasta 20 turnos/mes. Al superar las 20 reservas mensuales, pasas al Plan Pro Ilimitado ($24.900/mes).
+              <strong>Estrategia Progresiva:</strong> Tu cuenta no se bloquea. Puedes operar en <strong>Plan Base Free</strong> (hasta 20 turnos/mes) y ascender al <strong>Plan Pro</strong> o <strong>Experiencia AI</strong> con un solo clic cuando tu volumen de pacientes aumente.
             </span>
           </div>
         </div>
@@ -78,10 +113,19 @@ export function PlansPricingModal({
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           {/* FREE */}
           <div
-            className={`bg-slate-50 rounded-3xl p-6 border flex flex-col justify-between ${
-              currentPlan === 'free' ? 'border-slate-800 ring-2 ring-slate-800/20' : 'border-slate-200'
+            className={`bg-slate-50 rounded-3xl p-6 border flex flex-col justify-between relative ${
+              currentPlan === 'free'
+                ? 'border-slate-800 ring-2 ring-slate-800/20 shadow-sm'
+                : recommendedPlan === 'free'
+                ? 'border-teal-500 ring-2 ring-teal-400/50'
+                : 'border-slate-200'
             }`}
           >
+            {recommendedPlan === 'free' && (
+              <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full text-[10px] font-black bg-teal-600 text-white uppercase tracking-wider shadow-sm">
+                ★ Recomendado
+              </span>
+            )}
             <div>
               <span className="text-xs font-bold text-slate-500 uppercase tracking-wider">
                 {config.freePlan.name}
@@ -91,7 +135,7 @@ export function PlansPricingModal({
                 <span className="text-xs text-slate-500 font-normal">/ {config.freePlan.pricePeriod}</span>
               </div>
               <p className="text-xs text-slate-500 mt-2">
-                Ideal para comenzar sin riesgos. 15 días Pro gratis y luego Plan Free hasta 20 turnos/mes.
+                Ideal para comenzar sin riesgos. 15 días Pro gratis y luego Plan Free permanente hasta 20 turnos/mes.
               </p>
               <ul className="mt-5 space-y-2.5 text-xs text-slate-700">
                 <li className="flex items-center gap-2">
@@ -100,7 +144,7 @@ export function PlansPricingModal({
                 </li>
                 <li className="flex items-center gap-2">
                   <Check className="w-4 h-4 text-emerald-600 shrink-0" />
-                  <span>Turnos ilimitados durante la prueba de 15 días</span>
+                  <span>Turnos ilimitados durante la prueba inicial</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <Check className="w-4 h-4 text-emerald-600 shrink-0" />
@@ -127,17 +171,19 @@ export function PlansPricingModal({
             <div className="mt-6 space-y-2">
               <button
                 type="button"
-                disabled={currentPlan === 'free'}
-                onClick={() => {
-                  if (onSelectPlan) onSelectPlan('free');
-                }}
+                disabled={currentPlan === 'free' || isChangingPlan !== null}
+                onClick={() => handlePlanClick('free')}
                 className={`w-full py-2.5 rounded-xl border text-xs font-bold transition ${
                   currentPlan === 'free'
-                    ? 'bg-slate-200 border-slate-300 text-slate-600 cursor-default'
-                    : 'bg-white hover:bg-slate-100 border-slate-300 text-slate-800 cursor-pointer'
+                    ? 'bg-slate-200 border-slate-300 text-slate-700 cursor-default font-extrabold'
+                    : 'bg-white hover:bg-slate-100 border-slate-300 text-slate-800 cursor-pointer shadow-xs'
                 }`}
               >
-                {currentPlan === 'free' ? 'Plan Free Activo (Hasta 20 turnos/mes)' : 'Probar 15 Días Gratis'}
+                {isChangingPlan === 'free'
+                  ? 'Cambiando a Free...'
+                  : currentPlan === 'free'
+                  ? '✓ Tu Plan Actual (Free)'
+                  : 'Cambiar a Plan Free'}
               </button>
               <a
                 href={freeLink}
@@ -146,19 +192,23 @@ export function PlansPricingModal({
                 className="w-full py-2 rounded-xl bg-slate-200 hover:bg-slate-300 text-slate-700 text-[11px] font-semibold flex items-center justify-center gap-1.5 transition"
               >
                 <MessageCircle className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Pedir por WhatsApp</span>
+                <span>Pedir ayuda por WhatsApp</span>
               </a>
             </div>
           </div>
 
           {/* PRO */}
           <div
-            className={`bg-white rounded-3xl p-6 border-2 border-teal-600 shadow-xl flex flex-col justify-between relative ${
-              currentPlan === 'pro' ? 'ring-4 ring-teal-500/20' : ''
+            className={`bg-white rounded-3xl p-6 border-2 shadow-xl flex flex-col justify-between relative ${
+              recommendedPlan === 'pro'
+                ? 'border-emerald-500 ring-4 ring-emerald-500/25'
+                : currentPlan === 'pro'
+                ? 'border-teal-600 ring-4 ring-teal-500/20'
+                : 'border-teal-600'
             }`}
           >
             <span className="absolute -top-3 right-6 px-3 py-0.5 rounded-full text-[10px] font-extrabold bg-teal-600 text-white uppercase tracking-wider shadow-sm">
-              Más Elegido
+              {recommendedPlan === 'pro' ? '★ Recomendado Para Ti' : 'Más Elegido'}
             </span>
             <div>
               <div className="flex items-center gap-1.5 text-teal-700 font-bold text-xs uppercase tracking-wider">
@@ -170,11 +220,11 @@ export function PlansPricingModal({
                 <span className="text-xs text-slate-600 font-semibold">/ mes</span>
               </div>
               <p className="text-xs text-slate-500 mt-2">
-                Turnos ilimitados, hasta 5 profesionales, cobro de señas integrado por Mercado Pago + CBU/Alias y soporte prioritario.
+                Turnos ilimitados, hasta 5 profesionales, cobro de señas integrado por Mercado Pago + CBU/Alias y comisiones a sub-inquilinos.
               </p>
               <ul className="mt-5 space-y-2.5 text-xs text-slate-700">
-                <li className="flex items-center gap-2 font-medium">
-                  <Check className="w-4 h-4 text-teal-600 shrink-0" />
+                <li className="flex items-center gap-2 font-bold text-emerald-800">
+                  <Check className="w-4 h-4 text-emerald-600 shrink-0" />
                   <span>Turnos ilimitados mensuales (sin tope de 20)</span>
                 </li>
                 <li className="flex items-center gap-2 font-medium">
@@ -187,15 +237,15 @@ export function PlansPricingModal({
                 </li>
                 <li className="flex items-center gap-2 font-medium">
                   <Check className="w-4 h-4 text-teal-600 shrink-0" />
+                  <span>Política de comisiones para sub-inquilinos</span>
+                </li>
+                <li className="flex items-center gap-2 font-medium">
+                  <Check className="w-4 h-4 text-teal-600 shrink-0" />
                   <span>Sincronización con Google Calendar e iCal</span>
                 </li>
                 <li className="flex items-center gap-2 font-medium">
                   <Check className="w-4 h-4 text-teal-600 shrink-0" />
                   <span>Recordatorios automáticos por WhatsApp con código</span>
-                </li>
-                <li className="flex items-center gap-2 font-medium">
-                  <Check className="w-4 h-4 text-teal-600 shrink-0" />
-                  <span>Cálculo automático de saldo restante en el local</span>
                 </li>
                 <li className="flex items-center gap-2 font-medium">
                   <Check className="w-4 h-4 text-teal-600 shrink-0" />
@@ -210,17 +260,24 @@ export function PlansPricingModal({
             <div className="mt-6 space-y-2">
               <button
                 type="button"
-                disabled={currentPlan === 'pro'}
-                onClick={() => {
-                  if (onSelectPlan) onSelectPlan('pro');
-                }}
-                className={`w-full py-2.5 rounded-xl text-xs font-bold transition shadow-md ${
+                disabled={currentPlan === 'pro' || isChangingPlan !== null}
+                onClick={() => handlePlanClick('pro')}
+                className={`w-full py-2.5 rounded-xl text-xs font-bold transition shadow-md flex items-center justify-center gap-1.5 cursor-pointer ${
                   currentPlan === 'pro'
-                    ? 'bg-teal-100 text-teal-800 border border-teal-300 cursor-default'
-                    : 'bg-teal-600 hover:bg-teal-700 text-white cursor-pointer'
+                    ? 'bg-teal-100 text-teal-800 border border-teal-300 cursor-default font-extrabold'
+                    : 'bg-teal-600 hover:bg-teal-700 text-white hover:scale-102 active:scale-98'
                 }`}
               >
-                {currentPlan === 'pro' ? 'Plan Pro Ilimitado Activo' : `Elegir Plan Pro (${config.proPlan.price})`}
+                {isChangingPlan === 'pro' ? (
+                  'Activando Plan Pro...'
+                ) : currentPlan === 'pro' ? (
+                  '✓ Tu Plan Actual (Pro Ilimitado)'
+                ) : (
+                  <>
+                    <Sparkles className="w-3.5 h-3.5 text-teal-200" />
+                    <span>Cambiar a Plan Pro ({config.proPlan.price})</span>
+                  </>
+                )}
               </button>
               <a
                 href={proLink}
@@ -234,12 +291,21 @@ export function PlansPricingModal({
             </div>
           </div>
 
-          {/* EXPERIENCIA AI (Reemplaza a Comercial) */}
+          {/* EXPERIENCIA AI */}
           <div
-            className={`bg-slate-900 text-white rounded-3xl p-6 border border-slate-800 shadow-xl flex flex-col justify-between ${
-              currentPlan === 'business' ? 'ring-4 ring-slate-700' : ''
+            className={`bg-slate-900 text-white rounded-3xl p-6 border shadow-xl flex flex-col justify-between relative ${
+              recommendedPlan === 'business'
+                ? 'border-indigo-400 ring-4 ring-indigo-500/30'
+                : currentPlan === 'business'
+                ? 'border-indigo-500 ring-4 ring-slate-700'
+                : 'border-slate-800'
             }`}
           >
+            {recommendedPlan === 'business' && (
+              <span className="absolute -top-3 right-6 px-3 py-0.5 rounded-full text-[10px] font-extrabold bg-indigo-500 text-white uppercase tracking-wider shadow-sm">
+                ★ Recomendado Para Escalar
+              </span>
+            )}
             <div>
               <div className="flex items-center gap-1.5 text-indigo-400 font-bold text-xs uppercase tracking-wider">
                 <Bot className="w-4 h-4 text-indigo-400" />
@@ -250,16 +316,16 @@ export function PlansPricingModal({
                 <span className="text-xs text-slate-400 font-semibold">/ mes</span>
               </div>
               <p className="text-xs text-slate-400 mt-2">
-                Potencia máxima con Inteligencia Artificial, WAPI desatendida y personalización total.
+                Potencia máxima con Inteligencia Artificial, WAPI desatendida y personalización total sin límites.
               </p>
               <ul className="mt-5 space-y-2.5 text-xs text-slate-300">
                 <li className="flex items-center gap-2">
                   <Check className="w-4 h-4 text-teal-400 shrink-0" />
-                  <span>Todo lo del plan Pro</span>
+                  <span>Todo lo del plan Pro Ilimitado</span>
                 </li>
-                <li className="flex items-center gap-2">
+                <li className="flex items-center gap-2 font-bold text-teal-300">
                   <Check className="w-4 h-4 text-teal-400 shrink-0" />
-                  <span>Profesionales y staff ilimitados</span>
+                  <span>Profesionales y consultorios ILIMITADOS</span>
                 </li>
                 <li className="flex items-center gap-2">
                   <Check className="w-4 h-4 text-teal-400 shrink-0" />
@@ -278,17 +344,24 @@ export function PlansPricingModal({
             <div className="mt-6 space-y-2">
               <button
                 type="button"
-                disabled={currentPlan === 'business'}
-                onClick={() => {
-                  if (onSelectPlan) onSelectPlan('business');
-                }}
-                className={`w-full py-2.5 rounded-xl text-xs font-bold transition cursor-pointer ${
+                disabled={currentPlan === 'business' || isChangingPlan !== null}
+                onClick={() => handlePlanClick('business')}
+                className={`w-full py-2.5 rounded-xl text-xs font-bold transition cursor-pointer flex items-center justify-center gap-1.5 ${
                   currentPlan === 'business'
-                    ? 'bg-slate-800 text-teal-300 border border-slate-700 cursor-default'
-                    : 'bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white shadow-md'
+                    ? 'bg-slate-800 text-teal-300 border border-slate-700 cursor-default font-extrabold'
+                    : 'bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-400 hover:to-purple-500 text-white shadow-md hover:scale-102 active:scale-98'
                 }`}
               >
-                {currentPlan === 'business' ? 'Plan Actual' : `Elegir Experiencia AI (${config.aiPlan.price})`}
+                {isChangingPlan === 'business' ? (
+                  'Activando Experiencia AI...'
+                ) : currentPlan === 'business' ? (
+                  '✓ Tu Plan Actual (Experiencia AI)'
+                ) : (
+                  <>
+                    <Bot className="w-3.5 h-3.5 text-indigo-200" />
+                    <span>Cambiar a Experiencia AI ({config.aiPlan.price})</span>
+                  </>
+                )}
               </button>
               <a
                 href={aiLink}
@@ -304,8 +377,12 @@ export function PlansPricingModal({
 
           {/* MARCA BLANCA / SAAS PARTNER */}
           <div
-            className={`bg-slate-900 text-white rounded-3xl p-6 border border-amber-500/40 shadow-xl flex flex-col justify-between relative overflow-hidden ${
-              currentPlan === 'whitelabel' ? 'ring-4 ring-amber-400' : ''
+            className={`bg-slate-900 text-white rounded-3xl p-6 border shadow-xl flex flex-col justify-between relative overflow-hidden ${
+              recommendedPlan === 'whitelabel'
+                ? 'border-amber-400 ring-4 ring-amber-400/30'
+                : currentPlan === 'whitelabel'
+                ? 'border-amber-500/60 ring-4 ring-amber-400'
+                : 'border-amber-500/40'
             }`}
           >
             <div className="absolute top-0 right-0 transform translate-x-4 -translate-y-4 w-24 h-24 bg-amber-500/10 rounded-full blur-xl pointer-events-none" />
@@ -349,27 +426,37 @@ export function PlansPricingModal({
               </ul>
             </div>
             <div className="mt-6 space-y-2">
+              {onSelectPlan && (
+                <button
+                  type="button"
+                  disabled={currentPlan === 'whitelabel' || isChangingPlan !== null}
+                  onClick={() => handlePlanClick('whitelabel')}
+                  className={`w-full py-2.5 rounded-xl text-xs font-extrabold transition cursor-pointer flex items-center justify-center gap-1.5 ${
+                    currentPlan === 'whitelabel'
+                      ? 'bg-amber-900/60 text-amber-300 border border-amber-600/40 cursor-default'
+                      : 'bg-amber-400 hover:bg-amber-300 text-slate-950 shadow-md hover:scale-102 active:scale-98'
+                  }`}
+                >
+                  {isChangingPlan === 'whitelabel'
+                    ? 'Activando Marca Blanca...'
+                    : currentPlan === 'whitelabel'
+                    ? '✓ Tu Plan Actual (Marca Blanca)'
+                    : 'Activar Plan Marca Blanca'}
+                </button>
+              )}
               <a
                 href={whiteLabelLink}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-amber-400 via-orange-500 to-amber-500 hover:from-amber-300 hover:to-orange-400 text-slate-950 font-extrabold text-xs shadow-lg shadow-amber-500/20 flex items-center justify-center gap-1.5 transition text-center"
+                className="w-full py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 text-[11px] font-semibold flex items-center justify-center gap-1.5 transition text-center"
               >
-                <MessageCircle className="w-4 h-4 text-slate-950" />
-                <span>{config.whiteLabelPlan?.ctaText || 'Comunícate con nuestro equipo'}</span>
+                <MessageCircle className="w-3.5 h-3.5 text-amber-400" />
+                <span>{config.whiteLabelPlan?.ctaText || 'Consultar con nuestro equipo'}</span>
               </a>
-              {onSelectPlan && (
-                <button
-                  type="button"
-                  onClick={() => onSelectPlan('whitelabel')}
-                  className="w-full py-1.5 text-[10px] text-slate-400 hover:text-slate-200 transition text-center"
-                >
-                  {currentPlan === 'whitelabel' ? '✓ Plan asignado' : 'Asignar como SuperAdmin'}
-                </button>
-              )}
             </div>
           </div>
         </div>
+
 
         <div className="mt-6 p-4 rounded-2xl bg-teal-50 border border-teal-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
           <div className="text-teal-900">

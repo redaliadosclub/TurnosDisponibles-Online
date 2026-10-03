@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo } from 'react';
 import {
   Business,
+  BusinessPlan,
   Professional,
   Service,
   Appointment,
@@ -21,7 +22,10 @@ import {
   getMonthlyAppointmentsCount,
   checkAppointmentCreationLimit,
   checkProfessionalLimit,
+  getSmartPlanRecommendation,
 } from '../lib/planLimits';
+import { PlansPricingModal } from './PlansPricingModal';
+import { SaaSCheckoutModal } from './SaaSCheckoutModal';
 import {
   generateGoogleCalendarUrl,
   generateAgendaIcsContent,
@@ -446,6 +450,89 @@ export function BusinessDashboard({
   } | null>(null);
   const [gapCampaignCopied, setGapCampaignCopied] = useState(false);
   const [profLimitModalOpen, setProfLimitModalOpen] = useState(false);
+
+  // Intelligent Progressive Plan Upgrade & Secure Payment States
+  const [isPlansModalOpen, setIsPlansModalOpen] = useState(false);
+  const [plansModalReason, setPlansModalReason] = useState<string | undefined>();
+  const [plansModalRecommended, setPlansModalRecommended] = useState<BusinessPlan | undefined>();
+  const [planSuccessNotice, setPlanSuccessNotice] = useState<string | null>(null);
+
+  // Informational modal when clicking plan badge BEFORE the system invites
+  const [isPlanStatusInfoOpen, setIsPlanStatusInfoOpen] = useState(false);
+
+  // Secure Checkout States
+  const [isCheckoutModalOpen, setIsCheckoutModalOpen] = useState(false);
+  const [targetPlanForCheckout, setTargetPlanForCheckout] = useState<BusinessPlan>('pro');
+
+  const handleSelectPlan = async (newPlan: BusinessPlan) => {
+    if (newPlan === business.plan) {
+      setIsPlansModalOpen(false);
+      return;
+    }
+
+    // If downgrading to Free
+    if (newPlan === 'free') {
+      if (confirm('¿Deseas cambiar al Plan Base Free? Ten en cuenta que el límite mensual será de 20 turnos y 1 consultorio.')) {
+        try {
+          const updated = await api.updateBusiness(business.id, { plan: 'free' });
+          onUpdateBusiness(updated);
+          setIsPlansModalOpen(false);
+          setPlanSuccessNotice('Plan modificado al Plan Base Free.');
+          setTimeout(() => setPlanSuccessNotice(null), 5000);
+        } catch (err) {
+          console.error(err);
+          alert('Error al modificar el plan.');
+        }
+      }
+      return;
+    }
+
+    // For paid plans: PRO, BUSINESS, WHITELABEL -> REDIRECT TO SECURE CHECKOUT
+    setTargetPlanForCheckout(newPlan);
+    setIsPlansModalOpen(false);
+    setIsCheckoutModalOpen(true);
+  };
+
+  const handlePaymentConfirmed = async (
+    plan: BusinessPlan,
+    details: {
+      method: 'mercadopago' | 'transfer' | 'manual';
+      reference: string;
+      amount: string;
+      status: 'pending_approval' | 'approved';
+    }
+  ) => {
+    try {
+      const isApproved = details.status === 'approved';
+      const updated = await api.updateBusiness(business.id, {
+        plan: isApproved ? plan : business.plan,
+        lastPlanPayment: {
+          plan,
+          amount: details.amount,
+          reference: details.reference,
+          method: details.method,
+          status: details.status,
+          submittedAt: new Date().toISOString(),
+          approvedAt: isApproved ? new Date().toISOString() : undefined,
+          paidAt: new Date().toISOString(),
+        },
+      });
+      onUpdateBusiness(updated);
+      if (isApproved) {
+        setPlanSuccessNotice(
+          `¡Pago de ${details.amount} acreditado con éxito (Ref: ${details.reference})! Plan ${plan.toUpperCase()} activado para tu clínica.`
+        );
+      } else {
+        setPlanSuccessNotice(
+          `¡Comprobante de transferencia registrado (Ref: ${details.reference})! Tu solicitud para ascender al Plan ${plan.toUpperCase()} ha sido enviada a la bandeja de aprobación del SuperAdmin.`
+        );
+      }
+      setTimeout(() => setPlanSuccessNotice(null), 8000);
+    } catch (err) {
+      console.error('Error al persistir el comprobante:', err);
+      alert('Se registró el comprobante pero hubo una demora al comunicar con el servidor.');
+    }
+  };
 
   const handleSaveAiBot = async () => {
     try {
@@ -889,6 +976,17 @@ export function BusinessDashboard({
   const trialStatus = useMemo(() => getBusinessTrialStatus(business), [business]);
   const monthlyCount = useMemo(() => getMonthlyAppointmentsCount(appointments, business.id), [appointments, business.id]);
   const profLimit = useMemo(() => checkProfessionalLimit(business, professionals.length), [business, professionals.length]);
+  const smartRecommendation = useMemo(
+    () => getSmartPlanRecommendation(business, appointments, professionals.length),
+    [business, appointments, professionals.length]
+  );
+  const hasActiveUpgradeInvitation = useMemo(() => {
+    return !!(
+      smartRecommendation &&
+      (smartRecommendation.status === 'approaching_limit' ||
+        smartRecommendation.status === 'limit_reached')
+    );
+  }, [smartRecommendation]);
 
   const handleExportAgendaIcs = () => {
     const content = generateAgendaIcsContent(appointments, business, services, professionals);
@@ -1090,15 +1188,89 @@ _Generado automáticamente desde ${business.name} vía Turnos Disponibles_`;
                   {BUSINESS_TYPES[business.businessType]?.name || business.businessType}
                 </span>
                 {isOwnerOrAdmin ? (
-                  <button
-                    type="button"
-                    onClick={() => setActiveTab('plans')}
-                    className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 hover:bg-emerald-200 text-emerald-800 transition cursor-pointer flex items-center gap-1"
-                    title="Haz clic para ver y cambiar planes de suscripción"
-                  >
-                    <Sparkles className="w-2.5 h-2.5 text-emerald-600" />
-                    <span>Plan {business.plan.toUpperCase()}</span>
-                  </button>
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {/* El cambio de plan SOLO se habilita cuando el sistema emite la invitación inteligente por límite */}
+                    {hasActiveUpgradeInvitation ? (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPlansModalReason(smartRecommendation?.reason);
+                          setPlansModalRecommended(smartRecommendation?.recommendedPlan);
+                          setIsPlansModalOpen(true);
+                        }}
+                        className="group text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-amber-100 hover:bg-amber-200 text-amber-900 border border-amber-400 shadow-2xs hover:shadow-xs transition cursor-pointer flex items-center gap-1 active:scale-95 animate-pulse"
+                        title="¡El sistema ha emitido una invitación para cambiar de plan por límites alcanzados!"
+                        id="btn-header-plan-badge"
+                      >
+                        <Sparkles className="w-2.5 h-2.5 text-amber-600" />
+                        <span>Plan {business.plan.toUpperCase()}</span>
+                        <span className="text-[8px] uppercase tracking-wider bg-amber-700 group-hover:bg-amber-800 text-white font-black px-1.5 py-0.2 rounded-full transition shadow-2xs">
+                          ★ Invitación Activa: Subir a {smartRecommendation?.recommendedPlan?.toUpperCase()}
+                        </span>
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setIsPlanStatusInfoOpen(true)}
+                        className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-200 transition cursor-pointer flex items-center gap-1"
+                        title="Tu plan está activo y operando con normalidad. Haz clic para ver el estado de tu cuenta."
+                        id="btn-header-plan-badge"
+                      >
+                        <Check className="w-2.5 h-2.5 text-emerald-600" />
+                        <span>Plan {business.plan.toUpperCase()} • Activo</span>
+                      </button>
+                    )}
+
+                    {business.plan === 'free' && !trialStatus.isTrial && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (hasActiveUpgradeInvitation) {
+                            setPlansModalReason(smartRecommendation?.reason);
+                            setPlansModalRecommended('pro');
+                            setIsPlansModalOpen(true);
+                          } else {
+                            setIsPlanStatusInfoOpen(true);
+                          }
+                        }}
+                        className={`text-[10px] font-bold px-2 py-0.5 rounded-full border transition cursor-pointer flex items-center gap-1 ${
+                          monthlyCount >= 20
+                            ? 'bg-rose-100 text-rose-800 border-rose-300 animate-pulse'
+                            : monthlyCount >= 16
+                            ? 'bg-amber-100 text-amber-900 border-amber-300'
+                            : 'bg-slate-100 text-slate-700 border-slate-200 hover:bg-slate-200'
+                        }`}
+                        title="Consumo de reservas en el mes actual."
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-current" />
+                        <span>Turnos: {monthlyCount}/20</span>
+                        {hasActiveUpgradeInvitation && (
+                          <span className="text-[9px] font-black text-amber-950 underline ml-0.5">Mejorar</span>
+                        )}
+                      </button>
+                    )}
+
+                    {business.plan === 'pro' && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (hasActiveUpgradeInvitation) {
+                            setPlansModalReason(smartRecommendation?.reason);
+                            setPlansModalRecommended('business');
+                            setIsPlansModalOpen(true);
+                          } else {
+                            setIsPlanStatusInfoOpen(true);
+                          }
+                        }}
+                        className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-teal-50 text-teal-800 border border-teal-200 hover:bg-teal-100 transition cursor-pointer flex items-center gap-1"
+                        title="Plan Pro Activo: Turnos Ilimitados."
+                      >
+                        <span className="w-1.5 h-1.5 rounded-full bg-teal-500" />
+                        <span>Turnos Ilimitados</span>
+                        <span className="text-[9px] text-teal-700 font-semibold">• {professionals.length}/6 staff</span>
+                      </button>
+                    )}
+                  </div>
                 ) : assignedProfessional ? (
                   <div className="flex items-center gap-1.5 flex-wrap">
                     <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-teal-50 text-teal-800 border border-teal-200 flex items-center gap-1">
@@ -1453,6 +1625,61 @@ _Generado automáticamente desde ${business.name} vía Turnos Disponibles_`;
         {/* Dashboard Tabs Content: Available ONLY IF owner OR assigned staff */}
         {(isOwnerOrAdmin || (userRole === 'staff' && assignedProfessional)) && (
           <>
+        {/* Success Notice upon changing plan */}
+        {planSuccessNotice && (
+          <div className="mb-6 p-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white shadow-md flex items-center justify-between gap-3 text-xs font-bold animate-in fade-in">
+            <div className="flex items-center gap-2.5">
+              <span className="p-1 rounded-lg bg-white/20">
+                <Sparkles className="w-4 h-4 text-white" />
+              </span>
+              <span>{planSuccessNotice}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => setPlanSuccessNotice(null)}
+              className="p-1 hover:bg-white/20 rounded-lg transition cursor-pointer"
+            >
+              <X className="w-4 h-4 text-white" />
+            </button>
+          </div>
+        )}
+
+        {/* Pending Transfer Approval Alert for Business Owner */}
+        {isOwnerOrAdmin && business.lastPlanPayment?.status === 'pending_approval' && (
+          <div className="mb-6 p-4 rounded-3xl bg-amber-50 border-2 border-amber-300 shadow-xs flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 rounded-2xl bg-amber-500 text-white shrink-0 shadow-xs">
+                <Sparkles className="w-5 h-5" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="font-extrabold text-amber-950 text-sm">
+                    Solicitud para Plan {business.lastPlanPayment.plan.toUpperCase()} • En Revisión
+                  </h4>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider bg-amber-200 text-amber-900 border border-amber-300">
+                    Comprobante en Espera
+                  </span>
+                </div>
+                <p className="text-xs text-amber-800 mt-1 leading-relaxed">
+                  Registramos tu comprobante de transferencia por <strong>{business.lastPlanPayment.amount}</strong> (Ref: <span className="font-mono font-bold">{business.lastPlanPayment.reference}</span>). La administración de la plataforma está conciliando el ingreso bancario para activar tu nuevo plan a la brevedad.
+                </p>
+              </div>
+            </div>
+            <a
+              href={generateWaMeLink(
+                getSaasConfig().whatsappNumber,
+                `Hola SuperAdmin, envié el comprobante de transferencia (Ref: ${business.lastPlanPayment.reference}) para activar el Plan ${business.lastPlanPayment.plan.toUpperCase()} de mi clínica "${business.name}".`
+              )}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="px-4 py-2.5 rounded-xl bg-amber-600 hover:bg-amber-700 text-white text-xs font-bold transition shrink-0 flex items-center gap-1.5 shadow-xs"
+            >
+              <MessageCircle className="w-4 h-4" />
+              <span>Consultar por WhatsApp</span>
+            </a>
+          </div>
+        )}
+
         {/* Commercial Status Banners - STRICTLY FOR OWNER ONLY */}
         {isOwnerOrAdmin && business.plan === 'free' && trialStatus.isTrial && (
           <div className="mb-6 p-4 rounded-3xl bg-gradient-to-r from-teal-500/10 via-emerald-500/10 to-teal-500/5 border border-teal-200 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -1476,18 +1703,29 @@ _Generado automáticamente desde ${business.name} vía Turnos Disponibles_`;
             </div>
             <button
               type="button"
-              onClick={() => setActiveTab('plans')}
-              className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition shrink-0 cursor-pointer shadow-xs"
+              onClick={() => {
+                setPlansModalReason('Asegura tu Plan Pro para mantener turnos ilimitados, cobro de señas y comisiones sin interrupciones.');
+                setPlansModalRecommended('pro');
+                setIsPlansModalOpen(true);
+              }}
+              className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition shrink-0 cursor-pointer shadow-xs flex items-center justify-center gap-1.5"
             >
-              Asegurar Plan Pro ($24.900/mes)
+              <Sparkles className="w-3.5 h-3.5 text-teal-200" />
+              <span>Asegurar Plan Pro ($24.900/mes)</span>
             </button>
           </div>
         )}
 
         {isOwnerOrAdmin && business.plan === 'free' && !trialStatus.isTrial && (
-          <div className="mb-6 p-4 rounded-3xl bg-white border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className={`mb-6 p-4 rounded-3xl bg-white border shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4 ${
+            monthlyCount >= 20 ? 'border-rose-300 ring-2 ring-rose-200' : monthlyCount >= 16 ? 'border-amber-300 ring-2 ring-amber-100' : 'border-slate-200'
+          }`}>
             <div className="flex items-center gap-3">
-              <div className="p-2.5 rounded-2xl bg-amber-50 text-amber-600 shrink-0 border border-amber-200">
+              <div className={`p-2.5 rounded-2xl shrink-0 border ${
+                monthlyCount >= 20
+                  ? 'bg-rose-50 text-rose-600 border-rose-200'
+                  : 'bg-amber-50 text-amber-600 border-amber-200'
+              }`}>
                 <AlertCircle className="w-5 h-5" />
               </div>
               <div>
@@ -1496,12 +1734,12 @@ _Generado automáticamente desde ${business.name} vía Turnos Disponibles_`;
                     Plan Base Free • {monthlyCount} de 20 turnos usados este mes
                   </h4>
                   {monthlyCount >= 20 ? (
-                    <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-800 border border-rose-200">
+                    <span className="px-2 py-0.5 rounded-full text-[10px] font-extrabold bg-rose-100 text-rose-800 border border-rose-200 animate-pulse">
                       Tope Mensual Alcanzado
                     </span>
                   ) : (
                     <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800">
-                      {Math.max(0, 20 - monthlyCount)} turnos restantes
+                      {Math.max(0, 20 - monthlyCount)} turnos restantes ({Math.round((monthlyCount / 20) * 100)}%)
                     </span>
                   )}
                 </div>
@@ -1514,17 +1752,29 @@ _Generado automáticamente desde ${business.name} vía Turnos Disponibles_`;
                   />
                 </div>
                 <p className="text-[11px] text-slate-500 mt-1">
-                  Tu negocio creció. Al superar los 20 turnos mensuales, ascendé al Plan Pro Ilimitado para continuar recibiendo reservas automáticas online sin tope.
+                  {monthlyCount >= 20
+                    ? 'Has alcanzado el límite de 20 turnos mensuales del Plan Free. Pasa al Plan Pro para desbloquear turnos ilimitados de inmediato.'
+                    : 'Tu negocio está creciendo. Para no rechazar a nuevos pacientes cuando se alcancen los 20 turnos, asciende al Plan Pro Ilimitado.'}
                 </p>
               </div>
             </div>
             <button
               type="button"
-              onClick={() => setActiveTab('plans')}
-              className="px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white text-xs font-bold transition shrink-0 cursor-pointer shadow-xs flex items-center gap-1.5"
+              onClick={() => {
+                setPlansModalReason(
+                  monthlyCount >= 20
+                    ? 'Has alcanzado el límite mensual de 20 turnos del Plan Free. Asciende al Plan Pro Ilimitado para continuar agendando.'
+                    : `Llevas ${monthlyCount} de 20 turnos mensuales (${Math.round((monthlyCount / 20) * 100)}%). Pasa a Plan Pro para asegurar disponibilidad ilimitada.`
+                );
+                setPlansModalRecommended('pro');
+                setIsPlansModalOpen(true);
+              }}
+              className={`px-4 py-2.5 rounded-xl text-white text-xs font-bold transition shrink-0 cursor-pointer shadow-xs flex items-center justify-center gap-1.5 ${
+                monthlyCount >= 20 ? 'bg-rose-600 hover:bg-rose-700' : 'bg-slate-900 hover:bg-black'
+              }`}
             >
               <Sparkles className="w-3.5 h-3.5 text-teal-400" />
-              <span>Subir a Plan Pro Ilimitado ($24.900/mes)</span>
+              <span>{monthlyCount >= 20 ? 'Desbloquear Turnos Ilimitados (Plan Pro)' : 'Subir a Plan Pro Ilimitado ($24.900/mes)'}</span>
             </button>
           </div>
         )}
@@ -1539,10 +1789,14 @@ _Generado automáticamente desde ${business.name} vía Turnos Disponibles_`;
             </div>
             <button
               type="button"
-              onClick={() => setActiveTab('plans')}
+              onClick={() => {
+                setPlansModalReason('En Plan Pro tienes turnos ilimitados. Si requieres consultorios ilimitados o WhatsApp Bot inteligente, pasa a Experiencia AI.');
+                setPlansModalRecommended(professionals.length >= 5 ? 'business' : 'pro');
+                setIsPlansModalOpen(true);
+              }}
               className="text-teal-700 hover:text-teal-900 font-bold underline shrink-0 cursor-pointer text-xs"
             >
-              Ver detalles de suscripción
+              Ver / Cambiar plan de suscripción
             </button>
           </div>
         )}
@@ -1555,13 +1809,26 @@ _Generado automáticamente desde ${business.name} vía Turnos Disponibles_`;
                 <strong>Plan Experiencia AI Activo:</strong> Asistente Virtual WhatsApp Bot 24/7, turnos y consultorios ilimitados, y campañas inteligentes para rellenar huecos.
               </span>
             </div>
-            <button
-              type="button"
-              onClick={() => setActiveTab('whatsapp')}
-              className="px-3 py-1 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold shrink-0 cursor-pointer text-xs"
-            >
-              Simulador Asistente IA
-            </button>
+            <div className="flex items-center gap-2 shrink-0">
+              <button
+                type="button"
+                onClick={() => {
+                  setPlansModalReason('¿Te gustaría operar con tu propio dominio y marca blanca total? Conoce el plan SaaS Partner.');
+                  setPlansModalRecommended('whitelabel');
+                  setIsPlansModalOpen(true);
+                }}
+                className="text-teal-300 hover:text-teal-100 font-bold underline text-xs cursor-pointer"
+              >
+                Gestionar Suscripción
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveTab('whatsapp')}
+                className="px-3 py-1 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold shrink-0 cursor-pointer text-xs"
+              >
+                Simulador Asistente IA
+              </button>
+            </div>
           </div>
         )}
 
@@ -2048,7 +2315,9 @@ _Generado automáticamente desde ${business.name} vía Turnos Disponibles_`;
                 type="button"
                 onClick={() => {
                   if (!profLimit.allowed) {
-                    setProfLimitModalOpen(true);
+                    setPlansModalReason(profLimit.reason || 'Has alcanzado el límite de consultorios de tu plan actual. Asciende al Plan Pro para incorporar hasta 5 consultorios independientes.');
+                    setPlansModalRecommended(business.plan === 'free' ? 'pro' : 'business');
+                    setIsPlansModalOpen(true);
                   } else {
                     setEditingProf(null);
                     setProfAccessCode(`CONS-${Math.floor(1000 + Math.random() * 9000)}`);
@@ -3590,14 +3859,7 @@ _Generado automáticamente desde ${business.name} vía Turnos Disponibles_`;
                   <button
                     type="button"
                     disabled={business.plan === 'free'}
-                    onClick={async () => {
-                      try {
-                        const updated = await api.updateBusiness(business.id, { plan: 'free' });
-                        onUpdateBusiness(updated);
-                      } catch (e) {
-                        console.error(e);
-                      }
-                    }}
+                    onClick={() => handleSelectPlan('free')}
                     className="mt-6 w-full py-2.5 rounded-xl border border-slate-300 text-xs font-bold text-slate-700 hover:bg-slate-50 transition cursor-pointer"
                   >
                     {business.plan === 'free' ? 'Plan Free Activo (Hasta 20 turnos/mes)' : 'Seleccionar Plan Base Free'}
@@ -3630,14 +3892,7 @@ _Generado automáticamente desde ${business.name} vía Turnos Disponibles_`;
                   <button
                     type="button"
                     disabled={business.plan === 'pro'}
-                    onClick={async () => {
-                      try {
-                        const updated = await api.updateBusiness(business.id, { plan: 'pro' });
-                        onUpdateBusiness(updated);
-                      } catch (e) {
-                        console.error(e);
-                      }
-                    }}
+                    onClick={() => handleSelectPlan('pro')}
                     className="mt-6 w-full py-2.5 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold transition cursor-pointer shadow-md"
                   >
                     {business.plan === 'pro' ? 'Plan Pro Ilimitado Activo' : `Elegir Plan Pro (${saasConfig.proPlan.price})`}
@@ -3666,14 +3921,7 @@ _Generado automáticamente desde ${business.name} vía Turnos Disponibles_`;
                   <button
                     type="button"
                     disabled={business.plan === 'business'}
-                    onClick={async () => {
-                      try {
-                        const updated = await api.updateBusiness(business.id, { plan: 'business' });
-                        onUpdateBusiness(updated);
-                      } catch (e) {
-                        console.error(e);
-                      }
-                    }}
+                    onClick={() => handleSelectPlan('business')}
                     className="mt-6 w-full py-2.5 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 text-xs font-bold cursor-pointer transition shadow-md"
                   >
                     {business.plan === 'business' ? 'Plan Experiencia AI Activo' : `Elegir Experiencia AI (${saasConfig.aiPlan.price})`}
@@ -5429,7 +5677,9 @@ _Generado automáticamente desde ${business.name} vía Turnos Disponibles_`;
                   type="button"
                   onClick={() => {
                     setProfLimitModalOpen(false);
-                    setActiveTab('plans');
+                    setPlansModalReason('Asciende al Plan Pro para desbloquear hasta 5 consultorios de especialistas con agendas independientes.');
+                    setPlansModalRecommended('pro');
+                    setIsPlansModalOpen(true);
                   }}
                   className="px-4 py-2 rounded-xl bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold shadow-sm cursor-pointer flex items-center gap-1.5"
                 >
@@ -5516,6 +5766,87 @@ _Generado automáticamente desde ${business.name} vía Turnos Disponibles_`;
                 </div>
               </div>
             ) : null}
+          </div>
+        </div>
+      )}
+
+      {/* PLANS & SMART UPGRADE MODAL */}
+      <PlansPricingModal
+        isOpen={isPlansModalOpen}
+        onClose={() => setIsPlansModalOpen(false)}
+        currentPlan={business.plan}
+        onSelectPlan={handleSelectPlan}
+        recommendedPlan={plansModalRecommended}
+        triggerReason={plansModalReason}
+      />
+
+      {/* SECURE SAAS PAYMENT CHECKOUT MODAL */}
+      <SaaSCheckoutModal
+        isOpen={isCheckoutModalOpen}
+        onClose={() => setIsCheckoutModalOpen(false)}
+        business={business}
+        targetPlan={targetPlanForCheckout}
+        triggerReason={plansModalReason}
+        onPaymentConfirmed={handlePaymentConfirmed}
+      />
+
+      {/* INFORMATIONAL STATUS MODAL (Shown when clicked before system invites) */}
+      {isPlanStatusInfoOpen && (
+        <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200 space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-2xl bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold">
+                  <Check className="w-5 h-5 text-emerald-600" />
+                </div>
+                <div>
+                  <h4 className="font-extrabold text-slate-900 text-sm">Estado de tu Cuenta</h4>
+                  <p className="text-[11px] text-slate-500">Plan {business.plan.toUpperCase()} • Operando con normalidad</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsPlanStatusInfoOpen(false)}
+                className="p-1.5 rounded-full hover:bg-slate-100 text-slate-400 hover:text-slate-700 cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-2.5 text-xs text-slate-700">
+              <div className="flex justify-between items-center">
+                <span>Plan actual de tu clínica:</span>
+                <span className="font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 uppercase text-[10px]">
+                  Plan {business.plan}
+                </span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span>Consumo de turnos este mes:</span>
+                <strong>{monthlyCount} {business.plan === 'free' ? '/ 20 turnos' : '(Ilimitados)'}</strong>
+              </div>
+              <div className="flex justify-between items-center">
+                <span>Consultorios y Especialistas:</span>
+                <strong>{professionals.length} {business.plan === 'free' ? '/ 1' : business.plan === 'pro' ? '/ 6' : '(Ilimitados)'}</strong>
+              </div>
+            </div>
+
+            <div className="p-3.5 rounded-2xl bg-teal-50 border border-teal-200 text-xs text-teal-900 space-y-1.5">
+              <div className="font-bold flex items-center gap-1.5">
+                <Sparkles className="w-3.5 h-3.5 text-teal-600" />
+                <span>¿Cuándo se habilita el cambio de plan?</span>
+              </div>
+              <p className="text-[11px] text-teal-800 leading-relaxed">
+                Tu clínica está operando dentro de los parámetros habituales de tu plan. Para garantizar un proceso ordenado y transparente, <strong>el sistema activará automáticamente la invitación para ascender</strong> con su pasarela de pago seguro en el momento en que te acerques al límite de turnos o requieras sumar más profesionales a tu equipo.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setIsPlanStatusInfoOpen(false)}
+              className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white font-bold text-xs transition cursor-pointer shadow-xs"
+            >
+              Entendido, continuar trabajando
+            </button>
           </div>
         </div>
       )}

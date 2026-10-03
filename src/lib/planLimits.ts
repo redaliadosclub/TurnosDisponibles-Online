@@ -154,3 +154,132 @@ export function checkProfessionalLimit(
 
   return { allowed: true, maxAllowed: FREE_MAX_PROFS };
 }
+
+export interface SmartPlanRecommendation {
+  status: 'normal' | 'approaching_limit' | 'limit_reached';
+  currentPlan: Business['plan'];
+  recommendedPlan: Business['plan'];
+  reason: string;
+  monthlyCount: number;
+  monthlyLimit: number | 'unlimited';
+  percentUsed: number;
+  isTrial: boolean;
+  trialDaysRemaining: number;
+}
+
+/**
+ * Evaluates business activity and returns an intelligent recommendation
+ * to upgrade progressively to the next tier.
+ */
+export function getSmartPlanRecommendation(
+  business: Business,
+  appointments: Appointment[],
+  professionalsCount: number
+): SmartPlanRecommendation | null {
+  const trial = getBusinessTrialStatus(business);
+  const monthlyCount = getMonthlyAppointmentsCount(appointments, business.id);
+
+  // 1. FREE PLAN
+  if (business.plan === 'free') {
+    if (trial.isTrial) {
+      if (trial.daysRemaining <= 3) {
+        return {
+          status: 'approaching_limit',
+          currentPlan: 'free',
+          recommendedPlan: 'pro',
+          reason: `Te quedan ${trial.daysRemaining} días de prueba Pro completa. Pasa a Pro Ilimitado para conservar todas las funciones de cobranza y turnos sin límites.`,
+          monthlyCount,
+          monthlyLimit: 'unlimited',
+          percentUsed: 100 - (trial.daysRemaining / 15) * 100,
+          isTrial: true,
+          trialDaysRemaining: trial.daysRemaining,
+        };
+      }
+      return null;
+    }
+
+    const FREE_LIMIT = 20;
+    const percentUsed = Math.min(100, Math.round((monthlyCount / FREE_LIMIT) * 100));
+
+    if (monthlyCount >= FREE_LIMIT) {
+      return {
+        status: 'limit_reached',
+        currentPlan: 'free',
+        recommendedPlan: 'pro',
+        reason: `Has alcanzado el límite mensual de ${FREE_LIMIT} turnos del Plan Free. Pasa al Plan Pro Ilimitado para no rechazar turnos de tus pacientes.`,
+        monthlyCount,
+        monthlyLimit: FREE_LIMIT,
+        percentUsed: 100,
+        isTrial: false,
+        trialDaysRemaining: 0,
+      };
+    }
+
+    if (monthlyCount >= 16) {
+      return {
+        status: 'approaching_limit',
+        currentPlan: 'free',
+        recommendedPlan: 'pro',
+        reason: `Llevas ${monthlyCount} de 20 turnos este mes (${percentUsed}%). Evita quedarte sin cupo pasando al Plan Pro Ilimitado.`,
+        monthlyCount,
+        monthlyLimit: FREE_LIMIT,
+        percentUsed,
+        isTrial: false,
+        trialDaysRemaining: 0,
+      };
+    }
+
+    if (professionalsCount >= 1) {
+      return {
+        status: 'normal',
+        currentPlan: 'free',
+        recommendedPlan: 'pro',
+        reason: `Tienes 1 profesional activo. El Plan Pro te permite incorporar hasta 5 consultorios con agendas sincronizadas independientes.`,
+        monthlyCount,
+        monthlyLimit: FREE_LIMIT,
+        percentUsed,
+        isTrial: false,
+        trialDaysRemaining: 0,
+      };
+    }
+
+    return null;
+  }
+
+  // 2. PRO PLAN
+  if (business.plan === 'pro') {
+    if (professionalsCount >= 6) {
+      return {
+        status: 'limit_reached',
+        currentPlan: 'pro',
+        recommendedPlan: 'business',
+        reason: `Has completado el límite de 6 profesionales del Plan Pro. Asciende a Experiencia AI para profesionales y sedes ilimitadas más Bot de IA.`,
+        monthlyCount,
+        monthlyLimit: 'unlimited',
+        percentUsed: 100,
+        isTrial: trial.isTrial,
+        trialDaysRemaining: trial.daysRemaining,
+      };
+    }
+
+    return null;
+  }
+
+  // 3. BUSINESS / AI PLAN
+  if (business.plan === 'business') {
+    return {
+      status: 'normal',
+      currentPlan: 'business',
+      recommendedPlan: 'whitelabel',
+      reason: `¿Buscas tu propia marca blanca con dominio independiente y reventa SaaS? Conoce nuestro plan Partner / WhiteLabel.`,
+      monthlyCount,
+      monthlyLimit: 'unlimited',
+      percentUsed: 100,
+      isTrial: trial.isTrial,
+      trialDaysRemaining: trial.daysRemaining,
+    };
+  }
+
+  return null;
+}
+

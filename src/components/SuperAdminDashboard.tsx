@@ -5,6 +5,7 @@ import { BUSINESS_TYPES } from '../lib/businessTypes';
 import { PlansPricingModal } from './PlansPricingModal';
 import { SuperAdminWhatsAppPricingModal } from './SuperAdminWhatsAppPricingModal';
 import { SuperAdminLocationModal } from './SuperAdminLocationModal';
+import { SuperAdminReceiptsInboxModal } from './SuperAdminReceiptsInboxModal';
 import {
   Building2,
   Users,
@@ -28,6 +29,8 @@ import {
   MessageCircle,
   MapPin,
   Compass,
+  Clock,
+  ArrowRight,
 } from 'lucide-react';
 
 interface SuperAdminDashboardProps {
@@ -50,6 +53,7 @@ export function SuperAdminDashboard({
   const [showPlansModal, setShowPlansModal] = useState(false);
   const [showWhatsAppPricingModal, setShowWhatsAppPricingModal] = useState(false);
   const [showLocationModal, setShowLocationModal] = useState(false);
+  const [showReceiptsInbox, setShowReceiptsInbox] = useState(false);
   const [currentDefaultLoc, setCurrentDefaultLoc] = useState<string>(() => {
     try {
       return localStorage.getItem('td_platform_default_location') || 'all';
@@ -57,6 +61,17 @@ export function SuperAdminDashboard({
       return 'all';
     }
   });
+
+  const pendingReceiptsCount = businesses.filter(
+    (b) =>
+      (b.lastPlanPayment?.status ||
+        (b.lastPlanPayment?.method === 'transfer' ? 'pending_approval' : 'approved')) ===
+      'pending_approval'
+  ).length;
+
+  const handleBusinessUpdated = (updated: Business) => {
+    setBusinesses((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
+  };
 
   const getFullPublicUrl = (slug: string) => {
     const origin = window.location.origin;
@@ -141,6 +156,25 @@ export function SuperAdminDashboard({
           <div className="flex flex-wrap items-center gap-2">
             <button
               type="button"
+              onClick={() => setShowReceiptsInbox(true)}
+              className={`relative flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${
+                pendingReceiptsCount > 0
+                  ? 'bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border-amber-500/50 ring-2 ring-amber-500/30 shadow-md'
+                  : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700'
+              }`}
+              title="Bandeja de Aprobación de Comprobantes de Transferencias y Pagos"
+            >
+              <Clock className="w-4 h-4 text-amber-400" />
+              <span>Bandeja Comprobantes</span>
+              {pendingReceiptsCount > 0 && (
+                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-amber-500 text-slate-950 animate-pulse">
+                  {pendingReceiptsCount}
+                </span>
+              )}
+            </button>
+
+            <button
+              type="button"
               onClick={() => setShowLocationModal(true)}
               className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-indigo-500/20 hover:bg-indigo-500/30 text-indigo-300 text-xs font-semibold border border-indigo-500/40 transition cursor-pointer"
               title="Definir qué Ciudad o Zona se muestra filtrada por defecto cuando un usuario ingresa al portal"
@@ -153,10 +187,10 @@ export function SuperAdminDashboard({
               type="button"
               onClick={() => setShowWhatsAppPricingModal(true)}
               className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 text-xs font-semibold border border-emerald-500/40 transition cursor-pointer"
-              title="Configurar número de WhatsApp y mensajes automáticos para los Planes Free, Pro y Experiencia AI"
+              title="Configurar Mercado Pago, Datos Bancarios Oficiales y WhatsApp para Planes"
             >
               <MessageCircle className="w-4 h-4 text-emerald-300" />
-              <span>WhatsApp & Textos Planes</span>
+              <span>Cobros, Datos & WhatsApp</span>
             </button>
 
             <button
@@ -192,6 +226,38 @@ export function SuperAdminDashboard({
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-8 py-8 space-y-6">
+        {/* Pending Receipts Alert Banner */}
+        {pendingReceiptsCount > 0 && (
+          <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/15 to-amber-500/10 border border-amber-300 rounded-3xl p-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shadow-sm animate-in fade-in">
+            <div className="flex items-center gap-3.5">
+              <div className="w-12 h-12 rounded-2xl bg-amber-500 text-slate-950 flex items-center justify-center font-black shadow-md shrink-0">
+                <Clock className="w-6 h-6" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="text-base font-extrabold text-slate-900">
+                    {pendingReceiptsCount} Comprobante{pendingReceiptsCount > 1 ? 's' : ''} de Transferencia Pendiente{pendingReceiptsCount > 1 ? 's' : ''}
+                  </h4>
+                  <span className="px-2 py-0.5 rounded-full text-[10px] font-black uppercase bg-amber-500 text-slate-950">
+                    Acción Requerida
+                  </span>
+                </div>
+                <p className="text-xs text-slate-600 mt-0.5">
+                  Dueños de clínicas han reportado pagos de suscripción por transferencia bancaria y están a la espera de conciliación.
+                </p>
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => setShowReceiptsInbox(true)}
+              className="px-5 py-2.5 bg-amber-500 hover:bg-amber-400 text-slate-950 font-black text-xs rounded-xl shadow-md transition flex items-center gap-2 cursor-pointer whitespace-nowrap self-stretch sm:self-auto justify-center"
+            >
+              <span>Abrir Bandeja de Aprobación</span>
+              <ArrowRight className="w-4 h-4" />
+            </button>
+          </div>
+        )}
+
         {/* Global Platform KPIs */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
           <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-xs">
@@ -827,6 +893,14 @@ export function SuperAdminDashboard({
         onClose={() => setShowLocationModal(false)}
         businesses={businesses}
         onConfigUpdated={(newLoc) => setCurrentDefaultLoc(newLoc)}
+      />
+
+      {/* RECEIPTS APPROVAL INBOX MODAL */}
+      <SuperAdminReceiptsInboxModal
+        isOpen={showReceiptsInbox}
+        onClose={() => setShowReceiptsInbox(false)}
+        businesses={businesses}
+        onBusinessUpdated={handleBusinessUpdated}
       />
     </div>
   );

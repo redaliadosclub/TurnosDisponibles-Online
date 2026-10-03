@@ -1,5 +1,16 @@
 export interface SaasPlanConfig {
   whatsappNumber: string; // e.g. "5492474478646"
+  bankDetails?: {
+    cbu: string;
+    alias: string;
+    bankName: string;
+    accountHolder: string;
+    cuit: string;
+  };
+  mercadoPagoConfig?: {
+    subscriptionLinkPro?: string;
+    subscriptionLinkAi?: string;
+  };
   freePlan: {
     name: string;
     price: string;
@@ -30,6 +41,17 @@ export interface SaasPlanConfig {
 
 export const DEFAULT_SAAS_CONFIG: SaasPlanConfig = {
   whatsappNumber: '5492474478646',
+  bankDetails: {
+    cbu: '0000003100019283746501',
+    alias: 'TURNOS.ONLINE.SAAS',
+    bankName: 'Banco Santander / Mercado Pago',
+    accountHolder: 'TurnosDisponibles Online SaaS',
+    cuit: '30-71829401-4',
+  },
+  mercadoPagoConfig: {
+    subscriptionLinkPro: 'https://mpago.la/turnos-pro',
+    subscriptionLinkAi: 'https://mpago.la/turnos-ai',
+  },
   freePlan: {
     name: 'Prueba Pro 15 Días • Sin Tarjeta',
     price: '$0',
