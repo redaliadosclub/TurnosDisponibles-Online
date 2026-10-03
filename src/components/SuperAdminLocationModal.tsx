@@ -72,8 +72,11 @@ export function SuperAdminLocationModal({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200 overflow-y-auto">
+      <div
+        className="bg-white w-full max-w-lg rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col my-auto"
+        style={{ maxHeight: 'calc(100vh - 2.5rem)', display: 'flex', flexDirection: 'column' }}
+      >
         {/* Header - Fixed at top */}
         <div className="bg-gradient-to-r from-slate-900 via-slate-800 to-indigo-950 p-5 sm:p-6 text-white flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
@@ -97,8 +100,11 @@ export function SuperAdminLocationModal({
         </div>
 
         {/* Scrollable Content Body */}
-        <div className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1 min-h-0">
-          <div className="bg-indigo-50/70 border border-indigo-200 rounded-2xl p-4 text-xs text-indigo-900 flex items-start gap-3">
+        <div
+          className="p-5 sm:p-6 space-y-4 overflow-y-auto flex-1 min-h-0"
+          style={{ overflowY: 'auto' }}
+        >
+          <div className="bg-indigo-50/70 border border-indigo-200 rounded-2xl p-4 text-xs text-indigo-900 flex items-start gap-3 shrink-0">
             <Sparkles className="w-4 h-4 text-indigo-600 shrink-0 mt-0.5" />
             <div>
               <p className="font-semibold mb-1">Estrategia de Lanzamiento Local</p>
@@ -109,11 +115,21 @@ export function SuperAdminLocationModal({
           </div>
 
           <div>
-            <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
-              Seleccionar Zona Inicial del Portal
-            </label>
-            <div className="space-y-2">
-              <label className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer transition">
+            <div className="flex items-center justify-between mb-2">
+              <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                Seleccionar Zona Inicial del Portal
+              </label>
+              <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full bg-slate-100 text-slate-600 border border-slate-200">
+                {dynamicLocations.length + 1} opciones • Desplaza para ver todas
+              </span>
+            </div>
+
+            {/* Scrollable list of location choices with explicit maxHeight */}
+            <div
+              className="space-y-2 overflow-y-auto pr-1.5 rounded-2xl border border-slate-100 p-1 bg-slate-50/50"
+              style={{ maxHeight: '250px', overflowY: 'auto' }}
+            >
+              <label className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-white hover:bg-indigo-50/40 cursor-pointer transition shadow-2xs">
                 <input
                   type="radio"
                   name="defaultLocation"
@@ -133,7 +149,7 @@ export function SuperAdminLocationModal({
                 .map((loc) => (
                   <label
                     key={loc.value}
-                    className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer transition"
+                    className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-white hover:bg-indigo-50/40 cursor-pointer transition shadow-2xs"
                   >
                     <input
                       type="radio"
@@ -155,7 +171,7 @@ export function SuperAdminLocationModal({
                   </label>
                 ))}
 
-              <label className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 hover:bg-slate-50 cursor-pointer transition">
+              <label className="flex items-center gap-3 p-3 rounded-xl border border-slate-200 bg-white hover:bg-indigo-50/40 cursor-pointer transition shadow-2xs">
                 <input
                   type="radio"
                   name="defaultLocation"
