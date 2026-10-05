@@ -10,6 +10,10 @@ import {
 import { getBusinessLabels } from '../lib/businessTypes';
 import { api, BookingResult, INITIAL_PROFESSIONALS, INITIAL_SERVICES } from '../services/api';
 import {
+  getServicePriceForProfessional,
+  isProfessionalAssignedToService,
+} from '../lib/servicePricing';
+import {
   formatDateSpanish,
   generateNextDays,
   generateGoogleCalendarUrl,
@@ -214,17 +218,45 @@ export function PublicBookingPage({
     return () => clearInterval(interval);
   }, [business.id, selectedProfId, selectedServiceId, selectedDate, selectedSlot, bookingSuccess]);
 
-  const selectedProfessional = professionals.find((p) => p.id === selectedProfId);
   const selectedService = services.find((s) => s.id === selectedServiceId);
 
-  // Calculate required deposit amount
+  // Eligible professionals that actually provide the selected service
+  const eligibleProfessionals = useMemo(() => {
+    const activeProfs = professionals.filter((p) => p.active !== false);
+    if (!selectedService) return activeProfs;
+    return activeProfs.filter((p) => isProfessionalAssignedToService(p, selectedService));
+  }, [professionals, selectedService]);
+
+  // Intelligent auto-selection: if only 1 professional provides this service, auto-select them!
+  useEffect(() => {
+    if (!eligibleProfessionals.length) {
+      if (selectedProfId) setSelectedProfId('');
+      return;
+    }
+    if (eligibleProfessionals.length === 1) {
+      if (selectedProfId !== eligibleProfessionals[0].id) {
+        setSelectedProfId(eligibleProfessionals[0].id);
+      }
+    } else if (selectedProfId && !eligibleProfessionals.some((p) => p.id === selectedProfId)) {
+      setSelectedProfId(eligibleProfessionals[0].id);
+    }
+  }, [eligibleProfessionals, selectedProfId]);
+
+  const selectedProfessional = professionals.find((p) => p.id === selectedProfId);
+
+  // Dynamic effective price: either the specialist's custom fee or the clinic's base price
+  const currentEffectivePrice = useMemo(() => {
+    return getServicePriceForProfessional(selectedService, selectedProfessional);
+  }, [selectedService, selectedProfessional]);
+
+  // Calculate required deposit amount based on effective price
   const depositAmountVal = useMemo(() => {
     if (!business.paymentsEnabled || !business.depositRequired) return 0;
-    if (business.depositType === 'percentage' && selectedService?.price) {
-      return Math.round((selectedService.price * (business.depositAmount || 50)) / 100);
+    if (business.depositType === 'percentage' && currentEffectivePrice) {
+      return Math.round((currentEffectivePrice * (business.depositAmount || 50)) / 100);
     }
     return business.depositAmount || 5000;
-  }, [business, selectedService]);
+  }, [business, currentEffectivePrice]);
 
   // Submit booking
   const handleConfirmBooking = async (e: FormEvent) => {
@@ -830,7 +862,7 @@ export function PublicBookingPage({
                   <div className="flex items-center gap-2 text-teal-950">
                     <span className="font-medium text-teal-700">Tratamiento:</span>
                     <strong className="font-bold">{selectedService?.name}</strong>
-                    <span className="text-teal-600 font-medium">(${selectedService?.price.toLocaleString('es-AR')} • {selectedService?.durationMinutes} min)</span>
+                    <span className="text-teal-600 font-medium">(${currentEffectivePrice.toLocaleString('es-AR')} • {selectedService?.durationMinutes} min)</span>
                   </div>
                   <button
                     type="button"
@@ -848,45 +880,84 @@ export function PublicBookingPage({
                       <UserIcon className="w-5 h-5 text-slate-700" />
                       <span>¿Con quién deseas atenderte?</span>
                     </h3>
+                    <span className="text-xs font-semibold text-slate-500">
+                      {eligibleProfessionals.length} {eligibleProfessionals.length === 1 ? 'especialista asignado' : 'especialistas disponibles'}
+                    </span>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {professionals.map((prof) => {
-                      const isSelected = selectedProfId === prof.id;
-                      return (
-                        <button
-                          key={prof.id}
-                          type="button"
-                          onClick={() => setSelectedProfId(prof.id)}
-                          className={`text-left p-3.5 rounded-2xl border transition-all flex items-center gap-3.5 cursor-pointer ${
-                            isSelected
-                              ? 'border-teal-600 bg-teal-50/40 ring-2 ring-teal-600/20'
-                              : 'border-slate-200 hover:border-slate-300 bg-white'
-                          }`}
-                        >
-                          <img
-                            src={prof.photoUrl || 'https://images.unsplash.com/photo-1594824813586-7a718b5b533f?w=120'}
-                            alt={prof.name}
-                            className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0"
-                          />
-                          <div className="min-w-0 flex-1">
-                            <div className="font-bold text-slate-900 text-sm truncate">{prof.name}</div>
-                            <div className="text-xs text-slate-500 truncate">{prof.specialty || prof.title}</div>
-                            <span className="inline-block mt-0.5 text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-md">
-                              Atención Disponible
-                            </span>
-                          </div>
-                          <div
-                            className={`w-5 h-5 rounded-full border flex items-center justify-center ${
-                              isSelected ? 'border-teal-600 bg-teal-600 text-white' : 'border-slate-300'
+                  {eligibleProfessionals.length === 1 && (
+                    <div className="mb-3 p-2.5 rounded-xl bg-teal-50 border border-teal-200 text-xs text-teal-800 flex items-center gap-2">
+                      <Check className="w-4 h-4 text-teal-600 shrink-0" />
+                      <span>Especialista asignado automáticamente para <strong>{selectedService?.name}</strong></span>
+                    </div>
+                  )}
+
+                  {eligibleProfessionals.length === 0 ? (
+                    <div className="p-5 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs flex flex-col gap-2.5">
+                      <div className="flex items-center gap-2 font-bold text-sm text-amber-950">
+                        <AlertCircle className="w-5 h-5 text-amber-600 shrink-0" />
+                        <span>No hay especialistas asignados a este tratamiento</span>
+                      </div>
+                      <p className="text-amber-800 leading-relaxed">
+                        En este momento no hay profesionales disponibles para realizar <strong>{selectedService?.name}</strong>. Por favor selecciona otro tratamiento o comunícate con la clínica.
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => setCurrentStep(1)}
+                        className="self-start mt-1 px-4 py-2 rounded-xl bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs transition cursor-pointer shadow-2xs"
+                      >
+                        ← Volver a Elegir Tratamiento
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {eligibleProfessionals.map((prof) => {
+                        const isSelected = selectedProfId === prof.id;
+                        const profPrice = getServicePriceForProfessional(selectedService, prof);
+                        const hasCustomPrice = selectedService && profPrice !== selectedService.price;
+
+                        return (
+                          <button
+                            key={prof.id}
+                            type="button"
+                            onClick={() => setSelectedProfId(prof.id)}
+                            className={`text-left p-3.5 rounded-2xl border transition-all flex items-center gap-3.5 cursor-pointer ${
+                              isSelected
+                                ? 'border-teal-600 bg-teal-50/40 ring-2 ring-teal-600/20'
+                                : 'border-slate-200 hover:border-slate-300 bg-white'
                             }`}
                           >
-                            {isSelected && <div className="w-2 h-2 bg-white rounded-full" />}
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
+                            <img
+                              src={prof.photoUrl || 'https://images.unsplash.com/photo-1594824813586-7a718b5b533f?w=120'}
+                              alt={prof.name}
+                              className="w-12 h-12 rounded-xl object-cover border border-slate-200 shrink-0"
+                            />
+                            <div className="min-w-0 flex-1">
+                              <div className="font-bold text-slate-900 text-sm truncate">{prof.name}</div>
+                              <div className="text-xs text-slate-500 truncate">{prof.specialty || prof.title}</div>
+                              <div className="flex items-center gap-2 mt-1">
+                                <span className="text-xs font-black text-teal-700 bg-teal-50 px-2 py-0.5 rounded-lg border border-teal-200">
+                                  ${profPrice.toLocaleString('es-AR')}
+                                </span>
+                                {hasCustomPrice && (
+                                  <span className="text-[10px] font-semibold text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded-md border border-indigo-200" title="Honorario específico fijado para este especialista">
+                                    Arancel Especialista
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                            <div
+                              className={`w-5 h-5 rounded-full border flex items-center justify-center ${
+                                isSelected ? 'border-teal-600 bg-teal-600 text-white' : 'border-slate-300'
+                              }`}
+                            >
+                              {isSelected && <div className="w-2 h-2 bg-white rounded-full" />}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
 
                 {/* Day Selection */}
@@ -1072,7 +1143,7 @@ export function PublicBookingPage({
                       <div className="p-2.5 rounded-xl bg-white/5 border border-white/10">
                         <div className="text-[10px] text-slate-400 font-medium">Valor Total</div>
                         <div className="text-sm sm:text-base font-extrabold text-white mt-0.5">
-                          ${selectedService.price.toLocaleString('es-AR')}
+                          ${currentEffectivePrice.toLocaleString('es-AR')}
                         </div>
                       </div>
                       <div className="p-2.5 rounded-xl bg-teal-500/20 border border-teal-400/30">
@@ -1084,7 +1155,7 @@ export function PublicBookingPage({
                       <div className="p-2.5 rounded-xl bg-white/5 border border-white/10">
                         <div className="text-[10px] text-slate-400 font-medium">Saldo en Local</div>
                         <div className="text-sm sm:text-base font-extrabold text-white mt-0.5">
-                          ${Math.max(0, selectedService.price - depositAmountVal).toLocaleString('es-AR')}
+                          ${Math.max(0, currentEffectivePrice - depositAmountVal).toLocaleString('es-AR')}
                         </div>
                       </div>
                     </div>

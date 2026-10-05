@@ -20,6 +20,10 @@ import {
   calculateAppointmentCommission,
   type ProfessionalCommissionSummary,
 } from '../lib/commissionEngine';
+import {
+  getServicePriceForProfessional,
+  isProfessionalAssignedToService,
+} from '../lib/servicePricing';
 import { formatDateShort } from '../utils/dateUtils';
 import { generateWaMeLink } from '../lib/notifications';
 import {
@@ -416,6 +420,44 @@ export function StaffWorkspace({
     if (!assignedProfessional) return [];
     return timeOffs.filter((to) => to.professionalId === assignedProfessional.id);
   }, [timeOffs, assignedProfessional]);
+
+  // Toggle service active in my consultorio
+  const handleToggleServiceForMe = async (srv: Service) => {
+    if (!assignedProfessional) return;
+    const isCurrentlyAssigned = isProfessionalAssignedToService(assignedProfessional, srv);
+
+    const currentProfServiceIds =
+      assignedProfessional.serviceIds && assignedProfessional.serviceIds.length > 0
+        ? assignedProfessional.serviceIds
+        : services.map((s) => s.id);
+
+    const newServiceIds = isCurrentlyAssigned
+      ? currentProfServiceIds.filter((id) => id !== srv.id)
+      : [...currentProfServiceIds.filter((id) => id !== srv.id), srv.id];
+
+    const currentSrvProfIds =
+      srv.assignedProfessionalIds && srv.assignedProfessionalIds.length > 0
+        ? srv.assignedProfessionalIds
+        : professionals.map((p) => p.id);
+
+    const newAssignedProfs = isCurrentlyAssigned
+      ? currentSrvProfIds.filter((id) => id !== assignedProfessional.id)
+      : [...currentSrvProfIds.filter((id) => id !== assignedProfessional.id), assignedProfessional.id];
+
+    try {
+      const updatedProf = await api.updateProfessional(business.id, assignedProfessional.id, {
+        serviceIds: newServiceIds,
+      });
+      const updatedSrv = await api.updateService(business.id, srv.id, {
+        assignedProfessionalIds: newAssignedProfs,
+      });
+
+      setProfessionals((prev) => prev.map((p) => (p.id === assignedProfessional.id ? updatedProf : p)));
+      setServices((prev) => prev.map((s) => (s.id === srv.id ? updatedSrv : s)));
+    } catch (e: any) {
+      alert('Error al actualizar servicio: ' + e.message);
+    }
+  };
 
   // Update appointment status
   const handleUpdateStatus = async (appId: string, newStatus: Appointment['status']) => {
@@ -2915,7 +2957,7 @@ export function StaffWorkspace({
                       <span>Servicios del Consultorio</span>
                     </h3>
                     <p className="text-xs text-slate-400">
-                      Tratamientos y consultas que tus pacientes pueden reservar contigo
+                      Tratamientos y consultas que tus pacientes pueden reservar contigo en {assignedProfessional.officeNumber || 'tu consultorio'}
                     </p>
                   </div>
                   <button
@@ -2924,45 +2966,133 @@ export function StaffWorkspace({
                       setEditingService(null);
                       setShowServiceModal(true);
                     }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-xs transition cursor-pointer"
+                    className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold text-xs transition cursor-pointer shadow-xs"
                   >
                     <Plus className="w-3.5 h-3.5" />
-                    <span>+ Agregar Servicio</span>
+                    <span>+ Agregar Servicio Exclusivo</span>
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {myServices.map((srv) => (
-                    <div
-                      key={srv.id}
-                      className="bg-slate-900 rounded-2xl p-4 border border-slate-800 flex items-start justify-between gap-3"
-                    >
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <h4 className="text-sm font-bold text-white">{srv.name}</h4>
-                          <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono">
-                            {srv.durationMinutes} min
-                          </span>
+                {/* Staff Pricing Autonomy Policy Notice */}
+                {business.allowStaffCustomPrices === false ? (
+                  <div className="p-3.5 rounded-2xl bg-slate-900 border border-slate-800 text-xs text-slate-300 flex items-center gap-3">
+                    <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400 shrink-0 border border-amber-500/20">
+                      <Lock className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <span className="font-bold text-white block">Política de Aranceles Centralizada</span>
+                      <p className="text-[11px] text-slate-400 mt-0.5">
+                        La Dirección de la clínica gestiona los precios institucionales. Puedes activar o pausar qué servicios atiendes en tu consultorio.
+                      </p>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="p-3.5 rounded-2xl bg-teal-950/60 border border-teal-800/80 text-xs text-teal-300 flex items-center gap-3">
+                    <div className="p-2 rounded-xl bg-teal-500/20 text-teal-300 shrink-0 border border-teal-500/30">
+                      <Sparkles className="w-4 h-4 text-teal-400" />
+                    </div>
+                    <div>
+                      <span className="font-bold text-white block">Autonomía de Honorarios Habilitada</span>
+                      <p className="text-[11px] text-teal-300/80 mt-0.5">
+                        La Dirección te autoriza a personalizar tus propios aranceles y honorarios para cada tratamiento de tu consultorio.
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 pt-1">
+                  {services.map((srv) => {
+                    const isAssigned = isProfessionalAssignedToService(assignedProfessional, srv);
+                    const effectivePrice = getServicePriceForProfessional(srv, assignedProfessional);
+                    const hasCustomFee =
+                      (srv.customPrices && typeof srv.customPrices[assignedProfessional.id] === 'number') ||
+                      (assignedProfessional.customServicePrices &&
+                        typeof assignedProfessional.customServicePrices[srv.id] === 'number');
+
+                    const isExclusive =
+                      srv.assignedProfessionalIds?.length === 1 &&
+                      srv.assignedProfessionalIds[0] === assignedProfessional.id;
+
+                    return (
+                      <div
+                        key={srv.id}
+                        className={`rounded-2xl p-4 border transition flex flex-col justify-between gap-3 ${
+                          isAssigned
+                            ? 'bg-slate-900 border-slate-700/80'
+                            : 'bg-slate-900/40 border-slate-800/60 opacity-75'
+                        }`}
+                      >
+                        <div className="space-y-1.5">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h4 className="text-sm font-bold text-white">{srv.name}</h4>
+                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-800 text-slate-300 font-mono">
+                                  {srv.durationMinutes} min
+                                </span>
+                              </div>
+                              {isExclusive && (
+                                <span className="inline-block mt-1 text-[10px] font-bold text-teal-300 bg-teal-950 px-2 py-0.5 rounded-md border border-teal-800">
+                                  ★ Servicio Exclusivo de tu Consultorio
+                                </span>
+                              )}
+                            </div>
+
+                            <button
+                              type="button"
+                              onClick={() => handleToggleServiceForMe(srv)}
+                              className={`px-2.5 py-1 rounded-full text-[10px] font-bold transition cursor-pointer shrink-0 ${
+                                isAssigned
+                                  ? 'bg-emerald-950 text-emerald-300 border border-emerald-800 hover:bg-emerald-900'
+                                  : 'bg-slate-800 text-slate-400 hover:text-white hover:bg-slate-700 border border-slate-700'
+                              }`}
+                              title={isAssigned ? 'Haz clic para pausar este servicio en tu consultorio' : 'Haz clic para comenzar a atender este servicio'}
+                            >
+                              {isAssigned ? '● Atiendo en Consultorio' : '○ Pausado'}
+                            </button>
+                          </div>
+
+                          {srv.description && (
+                            <p className="text-xs text-slate-400 line-clamp-2">{srv.description}</p>
+                          )}
+
+                          <div className="flex items-center gap-2 pt-2">
+                            <div className="text-sm font-black text-teal-400">
+                              ${effectivePrice.toLocaleString('es-AR')}
+                            </div>
+                            {hasCustomFee ? (
+                              <span className="text-[10px] text-indigo-300 bg-indigo-950/80 px-2 py-0.5 rounded-md border border-indigo-800 font-medium">
+                                Tu honorario personalizado
+                              </span>
+                            ) : (
+                              <span className="text-[10px] text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded-md font-medium">
+                                Arancel base clínica
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        <p className="text-xs text-slate-400 line-clamp-2">{srv.description}</p>
-                        <div className="text-sm font-black text-teal-400 mt-2">
-                          ${srv.price.toLocaleString('es-AR')}
+
+                        <div className="pt-2 border-t border-slate-800 flex items-center justify-between">
+                          <span className="text-[11px] text-slate-500">
+                            {isAssigned ? 'Disponible para tus pacientes' : 'No visible en tu agenda'}
+                          </span>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setEditingService(srv);
+                              setShowServiceModal(true);
+                            }}
+                            className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white text-xs font-semibold transition cursor-pointer"
+                            title={business.allowStaffCustomPrices !== false ? 'Personalizar arancel o detalles' : 'Ver detalle'}
+                          >
+                            <Edit2 className="w-3 h-3 text-teal-400" />
+                            <span>{business.allowStaffCustomPrices !== false ? 'Ajustar Honorario' : 'Detalles'}</span>
+                          </button>
                         </div>
                       </div>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setEditingService(srv);
-                          setShowServiceModal(true);
-                        }}
-                        className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition cursor-pointer shrink-0"
-                        title="Editar servicio"
-                      >
-                        <Edit2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             )}
@@ -3261,129 +3391,215 @@ export function StaffWorkspace({
       )}
 
       {/* Modal: Service Edit/Create */}
-      {showServiceModal && assignedProfessional && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-slate-900 rounded-3xl p-6 border border-slate-800 shadow-2xl max-w-md w-full space-y-4 text-xs">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800">
-              <h3 className="text-sm font-bold text-white flex items-center gap-2">
-                <Briefcase className="w-4 h-4 text-teal-400" />
-                <span>{editingService ? 'Editar Servicio' : 'Nuevo Servicio del Consultorio'}</span>
-              </h3>
-              <button
-                type="button"
-                onClick={() => setShowServiceModal(false)}
-                className="p-1 rounded-lg text-slate-400 hover:text-white"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
+      {showServiceModal && assignedProfessional && (() => {
+        const isSharedClinicService = editingService && (
+          !editingService.assignedProfessionalIds?.length ||
+          editingService.assignedProfessionalIds.length > 1 ||
+          editingService.assignedProfessionalIds[0] !== assignedProfessional.id
+        );
+        const effectiveMyPrice = editingService
+          ? getServicePriceForProfessional(editingService, assignedProfessional)
+          : 15000;
+        const canEditPrice = business.allowStaffCustomPrices !== false;
 
-            <form
-              onSubmit={async (e) => {
-                e.preventDefault();
-                const form = e.currentTarget;
-                const formData = new FormData(form);
-                const name = (formData.get('name') as string).trim();
-                const description = (formData.get('description') as string).trim();
-                const price = Number(formData.get('price'));
-                const durationMinutes = Number(formData.get('durationMinutes'));
-
-                try {
-                  if (editingService) {
-                    const updated = await api.updateService(business.id, editingService.id, {
-                      name,
-                      description,
-                      price,
-                      durationMinutes,
-                    });
-                    setServices((prev) => prev.map((s) => (s.id === editingService.id ? updated : s)));
-                  } else {
-                    const created = await api.createService(business.id, {
-                      name,
-                      description,
-                      price,
-                      durationMinutes,
-                      currency: 'ARS',
-                      active: true,
-                      assignedProfessionalIds: [assignedProfessional.id],
-                    });
-                    setServices((prev) => [...prev, created]);
-                  }
-                  setShowServiceModal(false);
-                } catch (err: any) {
-                  alert('Error al guardar servicio: ' + err.message);
-                }
-              }}
-              className="space-y-3"
-            >
-              <div>
-                <label className="block font-semibold text-slate-300 mb-1">Nombre del Servicio</label>
-                <input
-                  type="text"
-                  name="name"
-                  required
-                  defaultValue={editingService?.name || ''}
-                  placeholder="Ej: Consulta Médica / Sesión Facial"
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white"
-                />
-              </div>
-
-              <div>
-                <label className="block font-semibold text-slate-300 mb-1">Descripción</label>
-                <textarea
-                  name="description"
-                  rows={2}
-                  defaultValue={editingService?.description || ''}
-                  placeholder="Detalle de lo que incluye la consulta..."
-                  className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white"
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold text-slate-300 mb-1">Precio ($)</label>
-                  <input
-                    type="number"
-                    name="price"
-                    required
-                    min={0}
-                    defaultValue={editingService?.price ?? 15000}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold text-slate-300 mb-1">Duración (min)</label>
-                  <input
-                    type="number"
-                    name="durationMinutes"
-                    required
-                    min={10}
-                    step={5}
-                    defaultValue={editingService?.durationMinutes ?? 30}
-                    className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white"
-                  />
-                </div>
-              </div>
-
-              <div className="pt-2 flex justify-end gap-2">
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in">
+            <div className="bg-slate-900 rounded-3xl p-6 border border-slate-800 shadow-2xl max-w-md w-full space-y-4 text-xs">
+              <div className="flex items-center justify-between pb-3 border-b border-slate-800">
+                <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Briefcase className="w-4 h-4 text-teal-400" />
+                  <span>
+                    {editingService
+                      ? isSharedClinicService
+                        ? 'Ajustar Arancel del Servicio'
+                        : 'Editar Servicio Exclusivo'
+                      : 'Nuevo Servicio Exclusivo del Consultorio'}
+                  </span>
+                </h3>
                 <button
                   type="button"
                   onClick={() => setShowServiceModal(false)}
-                  className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300"
+                  className="p-1 rounded-lg text-slate-400 hover:text-white"
                 >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="px-4 py-2 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold"
-                >
-                  Guardar
+                  <X className="w-4 h-4" />
                 </button>
               </div>
-            </form>
+
+              <form
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  const form = e.currentTarget;
+                  const formData = new FormData(form);
+                  const price = Number(formData.get('price'));
+
+                  try {
+                    if (editingService) {
+                      if (isSharedClinicService) {
+                        if (!canEditPrice) {
+                          setShowServiceModal(false);
+                          return;
+                        }
+                        const updatedCustomPrices = {
+                          ...(editingService.customPrices || {}),
+                          [assignedProfessional.id]: price,
+                        };
+                        const updated = await api.updateService(business.id, editingService.id, {
+                          customPrices: updatedCustomPrices,
+                        });
+                        const updatedProfCustomPrices = {
+                          ...(assignedProfessional.customServicePrices || {}),
+                          [editingService.id]: price,
+                        };
+                        const updatedProf = await api.updateProfessional(business.id, assignedProfessional.id, {
+                          customServicePrices: updatedProfCustomPrices,
+                        });
+                        setProfessionals((prev) => prev.map((p) => (p.id === assignedProfessional.id ? updatedProf : p)));
+                        setServices((prev) => prev.map((s) => (s.id === editingService.id ? updated : s)));
+                      } else {
+                        const name = (formData.get('name') as string).trim();
+                        const description = (formData.get('description') as string).trim();
+                        const durationMinutes = Number(formData.get('durationMinutes'));
+                        const updated = await api.updateService(business.id, editingService.id, {
+                          name,
+                          description,
+                          price,
+                          durationMinutes,
+                        });
+                        setServices((prev) => prev.map((s) => (s.id === editingService.id ? updated : s)));
+                      }
+                    } else {
+                      const name = (formData.get('name') as string).trim();
+                      const description = (formData.get('description') as string).trim();
+                      const durationMinutes = Number(formData.get('durationMinutes'));
+                      const created = await api.createService(business.id, {
+                        name,
+                        description,
+                        price,
+                        durationMinutes,
+                        currency: '$',
+                        active: true,
+                        assignedProfessionalIds: [assignedProfessional.id],
+                      });
+                      setServices((prev) => [...prev, created]);
+                      // Add to doctor's serviceIds as well
+                      const updatedProf = await api.updateProfessional(business.id, assignedProfessional.id, {
+                        serviceIds: [...(assignedProfessional.serviceIds || []), created.id],
+                      });
+                      setProfessionals((prev) => prev.map((p) => (p.id === assignedProfessional.id ? updatedProf : p)));
+                    }
+                    setShowServiceModal(false);
+                  } catch (err: any) {
+                    alert('Error al guardar servicio: ' + err.message);
+                  }
+                }}
+                className="space-y-3"
+              >
+                {isSharedClinicService ? (
+                  <div className="p-3 bg-slate-950 rounded-xl border border-slate-800 space-y-1">
+                    <span className="text-[10px] text-teal-400 font-bold uppercase tracking-wider block">
+                      Servicio Institucional de la Clínica
+                    </span>
+                    <h4 className="text-white font-bold text-sm">{editingService.name}</h4>
+                    <p className="text-slate-400 text-xs">{editingService.description || 'Sin descripción'}</p>
+                    <span className="text-[11px] text-slate-500 block pt-1">
+                      Duración: {editingService.durationMinutes} minutos • Arancel base clínica: ${editingService.price.toLocaleString('es-AR')}
+                    </span>
+                  </div>
+                ) : (
+                  <>
+                    <div>
+                      <label className="block font-semibold text-slate-300 mb-1">Nombre del Servicio *</label>
+                      <input
+                        type="text"
+                        name="name"
+                        required
+                        defaultValue={editingService?.name || ''}
+                        placeholder="Ej: Consulta Médica / Sesión Facial"
+                        className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-slate-300 mb-1">Descripción</label>
+                      <textarea
+                        name="description"
+                        rows={2}
+                        defaultValue={editingService?.description || ''}
+                        placeholder="Detalle de lo que incluye la consulta..."
+                        className="w-full px-3 py-2 rounded-xl bg-slate-950 border border-slate-800 text-white"
+                      />
+                    </div>
+                  </>
+                )}
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold text-slate-300 mb-1">
+                      {isSharedClinicService ? 'Tu Arancel Propio ($)' : 'Precio ($)'}
+                    </label>
+                    <input
+                      type="number"
+                      name="price"
+                      required
+                      min={0}
+                      disabled={isSharedClinicService && !canEditPrice}
+                      defaultValue={effectiveMyPrice}
+                      className={`w-full px-3 py-2 rounded-xl border text-white font-mono ${
+                        isSharedClinicService && !canEditPrice
+                          ? 'bg-slate-900 border-slate-800 text-slate-500 cursor-not-allowed'
+                          : 'bg-slate-950 border-slate-800'
+                      }`}
+                    />
+                    {isSharedClinicService && !canEditPrice && (
+                      <p className="text-[10px] text-amber-400 mt-1">
+                        🔒 Arancel fijado por la Dirección de la clínica.
+                      </p>
+                    )}
+                    {isSharedClinicService && canEditPrice && (
+                      <p className="text-[10px] text-teal-400 mt-1">
+                        ✓ Este valor solo se cobrará en turnos con tu consultorio.
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-300 mb-1">Duración (min)</label>
+                    <input
+                      type="number"
+                      name="durationMinutes"
+                      required={!isSharedClinicService}
+                      disabled={Boolean(isSharedClinicService)}
+                      min={10}
+                      step={5}
+                      defaultValue={editingService?.durationMinutes ?? 30}
+                      className={`w-full px-3 py-2 rounded-xl border text-white ${
+                        isSharedClinicService
+                          ? 'bg-slate-900 border-slate-800 text-slate-500 cursor-not-allowed'
+                          : 'bg-slate-950 border-slate-800'
+                      }`}
+                    />
+                  </div>
+                </div>
+
+                <div className="pt-2 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowServiceModal(false)}
+                    className="px-4 py-2 rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 transition cursor-pointer"
+                  >
+                    Cancelar
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 rounded-xl bg-teal-500 hover:bg-teal-400 text-slate-950 font-bold transition cursor-pointer shadow-xs"
+                  >
+                    Guardar
+                  </button>
+                </div>
+              </form>
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* MODAL: DESGLOSE FINANCIERO Y COBRO DE TURNO (STAFF) */}
       {selectedAppointmentForReceipt && assignedProfessional && (() => {

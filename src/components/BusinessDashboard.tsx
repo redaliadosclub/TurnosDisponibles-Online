@@ -24,6 +24,10 @@ import {
   checkProfessionalLimit,
   getSmartPlanRecommendation,
 } from '../lib/planLimits';
+import {
+  getServicePriceForProfessional,
+  isProfessionalAssignedToService,
+} from '../lib/servicePricing';
 import { PlansPricingModal } from './PlansPricingModal';
 import { SaaSCheckoutModal } from './SaaSCheckoutModal';
 import {
@@ -159,6 +163,11 @@ export function BusinessDashboard({
   const [copiedSettlementNote, setCopiedSettlementNote] = useState(false);
   const [showServiceModal, setShowServiceModal] = useState(false);
   const [editingService, setEditingService] = useState<Service | null>(null);
+  const [serviceSelectedProfIds, setServiceSelectedProfIds] = useState<string[]>([]);
+  const [serviceAllProfs, setServiceAllProfs] = useState(true);
+  const [serviceCustomPrices, setServiceCustomPrices] = useState<Record<string, number>>({});
+  const [profSelectedServiceIds, setProfSelectedServiceIds] = useState<string[]>([]);
+  const [profCustomPrices, setProfCustomPrices] = useState<Record<string, number>>({});
   const [showTimeOffModal, setShowTimeOffModal] = useState(false);
   const [selectedCustomerForHistory, setSelectedCustomerForHistory] = useState<Customer | null>(null);
 
@@ -184,6 +193,51 @@ export function BusinessDashboard({
     setCopiedPublicLink(true);
     setShowShareModal(true);
     setTimeout(() => setCopiedPublicLink(false), 2500);
+  };
+
+  const handleOpenServiceModal = (srv: Service | null) => {
+    setEditingService(srv);
+    if (srv) {
+      const assigned = srv.assignedProfessionalIds || [];
+      const isAll = !assigned.length || assigned.length >= professionals.length;
+      setServiceAllProfs(isAll);
+      setServiceSelectedProfIds(isAll ? professionals.map((p) => p.id) : assigned);
+      setServiceCustomPrices(srv.customPrices || {});
+    } else {
+      setServiceAllProfs(true);
+      setServiceSelectedProfIds(professionals.map((p) => p.id));
+      setServiceCustomPrices({});
+    }
+    setShowServiceModal(true);
+  };
+
+  const handleOpenProfModal = (prof: Professional | null) => {
+    setEditingProf(prof);
+    if (prof) {
+      setProfAccessCode(prof.accessCode || `CONS-${Math.floor(1000 + Math.random() * 9000)}`);
+      const isEnabled = prof.commissionEnabled !== false && prof.commissionType !== 'none';
+      setProfCommissionEnabled(isEnabled);
+      setProfCommissionType(!isEnabled ? 'none' : (prof.commissionType || 'percentage'));
+      setProfCommissionRate(prof.commissionRate !== undefined ? prof.commissionRate : 20);
+      setProfCommissionCollectionMode(prof.commissionCollectionMode || 'split_on_deposit');
+      setProfSelectedServiceIds(prof.serviceIds && prof.serviceIds.length > 0 ? prof.serviceIds : services.map((s) => s.id));
+      const initialCustomPrices: Record<string, number> = { ...(prof.customServicePrices || {}) };
+      services.forEach((s) => {
+        if (s.customPrices && typeof s.customPrices[prof.id] === 'number') {
+          initialCustomPrices[s.id] = s.customPrices[prof.id];
+        }
+      });
+      setProfCustomPrices(initialCustomPrices);
+    } else {
+      setProfAccessCode(`CONS-${Math.floor(1000 + Math.random() * 9000)}`);
+      setProfCommissionEnabled(true);
+      setProfCommissionType('percentage');
+      setProfCommissionRate(20);
+      setProfCommissionCollectionMode('split_on_deposit');
+      setProfSelectedServiceIds(services.map((s) => s.id));
+      setProfCustomPrices({});
+    }
+    setShowProfModal(true);
   };
 
   // Flaxxa WAPI / Flowomatic Automation State
@@ -2323,13 +2377,7 @@ _Generado automáticamente desde ${business.name} vía Turnos Disponibles_`;
                     setPlansModalRecommended(business.plan === 'free' ? 'pro' : 'business');
                     setIsPlansModalOpen(true);
                   } else {
-                    setEditingProf(null);
-                    setProfAccessCode(`CONS-${Math.floor(1000 + Math.random() * 9000)}`);
-                    setProfCommissionEnabled(true);
-                    setProfCommissionType('percentage');
-                    setProfCommissionRate(20);
-                    setProfCommissionCollectionMode('split_on_deposit');
-                    setShowProfModal(true);
+                    handleOpenProfModal(null);
                   }
                 }}
                 className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold transition cursor-pointer shadow-xs ${
@@ -2441,18 +2489,9 @@ _Generado automáticamente desde ${business.name} vía Turnos Disponibles_`;
                     <div className="flex items-center gap-1">
                       <button
                         type="button"
-                        onClick={() => {
-                          setEditingProf(prof);
-                          setProfAccessCode(prof.accessCode || `CONS-${Math.floor(1000 + Math.random() * 9000)}`);
-                          const isEnabled = prof.commissionEnabled !== false && prof.commissionType !== 'none';
-                          setProfCommissionEnabled(isEnabled);
-                          setProfCommissionType(!isEnabled ? 'none' : (prof.commissionType || 'percentage'));
-                          setProfCommissionRate(prof.commissionRate !== undefined ? prof.commissionRate : 20);
-                          setProfCommissionCollectionMode(prof.commissionCollectionMode || 'split_on_deposit');
-                          setShowProfModal(true);
-                        }}
+                        onClick={() => handleOpenProfModal(prof)}
                         className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 cursor-pointer"
-                        title="Editar ficha del médico y comisiones"
+                        title="Editar ficha del médico, servicios y comisiones"
                       >
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
@@ -2481,55 +2520,137 @@ _Generado automáticamente desde ${business.name} vía Turnos Disponibles_`;
         {activeTab === 'services' && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-bold text-slate-900">
-                Gestión de {labels.servicesLabel}
-              </h3>
+              <div>
+                <h3 className="text-base font-bold text-slate-900">
+                  Gestión de {labels.servicesLabel}
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Configura tratamientos, duración, aranceles base y qué especialistas de tu staff los brindan
+                </p>
+              </div>
               <button
                 type="button"
-                onClick={() => {
-                  setEditingService(null);
-                  setShowServiceModal(true);
-                }}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-black transition"
+                onClick={() => handleOpenServiceModal(null)}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 text-white text-xs font-semibold hover:bg-black transition cursor-pointer shadow-xs"
               >
                 <Plus className="w-3.5 h-3.5" />
                 <span>+ Crear {labels.serviceLabel}</span>
               </button>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {services.map((srv) => (
-                <div key={srv.id} className="bg-white rounded-3xl p-5 border border-slate-200 shadow-xs flex flex-col justify-between">
+            {/* Staff Pricing Autonomy Policy Card (Strictly Owner) */}
+            {isOwnerOrAdmin && (
+              <div className="bg-white rounded-3xl p-4 sm:p-5 border border-slate-200 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                <div className="flex items-start gap-3">
+                  <div
+                    className={`p-2.5 rounded-2xl shrink-0 ${
+                      business.allowStaffCustomPrices !== false
+                        ? 'bg-teal-50 text-teal-700 border border-teal-200'
+                        : 'bg-slate-100 text-slate-600 border border-slate-200'
+                    }`}
+                  >
+                    <Sliders className="w-4 h-4" />
+                  </div>
                   <div>
-                    <div className="flex items-start justify-between gap-2">
-                      <h4 className="font-bold text-slate-900 text-sm">{srv.name}</h4>
-                      <span className="text-xs px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-semibold shrink-0">
-                        <Clock className="w-3 h-3 inline mr-1" /> {srv.durationMinutes} min
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-bold text-slate-900 text-xs sm:text-sm">
+                        Autonomía de Aranceles para el Staff
+                      </h4>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${
+                          business.allowStaffCustomPrices !== false
+                            ? 'bg-teal-100 text-teal-800 border border-teal-200'
+                            : 'bg-slate-100 text-slate-700 border border-slate-200'
+                        }`}
+                      >
+                        {business.allowStaffCustomPrices !== false ? 'Habilitada (Staff Autónomo)' : 'Centralizada (Solo Clínica)'}
                       </span>
                     </div>
-                    {srv.description && (
-                      <p className="text-xs text-slate-500 mt-2 line-clamp-2">{srv.description}</p>
-                    )}
-                  </div>
-
-                  <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
-                    <span className="font-bold text-slate-900 text-sm">
-                      {srv.currency} {srv.price.toLocaleString('es-AR')}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setEditingService(srv);
-                        setShowServiceModal(true);
-                      }}
-                      className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100"
-                      title="Editar"
-                    >
-                      <Edit2 className="w-3.5 h-3.5" />
-                    </button>
+                    <p className="text-xs text-slate-500 mt-1 max-w-2xl leading-relaxed">
+                      {business.allowStaffCustomPrices !== false
+                        ? 'Los profesionales pueden ajustar sus propios honorarios y aranceles desde su consultorio privado.'
+                        : 'Solo la Dirección de la clínica define y modifica los aranceles de los tratamientos. El staff no puede alterar precios.'}
+                    </p>
                   </div>
                 </div>
-              ))}
+
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const currentVal = business.allowStaffCustomPrices !== false;
+                    const nextVal = !currentVal;
+                    try {
+                      const updated = await api.updateBusiness(business.id, { allowStaffCustomPrices: nextVal });
+                      onUpdateBusiness(updated);
+                    } catch (e: any) {
+                      alert('Error al actualizar política: ' + e.message);
+                    }
+                  }}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition shrink-0 cursor-pointer shadow-xs flex items-center justify-center gap-1.5 ${
+                    business.allowStaffCustomPrices !== false
+                      ? 'bg-slate-900 text-white hover:bg-black'
+                      : 'bg-teal-600 text-white hover:bg-teal-700'
+                  }`}
+                >
+                  <span>{business.allowStaffCustomPrices !== false ? 'Restringir a Centralizado' : 'Otorgar Autonomía al Staff'}</span>
+                </button>
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {services.map((srv) => {
+                const assignedProfs = professionals.filter((p) => isProfessionalAssignedToService(p, srv));
+                const isAllStaff = assignedProfs.length === professionals.length;
+                const hasCustomPrices = srv.customPrices && Object.keys(srv.customPrices).length > 0;
+
+                return (
+                  <div key={srv.id} className="bg-white rounded-3xl p-5 border border-slate-200 shadow-xs flex flex-col justify-between hover:border-slate-300 transition">
+                    <div>
+                      <div className="flex items-start justify-between gap-2">
+                        <h4 className="font-bold text-slate-900 text-sm">{srv.name}</h4>
+                        <span className="text-xs px-2 py-0.5 rounded-md bg-slate-100 text-slate-700 font-semibold shrink-0">
+                          <Clock className="w-3 h-3 inline mr-1" /> {srv.durationMinutes} min
+                        </span>
+                      </div>
+                      {srv.description && (
+                        <p className="text-xs text-slate-500 mt-2 line-clamp-2">{srv.description}</p>
+                      )}
+
+                      {/* Prestadores asignados */}
+                      <div className="mt-3 pt-2.5 border-t border-slate-100 flex flex-col gap-1 text-[11px]">
+                        <div className="flex items-center justify-between text-slate-500">
+                          <span className="flex items-center gap-1">
+                            <Users className="w-3 h-3 text-teal-600" />
+                            Prestadores asignados:
+                          </span>
+                          <span className="font-semibold text-slate-800">
+                            {isAllStaff ? 'Todo el staff' : `${assignedProfs.length} de ${professionals.length}`}
+                          </span>
+                        </div>
+                        {hasCustomPrices && (
+                          <span className="text-[10px] text-indigo-700 bg-indigo-50 px-1.5 py-0.5 rounded-md self-start border border-indigo-200 font-medium">
+                            Aranceles individuales por especialista
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="mt-4 pt-3 border-t border-slate-100 flex items-center justify-between text-xs">
+                      <span className="font-bold text-slate-900 text-sm">
+                        {srv.currency} {srv.price.toLocaleString('es-AR')}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleOpenServiceModal(srv)}
+                        className="p-1.5 rounded-lg text-slate-500 hover:text-slate-900 hover:bg-slate-100 cursor-pointer"
+                        title="Editar servicio y asignación de staff"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
@@ -4722,10 +4843,13 @@ _Generado automáticamente desde ${business.name} vía Turnos Disponibles_`;
                   commissionType: profCommissionEnabled ? profCommissionType : 'none',
                   commissionRate: profCommissionEnabled ? Number(profCommissionRate || 0) : 0,
                   commissionCollectionMode: profCommissionCollectionMode,
-                  serviceIds: services.map((s) => s.id),
+                  serviceIds: profSelectedServiceIds.length > 0 ? profSelectedServiceIds : services.map((s) => s.id),
+                  customServicePrices: Object.keys(profCustomPrices).length > 0 ? profCustomPrices : undefined,
                 };
 
+                let savedProfId = '';
                 if (editingProf) {
+                  savedProfId = editingProf.id;
                   const updated = await api.updateProfessional(business.id, editingProf.id, data);
                   setProfessionals((prev) => prev.map((p) => (p.id === editingProf.id ? updated : p)));
                 } else {
@@ -4736,6 +4860,7 @@ _Generado automáticamente desde ${business.name} vía Turnos Disponibles_`;
                   }
                   try {
                     const created = await api.createProfessional(business.id, data);
+                    savedProfId = created.id;
                     setProfessionals((prev) => [...prev, created]);
                   } catch (err: any) {
                     if (err.message?.includes('PROFESSIONAL_LIMIT_REACHED') || err.message?.includes('Plan')) {
@@ -4744,6 +4869,42 @@ _Generado automáticamente desde ${business.name} vía Turnos Disponibles_`;
                       return;
                     }
                     throw err;
+                  }
+                }
+
+                // Sync bidirectional service assignments and differential custom fees
+                if (savedProfId) {
+                  const targetServiceIds = profSelectedServiceIds.length > 0 ? profSelectedServiceIds : services.map((s) => s.id);
+                  for (const srv of services) {
+                    const shouldInclude = targetServiceIds.includes(srv.id);
+                    const currentAssigned = srv.assignedProfessionalIds || [];
+                    const isAssigned = currentAssigned.includes(savedProfId);
+                    const customFee = profCustomPrices[srv.id];
+
+                    let srvCustomPrices = srv.customPrices ? { ...srv.customPrices } : {};
+                    let customFeeChanged = false;
+
+                    if (shouldInclude && customFee !== undefined && customFee > 0) {
+                      if (srvCustomPrices[savedProfId] !== customFee) {
+                        srvCustomPrices[savedProfId] = customFee;
+                        customFeeChanged = true;
+                      }
+                    } else if (srvCustomPrices[savedProfId] !== undefined) {
+                      delete srvCustomPrices[savedProfId];
+                      customFeeChanged = true;
+                    }
+
+                    if ((shouldInclude && !isAssigned) || (!shouldInclude && isAssigned) || customFeeChanged) {
+                      const nextAssigned = shouldInclude
+                        ? (isAssigned ? currentAssigned : [...currentAssigned, savedProfId])
+                        : currentAssigned.filter((id) => id !== savedProfId);
+
+                      const updatedSrv = await api.updateService(business.id, srv.id, {
+                        assignedProfessionalIds: nextAssigned,
+                        customPrices: Object.keys(srvCustomPrices).length > 0 ? srvCustomPrices : undefined,
+                      });
+                      setServices((prev) => prev.map((s) => (s.id === srv.id ? updatedSrv : s)));
+                    }
                   }
                 }
                 setShowProfModal(false);
@@ -5051,6 +5212,87 @@ _Generado automáticamente desde ${business.name} vía Turnos Disponibles_`;
                 </label>
               </div>
 
+              {/* Servicios / Tratamientos que atiende este profesional */}
+              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="block font-bold text-slate-900 text-xs">
+                    Servicios que atiende en su consultorio
+                  </label>
+                  <span className="text-[10px] text-teal-800 font-semibold bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200">
+                    {profSelectedServiceIds.length} de {services.length} seleccionados
+                  </span>
+                </div>
+                <p className="text-[11px] text-slate-500">
+                  Marca qué tratamientos atiende este especialista y, opcionalmente, define un arancel específico si tiene un honorario particular:
+                </p>
+                <div className="space-y-2 max-h-48 overflow-y-auto pr-1">
+                  {services.map((srv) => {
+                    const isChecked = profSelectedServiceIds.includes(srv.id);
+                    const customPriceVal = profCustomPrices[srv.id] ?? '';
+
+                    return (
+                      <div
+                        key={srv.id}
+                        className={`p-2.5 rounded-xl border space-y-2 transition ${
+                          isChecked
+                            ? 'bg-white border-teal-300 ring-1 ring-teal-200 shadow-2xs'
+                            : 'bg-white/60 border-slate-200 text-slate-600'
+                        }`}
+                      >
+                        <div className="flex items-center justify-between">
+                          <label className="flex items-center gap-2 cursor-pointer flex-1">
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => {
+                                if (e.target.checked) {
+                                  setProfSelectedServiceIds((prev) => [...prev, srv.id]);
+                                } else {
+                                  setProfSelectedServiceIds((prev) => prev.filter((id) => id !== srv.id));
+                                }
+                              }}
+                              className="rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                            />
+                            <div>
+                              <span className="font-bold text-slate-900 block text-xs">{srv.name}</span>
+                              <span className="text-[10px] text-slate-500 font-mono">
+                                {srv.durationMinutes} min • Base: ${srv.price.toLocaleString('es-AR')}
+                              </span>
+                            </div>
+                          </label>
+                        </div>
+
+                        {isChecked && (
+                          <div className="flex items-center gap-2 pt-1 border-t border-slate-100">
+                            <span className="text-[10px] text-slate-500 font-medium whitespace-nowrap">
+                              Arancel individual:
+                            </span>
+                            <input
+                              type="number"
+                              placeholder={`Base ($${Number(srv.price || 0).toLocaleString('es-AR')})`}
+                              value={customPriceVal}
+                              onChange={(e) => {
+                                const val = e.target.value === '' ? undefined : Number(e.target.value);
+                                setProfCustomPrices((prev) => {
+                                  const next = { ...prev };
+                                  if (val === undefined || isNaN(val)) {
+                                    delete next[srv.id];
+                                  } else {
+                                    next[srv.id] = val;
+                                  }
+                                  return next;
+                                });
+                              }}
+                              className="w-full px-2 py-1 text-xs rounded-lg border border-slate-200 bg-slate-50 focus:bg-white text-slate-900 font-mono"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div className="pt-2">
                 <button
                   type="submit"
@@ -5262,15 +5504,20 @@ _Generado automáticamente desde ${business.name} vía Turnos Disponibles_`;
       {/* MODAL: CREAR / EDITAR SERVICIO */}
       {showServiceModal && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-3xl max-w-md w-full p-6 shadow-2xl border border-slate-200">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="font-bold text-slate-900 text-base">
-                {editingService ? `Editar ${labels.serviceLabel}` : `Nuevo ${labels.serviceLabel}`}
-              </h3>
+          <div className="bg-white rounded-3xl max-w-lg w-full p-6 shadow-2xl border border-slate-200 max-h-[90vh] flex flex-col">
+            <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100 shrink-0">
+              <div>
+                <h3 className="font-bold text-slate-900 text-base">
+                  {editingService ? `Editar ${labels.serviceLabel}` : `Nuevo ${labels.serviceLabel}`}
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Define el tratamiento, duración, arancel base y qué especialistas lo realizan
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => setShowServiceModal(false)}
-                className="p-1 rounded-full text-slate-400 hover:text-slate-600"
+                className="p-1.5 rounded-full text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -5281,28 +5528,73 @@ _Generado automáticamente desde ${business.name} vía Turnos Disponibles_`;
                 e.preventDefault();
                 const form = e.currentTarget;
                 const formData = new FormData(form);
-                const data = {
+
+                const finalAssignedProfs = serviceAllProfs
+                  ? professionals.map((p) => p.id)
+                  : serviceSelectedProfIds.length > 0
+                  ? serviceSelectedProfIds
+                  : professionals.map((p) => p.id);
+
+                const data: Partial<Service> = {
                   name: formData.get('name') as string,
                   description: (formData.get('description') as string) || '',
                   durationMinutes: Number(formData.get('durationMinutes')),
                   price: Number(formData.get('price')),
                   currency: '$',
                   active: formData.get('active') === 'on',
-                  assignedProfessionalIds: editingService
-                    ? editingService.assignedProfessionalIds
-                    : (userRole === 'staff' && assignedProfessional ? [assignedProfessional.id] : professionals.map((p) => p.id)),
+                  assignedProfessionalIds: finalAssignedProfs,
+                  customPrices: Object.keys(serviceCustomPrices).length > 0 ? serviceCustomPrices : undefined,
                 };
 
+                let savedSrvId = '';
                 if (editingService) {
+                  savedSrvId = editingService.id;
                   const updated = await api.updateService(business.id, editingService.id, data);
                   setServices((prev) => prev.map((s) => (s.id === editingService.id ? updated : s)));
                 } else {
-                  const created = await api.createService(business.id, data);
+                  const created = await api.createService(business.id, data as any);
+                  savedSrvId = created.id;
                   setServices((prev) => [...prev, created]);
                 }
+
+                // Sync bidirectional professional assignments and custom differential fees
+                if (savedSrvId) {
+                  for (const prof of professionals) {
+                    const shouldInclude = finalAssignedProfs.includes(prof.id);
+                    const currentServiceIds = prof.serviceIds || [];
+                    const hasService = currentServiceIds.includes(savedSrvId);
+                    const customFee = serviceCustomPrices[prof.id];
+
+                    let currentProfPrices = prof.customServicePrices ? { ...prof.customServicePrices } : {};
+                    let profPricesChanged = false;
+
+                    if (shouldInclude && customFee !== undefined && customFee > 0) {
+                      if (currentProfPrices[savedSrvId] !== customFee) {
+                        currentProfPrices[savedSrvId] = customFee;
+                        profPricesChanged = true;
+                      }
+                    } else if (currentProfPrices[savedSrvId] !== undefined) {
+                      delete currentProfPrices[savedSrvId];
+                      profPricesChanged = true;
+                    }
+
+                    if ((shouldInclude && !hasService) || (!shouldInclude && hasService) || profPricesChanged) {
+                      const nextServiceIds = shouldInclude
+                        ? (hasService ? currentServiceIds : [...currentServiceIds, savedSrvId])
+                        : currentServiceIds.filter((id) => id !== savedSrvId);
+
+                      const updatedProf = await api.updateProfessional(business.id, prof.id, {
+                        serviceIds: nextServiceIds,
+                        customServicePrices: Object.keys(currentProfPrices).length > 0 ? currentProfPrices : undefined,
+                      });
+                      setProfessionals((prev) => prev.map((p) => (p.id === prof.id ? updatedProf : p)));
+                    }
+                  }
+                }
+
                 setShowServiceModal(false);
               }}
-              className="space-y-3 text-xs"
+              className="space-y-3.5 text-xs overflow-y-auto pr-1 flex-1"
             >
               <div>
                 <label className="block font-semibold text-slate-700 mb-1">Nombre del Servicio *</label>
@@ -5338,7 +5630,7 @@ _Generado automáticamente desde ${business.name} vía Turnos Disponibles_`;
                   />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Precio *</label>
+                  <label className="block font-semibold text-slate-700 mb-1">Precio Base de la Clínica *</label>
                   <input
                     type="number"
                     name="price"
@@ -5358,16 +5650,126 @@ _Generado automáticamente desde ${business.name} vía Turnos Disponibles_`;
                   className="rounded border-slate-300 text-teal-600 focus:ring-teal-500"
                 />
                 <label htmlFor="srv_active" className="font-semibold text-slate-700 cursor-pointer">
-                  Servicio Activo
+                  Servicio Activo (disponible para reservas)
                 </label>
               </div>
 
-              <div className="pt-2">
+              {/* Asignación de Profesionales & Aranceles Diferenciales */}
+              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="block font-bold text-slate-900 text-xs">
+                    ¿Quiénes brindan este servicio en la clínica?
+                  </label>
+                  <span className="text-[10px] text-teal-800 font-semibold bg-teal-50 px-2 py-0.5 rounded-full border border-teal-200">
+                    {serviceAllProfs ? 'Todo el staff' : `${serviceSelectedProfIds.length} de ${professionals.length}`}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setServiceAllProfs(true);
+                      setServiceSelectedProfIds(professionals.map((p) => p.id));
+                    }}
+                    className={`py-2 px-3 rounded-xl border text-center font-bold transition cursor-pointer ${
+                      serviceAllProfs
+                        ? 'bg-slate-900 text-white border-slate-900 shadow-2xs'
+                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    Todo el Staff ({professionals.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setServiceAllProfs(false)}
+                    className={`py-2 px-3 rounded-xl border text-center font-bold transition cursor-pointer ${
+                      !serviceAllProfs
+                        ? 'bg-slate-900 text-white border-slate-900 shadow-2xs'
+                        : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-100'
+                    }`}
+                  >
+                    Seleccionar Especialistas
+                  </button>
+                </div>
+
+                {!serviceAllProfs && (
+                  <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
+                    <p className="text-[11px] text-slate-500">
+                      Tilda los especialistas que realizan este tratamiento y, opcionalmente, define un arancel específico si cobran diferente al precio base:
+                    </p>
+                    {professionals.map((prof) => {
+                      const isChecked = serviceSelectedProfIds.includes(prof.id);
+                      const customPriceVal = serviceCustomPrices[prof.id] ?? '';
+
+                      return (
+                        <div
+                          key={prof.id}
+                          className={`p-2.5 rounded-xl border space-y-2 transition ${
+                            isChecked
+                              ? 'bg-white border-teal-300 ring-1 ring-teal-200 shadow-2xs'
+                              : 'bg-white/60 border-slate-200 text-slate-600'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <label className="flex items-center gap-2 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={isChecked}
+                                onChange={(e) => {
+                                  if (e.target.checked) {
+                                    setServiceSelectedProfIds((prev) => [...prev, prof.id]);
+                                  } else {
+                                    setServiceSelectedProfIds((prev) => prev.filter((id) => id !== prof.id));
+                                  }
+                                }}
+                                className="rounded border-slate-300 text-teal-600 focus:ring-teal-500"
+                              />
+                              <div>
+                                <span className="font-bold text-slate-900 block text-xs">{prof.name}</span>
+                                <span className="text-[10px] text-slate-500">{prof.specialty || prof.officeNumber}</span>
+                              </div>
+                            </label>
+                          </div>
+
+                          {isChecked && (
+                            <div className="flex items-center gap-2 pt-1 border-t border-slate-100">
+                              <span className="text-[10px] text-slate-500 font-medium whitespace-nowrap">
+                                Arancel individual:
+                              </span>
+                              <input
+                                type="number"
+                                placeholder={`Base ($${Number(editingService?.price || 0).toLocaleString('es-AR')})`}
+                                value={customPriceVal}
+                                onChange={(e) => {
+                                  const val = e.target.value === '' ? undefined : Number(e.target.value);
+                                  setServiceCustomPrices((prev) => {
+                                    const next = { ...prev };
+                                    if (val === undefined || isNaN(val)) {
+                                      delete next[prof.id];
+                                    } else {
+                                      next[prof.id] = val;
+                                    }
+                                    return next;
+                                  });
+                                }}
+                                className="w-full px-2 py-1 text-xs rounded-lg border border-slate-200 bg-slate-50 focus:bg-white text-slate-900 font-mono"
+                              />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-2 shrink-0">
                 <button
                   type="submit"
-                  className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white font-bold transition"
+                  className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white font-bold transition shadow-xs cursor-pointer"
                 >
-                  Guardar Servicio
+                  Guardar Servicio & Asignaciones
                 </button>
               </div>
             </form>

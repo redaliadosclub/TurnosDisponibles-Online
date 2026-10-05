@@ -98,6 +98,9 @@ export interface Business {
   commissionPolicyRate?: number;
   commissionPolicyCollectionMode?: 'split_on_deposit' | 'manual_settlement' | 'direct_to_clinic' | 'direct_to_professional';
 
+  // Autonomía de Precios para el Staff (Control del Dueño)
+  allowStaffCustomPrices?: boolean; // true = cada staff puede fijar aranceles propios, false = precios centralizados
+
   // Plan Experiencia AI: WhatsApp Bot & Assistant 24/7
   aiBotEnabled?: boolean;
   aiBotName?: string;
@@ -146,6 +149,9 @@ export interface Professional {
   // Lógica de Comisiones y Cobro de la Clínica (Preparación para liquidación / cobro directo)
   commissionCollectionMode?: 'direct_to_clinic' | 'direct_to_professional' | 'split_on_deposit' | 'manual_settlement';
   clinicCommissionRetained?: boolean; // Si la clínica retiene la seña como pago de comisión
+
+  // Aranceles / Honorarios personalizados definidos por el Staff para cada servicio
+  customServicePrices?: Record<string, number>; // serviceId -> precio personalizado
 }
 
 export interface Service {
@@ -158,6 +164,7 @@ export interface Service {
   currency: string;
   active: boolean;
   assignedProfessionalIds: string[];
+  customPrices?: Record<string, number>; // professionalId -> precio personalizado
 }
 
 export interface Shift {
@@ -226,6 +233,7 @@ export interface Appointment {
   paymentStatus?: 'pending' | 'deposit_pending' | 'deposit_paid' | 'paid' | 'not_required';
   paymentMethod?: 'mercadopago' | 'transfer' | 'cash';
   depositAmount?: number;
+  servicePrice?: number; // Precio efectivo pactado para este servicio y profesional al momento de reservar
   cancellationReason?: string;
 
   // Lógica de Comisiones y Cobro de la Clínica

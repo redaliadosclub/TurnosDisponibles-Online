@@ -27,6 +27,7 @@ import {
   checkAppointmentCreationLimit,
   checkProfessionalLimit,
 } from '../lib/planLimits';
+import { getServicePriceForProfessional } from '../lib/servicePricing';
 import { db, auth } from '../lib/firebase';
 import {
   collection,
@@ -1935,6 +1936,7 @@ class ApiService {
     const endTime = `${Math.floor(endMinutes / 60).toString().padStart(2, '0')}:${(endMinutes % 60).toString().padStart(2, '0')}`;
 
     const bookingCode = `TD-${Math.floor(1000 + Math.random() * 9000)}`;
+    const effectiveServicePrice = getServicePriceForProfessional(srv, prof);
 
     const newAppointment: Appointment = {
       id: `app_${Date.now()}`,
@@ -1954,6 +1956,7 @@ class ApiService {
       paymentMethod: payload.paymentMethod,
       paymentStatus: payload.paymentStatus || 'not_required',
       depositAmount: payload.depositAmount,
+      servicePrice: effectiveServicePrice,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
