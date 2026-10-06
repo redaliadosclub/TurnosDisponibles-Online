@@ -41,7 +41,9 @@ import {
   Copy,
   Check,
   Lock,
+  Video,
 } from 'lucide-react';
+import { Appointment } from '../types';
 
 interface PublicBookingPageProps {
   key?: React.Key;
@@ -50,6 +52,7 @@ interface PublicBookingPageProps {
   onNavigateToDashboard?: () => void;
   onGoToAdmin?: () => void;
   onBackToPortal?: () => void;
+  onStartTeleconsulta?: (appointment: Appointment) => void;
 }
 
 export function PublicBookingPage({
@@ -58,6 +61,7 @@ export function PublicBookingPage({
   onNavigateToDashboard,
   onGoToAdmin,
   onBackToPortal,
+  onStartTeleconsulta,
 }: PublicBookingPageProps) {
   const labels = useMemo(() => getBusinessLabels(business), [business]);
   const daysList = useMemo(() => generateNextDays(14), []);
@@ -290,6 +294,7 @@ export function PublicBookingPage({
         paymentMethod: business.paymentsEnabled && business.depositRequired ? paymentMethod : 'cash',
         paymentStatus: business.paymentsEnabled && business.depositRequired ? 'deposit_pending' : 'not_required',
         depositAmount: depositAmountVal || undefined,
+        modality: selectedService?.modality === 'online' ? 'online' : 'in_person',
       });
 
       setBookingSuccess(result);
@@ -542,10 +547,62 @@ export function PublicBookingPage({
                 <div className="flex justify-between items-center py-1">
                   <span className="text-slate-500">Lugar:</span>
                   <span className="font-medium text-slate-800 text-right text-xs max-w-[200px] truncate">
-                    {business.address}
+                    {bookingSuccess.appointment.modality === 'online' || selectedService?.modality === 'online'
+                      ? '💻 Sala Virtual de Teleconsulta (WebRTC)'
+                      : business.address}
                   </span>
                 </div>
               </div>
+
+              {/* DEDICATED NATIVE WEBRTC TELECONSULTA ROOM CARD */}
+              {(bookingSuccess.appointment.modality === 'online' || selectedService?.modality === 'online' || Boolean(bookingSuccess.appointment.teleconsultaRoomUrl)) && (
+                <div className="text-left bg-gradient-to-br from-cyan-950 via-slate-900 to-slate-950 border border-cyan-500/40 p-5 rounded-2xl mb-6 shadow-xl text-white">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="w-2.5 h-2.5 rounded-full bg-cyan-400 animate-pulse" />
+                    <span className="text-xs font-bold uppercase tracking-wider text-cyan-300">
+                      Teleconsulta Online 1 a 1 (WebRTC Cifrada)
+                    </span>
+                  </div>
+                  <h3 className="text-base font-extrabold text-white">
+                    Tu atención se realizará por videollamada nativa
+                  </h3>
+                  <p className="text-xs text-slate-300 mt-1">
+                    No necesitas instalar aplicaciones externas. Te conectarás de forma 100% privada con tu especialista directamente desde el navegador.
+                  </p>
+
+                  <div className="mt-4 flex flex-col sm:flex-row items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (onStartTeleconsulta) {
+                          onStartTeleconsulta(bookingSuccess.appointment);
+                        } else {
+                          window.location.hash = `#teleconsulta?room=${bookingSuccess.appointment.bookingCode}&role=patient`;
+                        }
+                      }}
+                      className="w-full sm:w-auto flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-gradient-to-r from-cyan-500 to-teal-400 hover:from-cyan-400 hover:to-teal-300 text-slate-950 font-extrabold text-xs transition cursor-pointer shadow-lg hover:scale-[1.02]"
+                    >
+                      <Video className="w-4 h-4" />
+                      <span>Ingresar a la Sala Virtual Ahora</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const roomUrl = `${window.location.origin}/#teleconsulta?room=${bookingSuccess.appointment.bookingCode}&role=patient`;
+                        navigator.clipboard.writeText(roomUrl);
+                        setCopiedField('teleconsultaUrl');
+                        setTimeout(() => setCopiedField(null), 3000);
+                      }}
+                      className="w-full sm:w-auto px-3.5 py-3 rounded-xl bg-white/10 hover:bg-white/20 text-white font-semibold text-xs border border-white/20 transition flex items-center justify-center gap-1.5 cursor-pointer"
+                      title="Copiar enlace de acceso a la sala virtual"
+                    >
+                      {copiedField === 'teleconsultaUrl' ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-slate-300" />}
+                      <span>{copiedField === 'teleconsultaUrl' ? '¡Link Copiado!' : 'Copiar Link'}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Deposit Payment Instructions if Required */}
               {Boolean(bookingSuccess.appointment.depositAmount) && (
@@ -798,6 +855,11 @@ export function PublicBookingPage({
                             <span className="text-xs px-2.5 py-0.5 rounded-full bg-slate-100 text-slate-700 font-medium flex items-center gap-1">
                               <Clock className="w-3.5 h-3.5 text-slate-500" /> {srv.durationMinutes} min
                             </span>
+                            {srv.modality === 'online' && (
+                              <span className="text-xs px-2.5 py-0.5 rounded-full bg-cyan-100 text-cyan-800 font-bold flex items-center gap-1 border border-cyan-200">
+                                <Video className="w-3 h-3 text-cyan-600" /> Teleconsulta 1a1
+                              </span>
+                            )}
                           </div>
                           {srv.description && (
                             <p className="text-xs sm:text-sm text-slate-600 mt-1.5 line-clamp-2">
@@ -1535,6 +1597,26 @@ export function PublicBookingPage({
                 <div>
                   <strong>Fecha y Hora:</strong> {lookupResult.date} a las {lookupResult.startTime} hs
                 </div>
+
+                {(lookupResult.modality === 'online' || Boolean(lookupResult.teleconsultaRoomUrl)) && lookupResult.status !== 'cancelled' && (
+                  <div className="pt-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (onStartTeleconsulta) {
+                          onStartTeleconsulta(lookupResult);
+                        } else {
+                          window.location.hash = `#teleconsulta?room=${lookupResult.bookingCode}&role=patient`;
+                        }
+                        setShowLookupModal(false);
+                      }}
+                      className="w-full py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-teal-600 hover:from-cyan-500 hover:to-teal-500 text-white font-bold text-xs transition flex items-center justify-center gap-2 cursor-pointer shadow-sm"
+                    >
+                      <Video className="w-4 h-4" />
+                      <span>Ingresar a mi Sala de Teleconsulta</span>
+                    </button>
+                  </div>
+                )}
 
                 {lookupResult.status !== 'cancelled' && (
                   <div className="pt-3 border-t border-slate-200 flex gap-2">

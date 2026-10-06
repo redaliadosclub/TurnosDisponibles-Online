@@ -70,7 +70,11 @@ import {
   Coins,
   Calculator,
   FileText,
+  Video,
+  Share2,
 } from 'lucide-react';
+import { MedicalPrescriptionModal } from './teleconsulta/MedicalPrescriptionModal';
+import { MedicalPrescription } from '../types';
 
 interface StaffWorkspaceProps {
   business: Business;
@@ -80,6 +84,7 @@ interface StaffWorkspaceProps {
   onLogout: () => void;
   onSwitchToOwner?: () => void;
   onUserUpdate?: (updatedUser: User) => void;
+  onStartTeleconsulta?: (appointment: Appointment) => void;
 }
 
 export function StaffWorkspace({
@@ -90,6 +95,7 @@ export function StaffWorkspace({
   onLogout,
   onSwitchToOwner,
   onUserUpdate,
+  onStartTeleconsulta,
 }: StaffWorkspaceProps) {
   const [activeTab, setActiveTab] = useState<'agenda' | 'customers' | 'hours' | 'payments' | 'services' | 'analytics'>('agenda');
   const [professionals, setProfessionals] = useState<Professional[]>([]);
@@ -153,6 +159,31 @@ export function StaffWorkspace({
   const [simulatedPrice, setSimulatedPrice] = useState<number>(20000);
   const [selectedAppointmentForReceipt, setSelectedAppointmentForReceipt] = useState<Appointment | null>(null);
   const [copiedReceiptText, setCopiedReceiptText] = useState(false);
+  const [selectedAppointmentForPrescription, setSelectedAppointmentForPrescription] = useState<Appointment | null>(null);
+  const [copiedTeleconsultaAppId, setCopiedTeleconsultaAppId] = useState<string | null>(null);
+
+  const handleStartCall = (app: Appointment) => {
+    if (onStartTeleconsulta) {
+      onStartTeleconsulta(app);
+    } else {
+      window.location.hash = `#teleconsulta?room=${app.bookingCode}&role=doctor`;
+    }
+  };
+
+  const handleCopyPatientLink = (app: Appointment) => {
+    const url = `${window.location.origin}/#teleconsulta?room=${app.bookingCode}&role=patient`;
+    navigator.clipboard.writeText(url);
+    setCopiedTeleconsultaAppId(app.id);
+    setTimeout(() => setCopiedTeleconsultaAppId(null), 3000);
+  };
+
+  const handleSendTeleconsultaWhatsApp = (app: Appointment) => {
+    const srv = services.find((s) => s.id === app.serviceId);
+    const roomUrl = `${window.location.origin}/#teleconsulta?room=${app.bookingCode}&role=patient`;
+    const text = `¡Hola ${app.customerName}! 👋 Le saluda ${assignedProfessional?.name || 'su especialista'}. Ya estoy en la sala virtual para nuestra Teleconsulta de ${srv?.name || 'atención médica'}.\n\n🔗 Puede ingresar directamente aquí: ${roomUrl}\n\n¡Le espero conectado!`;
+    const url = generateWaMeLink(app.customerPhone, text);
+    window.open(url, '_blank', 'noopener,noreferrer');
+  };
 
   // Load Business Data
   const loadData = async () => {
@@ -1516,6 +1547,13 @@ export function StaffWorkspace({
                                     ? 'Confirmado'
                                     : 'En Espera'}
                                 </span>
+
+                                {(srv?.modality === 'online' || app.modality === 'online' || Boolean(app.teleconsultaRoomUrl)) && (
+                                  <span className="text-[10px] px-2 py-0.5 rounded-full font-bold bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 flex items-center gap-1">
+                                    <Video className="w-3 h-3 text-cyan-400" />
+                                    <span>Teleconsulta 1a1</span>
+                                  </span>
+                                )}
                               </div>
 
                               <div className="flex items-center gap-3 text-xs text-slate-400 mt-1 flex-wrap">
@@ -1567,7 +1605,43 @@ export function StaffWorkspace({
                           </div>
 
                           {/* Quick Actions */}
-                          <div className="flex items-center gap-2 self-end md:self-center shrink-0">
+                          <div className="flex items-center gap-2 self-end md:self-center shrink-0 flex-wrap">
+                            {/* Native WebRTC Teleconsulta Live Button */}
+                            <button
+                              type="button"
+                              onClick={() => handleStartCall(app)}
+                              className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-gradient-to-r from-teal-500 to-emerald-500 hover:from-teal-400 hover:to-emerald-400 text-slate-950 text-xs font-extrabold transition cursor-pointer shadow-md"
+                              title="Iniciar videollamada 1 a 1 nativa WebRTC con este paciente"
+                            >
+                              <Video className="w-3.5 h-3.5" />
+                              <span>Teleconsulta</span>
+                            </button>
+
+                            {/* Digital Prescription Button */}
+                            <button
+                              type="button"
+                              onClick={() => setSelectedAppointmentForPrescription(app)}
+                              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-semibold border transition cursor-pointer ${
+                                app.prescription
+                                  ? 'bg-emerald-950/50 text-emerald-300 border-emerald-500/40 hover:bg-emerald-900/50'
+                                  : 'bg-slate-800 hover:bg-slate-700 text-teal-300 border-slate-700'
+                              }`}
+                              title="Emitir o consultar Receta Médica Digital con QR y firma"
+                            >
+                              <FileText className="w-3.5 h-3.5 text-teal-400" />
+                              <span className="hidden sm:inline">{app.prescription ? 'Ver Receta' : 'Receta'}</span>
+                            </button>
+
+                            {/* Share Teleconsulta link via WhatsApp */}
+                            <button
+                              type="button"
+                              onClick={() => handleSendTeleconsultaWhatsApp(app)}
+                              className="p-1.5 rounded-xl bg-slate-800 hover:bg-cyan-500/20 text-slate-400 hover:text-cyan-300 text-xs transition cursor-pointer"
+                              title="Compartir link de acceso a la sala por WhatsApp al paciente"
+                            >
+                              <Share2 className="w-3.5 h-3.5" />
+                            </button>
+
                             {/* Receipt / Financial Breakdown Button */}
                             <button
                               type="button"
@@ -3732,6 +3806,27 @@ export function StaffWorkspace({
           </div>
         );
       })()}
+
+      {/* MEDICAL PRESCRIPTION DIGITAL MODAL */}
+      {selectedAppointmentForPrescription && assignedProfessional && (
+        <MedicalPrescriptionModal
+          isOpen={Boolean(selectedAppointmentForPrescription)}
+          onClose={() => setSelectedAppointmentForPrescription(null)}
+          appointment={selectedAppointmentForPrescription}
+          business={business}
+          professional={assignedProfessional}
+          initialPrescription={selectedAppointmentForPrescription.prescription}
+          onPrescriptionSaved={async (prescription) => {
+            await api.savePrescription(selectedAppointmentForPrescription.id, prescription);
+            setAppointments((prev) =>
+              prev.map((a) =>
+                a.id === selectedAppointmentForPrescription.id ? { ...a, prescription } : a
+              )
+            );
+            setSelectedAppointmentForPrescription(null);
+          }}
+        />
+      )}
     </div>
   );
 }

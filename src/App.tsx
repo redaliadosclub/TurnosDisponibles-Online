@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { onAuthStateChanged } from 'firebase/auth';
 import { auth } from './lib/firebase';
-import { Business, User } from './types';
+import { Business, User, Appointment, Professional, MedicalPrescription } from './types';
 import { api, INITIAL_BUSINESSES } from './services/api';
 import { PublicBookingPage } from './components/PublicBookingPage';
 import { BusinessDashboard } from './components/BusinessDashboard';
@@ -10,6 +10,8 @@ import { StaffWorkspace } from './components/StaffWorkspace';
 import { AuthModal } from './components/AuthModal';
 import { NotFoundBusinessView } from './components/NotFoundBusinessView';
 import { LandingPortalPage } from './components/portal/LandingPortalPage';
+import { TeleconsultaRoom } from './components/teleconsulta/TeleconsultaRoom';
+import { PrescriptionVerificationView } from './components/teleconsulta/PrescriptionVerificationView';
 import {
   Building2,
   Shield,
@@ -117,6 +119,79 @@ export default function App() {
     }
   };
 
+  // Helper to extract teleconsulta parameters (?room=...&role=... or #teleconsulta?...)
+  const getTeleconsultaFromUrl = () => {
+    try {
+      const fullUrl = window.location.href;
+      const hash = window.location.hash || '';
+      const isTeleRoute =
+        hash.includes('teleconsulta') ||
+        hash.includes('sala-virtual') ||
+        hash.includes('videollamada') ||
+        fullUrl.includes('room=') ||
+        fullUrl.includes('teleconsulta=');
+      if (!isTeleRoute) return null;
+
+      let room = '';
+      let role: 'doctor' | 'patient' = 'patient';
+
+      if (hash.includes('?')) {
+        const hashQuery = hash.split('?')[1];
+        const hashParams = new URLSearchParams(hashQuery);
+        room = hashParams.get('room') || hashParams.get('code') || hashParams.get('sala') || '';
+        if (hashParams.get('role')) role = hashParams.get('role') as any;
+      }
+
+      if (!room) {
+        const urlObj = new URL(fullUrl);
+        room =
+          urlObj.searchParams.get('room') ||
+          urlObj.searchParams.get('teleconsulta') ||
+          urlObj.searchParams.get('code') ||
+          urlObj.searchParams.get('sala') ||
+          '';
+        if (urlObj.searchParams.get('role')) role = urlObj.searchParams.get('role') as any;
+      }
+
+      if (!room) {
+        const match = hash.match(/(?:teleconsulta|sala-virtual)[-/]([A-Za-z0-9_-]+)/);
+        if (match) room = match[1];
+      }
+
+      return room ? { room: room.trim().toUpperCase(), role } : null;
+    } catch {
+      return null;
+    }
+  };
+
+  // Helper to extract medical prescription verification code (?code=... or #receta/...)
+  const getPrescriptionFromUrl = () => {
+    try {
+      const fullUrl = window.location.href;
+      const hash = window.location.hash || '';
+      const pathname = window.location.pathname || '';
+
+      let code = '';
+      if (hash.includes('receta') || hash.includes('prescription') || hash.includes('verificar')) {
+        if (hash.includes('?')) {
+          const params = new URLSearchParams(hash.split('?')[1]);
+          code = params.get('code') || params.get('receta') || '';
+        }
+        if (!code) {
+          const match = hash.match(/(?:receta|prescription|verificar)[-/]([A-Za-z0-9_-]+)/);
+          if (match) code = match[1];
+        }
+      }
+      if (!code && (pathname.includes('/receta/') || pathname.includes('/prescriptions/'))) {
+        const parts = pathname.split('/');
+        code = parts[parts.length - 1];
+      }
+      return code ? code.trim().toUpperCase() : null;
+    } catch {
+      return null;
+    }
+  };
+
   const LEGACY_DEMO_IDS = new Set(['biz_turnosmed_demo', 'biz_estetica_bella', 'turnosmed-demo', 'estetica-bella']);
 
   const getCleanSavedBusinesses = (): Business[] => {
@@ -159,6 +234,16 @@ export default function App() {
   );
   const [staffInitialCode, setStaffInitialCode] = useState<string>(initialStaffParams?.code || '');
   const [staffInitialProfId, setStaffInitialProfId] = useState<string>(initialStaffParams?.profId || '');
+  const [activeTeleconsulta, setActiveTeleconsulta] = useState<{
+    appointment: Appointment;
+    business: Business;
+    professional: Professional;
+    userRole: 'doctor' | 'patient';
+    userName: string;
+  } | null>(null);
+  const [activePrescriptionCode, setActivePrescriptionCode] = useState<string | null>(() => {
+    return getPrescriptionFromUrl();
+  });
   const [activeView, setActiveView] = useState<'portal' | 'public' | 'business' | 'superadmin' | 'staff'>(() => {
     if (initialStaffParams) return 'staff';
     if (initialSlug) return 'public';
@@ -301,7 +386,57 @@ export default function App() {
 
   // Listen to hash changes in real-time
   useEffect(() => {
-    const handleHashChange = () => {
+    const handleHashChange = async () => {
+      // 1. Prescription verification route check
+      const rxCode = getPrescriptionFromUrl();
+      if (rxCode) {
+        setActivePrescriptionCode(rxCode);
+        return;
+      } else {
+        setActivePrescriptionCode(null);
+      }
+
+      // 2. Native WebRTC Teleconsulta route check
+      const teleData = getTeleconsultaFromUrl();
+      if (teleData) {
+        try {
+          const appt = await api.getAppointment(teleData.room);
+          if (appt) {
+            const allBiz = [...businesses, ...INITIAL_BUSINESSES];
+            const biz = allBiz.find((b) => b.id === appt.businessId) || currentBusiness;
+            const profs = await api.getProfessionals(biz.id).catch(() => []);
+            const prof =
+              profs.find((p) => p.id === appt.professionalId) || {
+                id: appt.professionalId,
+                businessId: biz.id,
+                name: 'Profesional Especialista',
+                title: 'Dr./Dra.',
+                specialty: 'Atención Médica',
+                email: '',
+                phone: '',
+                color: '#0284c7',
+                active: true,
+              };
+            const role = teleData.role || (currentUser?.role === 'staff' ? 'doctor' : 'patient');
+            const userName =
+              role === 'doctor'
+                ? currentUser?.name || prof.name
+                : currentUser?.name || appt.customerName || 'Paciente';
+
+            setActiveTeleconsulta({
+              appointment: appt,
+              business: biz,
+              professional: prof,
+              userRole: role,
+              userName,
+            });
+            return;
+          }
+        } catch (err) {
+          console.warn('[Teleconsulta route load error]:', err);
+        }
+      }
+
       const staffParams = getStaffParamsFromUrl();
       if (staffParams) {
         if (staffParams.clinic) {
@@ -389,6 +524,48 @@ export default function App() {
       if (activeView !== 'public') {
         setActiveView('portal');
       }
+    }
+  };
+
+  const handleStartTeleconsulta = async (
+    appointment: Appointment,
+    role: 'doctor' | 'patient' = 'doctor'
+  ) => {
+    try {
+      const allBiz = [...businesses, ...INITIAL_BUSINESSES];
+      const biz = allBiz.find((b) => b.id === appointment.businessId) || currentBusiness;
+      const profs = await api.getProfessionals(biz.id).catch(() => []);
+      const prof =
+        profs.find((p) => p.id === appointment.professionalId) || {
+          id: appointment.professionalId,
+          businessId: biz.id,
+          name: 'Profesional Especialista',
+          title: 'Dr./Dra.',
+          specialty: 'Atención Médica',
+          email: '',
+          phone: '',
+          color: '#0284c7',
+          active: true,
+        };
+
+      const userName =
+        role === 'doctor'
+          ? currentUser?.name || prof.name
+          : currentUser?.name || appointment.customerName || 'Paciente';
+
+      setActiveTeleconsulta({
+        appointment,
+        business: biz,
+        professional: prof,
+        userRole: role,
+        userName,
+      });
+
+      try {
+        window.location.hash = `#teleconsulta?room=${appointment.bookingCode}&role=${role}`;
+      } catch {}
+    } catch (err) {
+      console.error('Error starting teleconsulta:', err);
     }
   };
 
@@ -641,6 +818,7 @@ export default function App() {
                   setActiveView('business');
                 }
               }}
+              onStartTeleconsulta={(appt) => handleStartTeleconsulta(appt, 'patient')}
             />
           ))}
 
@@ -654,6 +832,7 @@ export default function App() {
               setBusinesses((prev) => prev.map((b) => (b.id === updated.id ? updated : b)));
             }}
             onViewPublicPage={() => setActiveView('public')}
+            onStartTeleconsulta={(appt) => handleStartTeleconsulta(appt, 'doctor')}
           />
         )}
 
@@ -670,6 +849,7 @@ export default function App() {
                 : undefined
             }
             onUserUpdate={(updated) => setCurrentUser(updated)}
+            onStartTeleconsulta={(appt) => handleStartTeleconsulta(appt, 'doctor')}
           />
         )}
 
@@ -686,6 +866,49 @@ export default function App() {
           />
         )}
       </div>
+
+      {/* NATIVE WEBRTC TELECONSULTA ROOM (OVERLAY / VIEW) */}
+      {activeTeleconsulta && (
+        <TeleconsultaRoom
+          appointment={activeTeleconsulta.appointment}
+          business={activeTeleconsulta.business}
+          professional={activeTeleconsulta.professional}
+          userRole={activeTeleconsulta.userRole}
+          userName={activeTeleconsulta.userName}
+          onExit={() => {
+            setActiveTeleconsulta(null);
+            try {
+              if (window.location.hash.includes('teleconsulta') || window.location.hash.includes('sala-virtual')) {
+                window.location.hash = '';
+              }
+            } catch {}
+          }}
+          onSavePrescription={async (prescription) => {
+            await api.savePrescription(prescription.appointmentId, prescription);
+            setActiveTeleconsulta((prev) =>
+              prev
+                ? {
+                    ...prev,
+                    appointment: { ...prev.appointment, prescription },
+                  }
+                : null
+            );
+          }}
+        />
+      )}
+
+      {/* PRESCRIPTION VERIFICATION VIEW */}
+      {activePrescriptionCode && (
+        <PrescriptionVerificationView
+          code={activePrescriptionCode}
+          onBackToApp={() => {
+            setActivePrescriptionCode(null);
+            try {
+              window.location.hash = '';
+            } catch {}
+          }}
+        />
+      )}
 
       {/* Floating Demo Switcher Button: Strictly rendered ONLY when authenticated as superadmin */}
       {isSuperAdmin && (

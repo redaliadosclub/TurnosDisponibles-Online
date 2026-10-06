@@ -1,5 +1,7 @@
 import express from 'express';
+import http from 'http';
 import path from 'path';
+import { WebSocketServer, WebSocket } from 'ws';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 import { db } from './server/db';
@@ -27,8 +29,129 @@ function getGenAI(): GoogleGenAI | null {
 async function startServer() {
   const app = express();
   const PORT = 3000;
+  const httpServer = http.createServer(app);
 
-  app.use(express.json());
+  app.use(express.json({ limit: '10mb' }));
+
+  // --- Native WebRTC Signaling Server ---
+  interface PeerConnection {
+    ws: WebSocket;
+    peerId: string;
+    room: string;
+    role: 'doctor' | 'patient';
+    name: string;
+  }
+
+  const rooms = new Map<string, Map<string, PeerConnection>>();
+
+  const wss = new WebSocketServer({ server: httpServer, path: '/ws/signaling' });
+
+  wss.on('connection', (ws: WebSocket) => {
+    let currentPeer: PeerConnection | null = null;
+
+    ws.on('message', (raw: string) => {
+      try {
+        const msg = JSON.parse(raw.toString());
+
+        switch (msg.type) {
+          case 'join': {
+            const { room, peerId, role, name } = msg;
+            if (!room || !peerId) return;
+
+            currentPeer = { ws, peerId, room, role: role || 'patient', name: name || 'Invitado' };
+
+            if (!rooms.has(room)) {
+              rooms.set(room, new Map());
+            }
+            const roomPeers = rooms.get(room)!;
+
+            // Notify joining peer about existing peers in the room
+            const existing = Array.from(roomPeers.values()).map((p) => ({
+              peerId: p.peerId,
+              role: p.role,
+              name: p.name,
+            }));
+
+            ws.send(JSON.stringify({ type: 'existing-peers', peers: existing }));
+
+            // Add peer to room
+            roomPeers.set(peerId, currentPeer);
+
+            // Notify other peers that a new user joined
+            roomPeers.forEach((p) => {
+              if (p.peerId !== peerId && p.ws.readyState === WebSocket.OPEN) {
+                p.ws.send(
+                  JSON.stringify({
+                    type: 'peer-joined',
+                    peerId,
+                    role: currentPeer!.role,
+                    name: currentPeer!.name,
+                  })
+                );
+              }
+            });
+            break;
+          }
+
+          case 'offer':
+          case 'answer':
+          case 'ice-candidate': {
+            const { targetPeerId, room } = msg;
+            if (!room || !targetPeerId) return;
+            const roomPeers = rooms.get(room);
+            const target = roomPeers?.get(targetPeerId);
+            if (target && target.ws.readyState === WebSocket.OPEN) {
+              target.ws.send(
+                JSON.stringify({
+                  ...msg,
+                  fromPeerId: currentPeer?.peerId,
+                  fromRole: currentPeer?.role,
+                  fromName: currentPeer?.name,
+                })
+              );
+            }
+            break;
+          }
+
+          case 'chat-message':
+          case 'prescription-issued':
+          case 'call-state': {
+            const { room } = msg;
+            if (!room) return;
+            const roomPeers = rooms.get(room);
+            if (roomPeers) {
+              roomPeers.forEach((p) => {
+                if (p.ws.readyState === WebSocket.OPEN) {
+                  p.ws.send(JSON.stringify(msg));
+                }
+              });
+            }
+            break;
+          }
+        }
+      } catch (err) {
+        console.error('[WebRTC Signaling Message Error]:', err);
+      }
+    });
+
+    ws.on('close', () => {
+      if (currentPeer) {
+        const { room, peerId } = currentPeer;
+        const roomPeers = rooms.get(room);
+        if (roomPeers) {
+          roomPeers.delete(peerId);
+          roomPeers.forEach((p) => {
+            if (p.ws.readyState === WebSocket.OPEN) {
+              p.ws.send(JSON.stringify({ type: 'peer-left', peerId }));
+            }
+          });
+          if (roomPeers.size === 0) {
+            rooms.delete(room);
+          }
+        }
+      }
+    });
+  });
 
   // --- API Routes ---
 
@@ -1253,6 +1376,63 @@ ${business.aiBotSystemPrompt ? `INSTRUCCIONES ESPECÍFICAS Y REGLAS ADICIONALES 
     });
   });
 
+  // --- Prescription Endpoints ---
+  app.get('/api/prescriptions/verify/:code', (req, res) => {
+    const { code } = req.params;
+    const cleanCode = (code || '').trim().toUpperCase();
+
+    const allAppointments = db.getAppointments();
+    const appt = allAppointments.find(
+      (a) =>
+        a.prescription?.verificationCode?.toUpperCase() === cleanCode ||
+        a.bookingCode?.toUpperCase() === cleanCode
+    );
+
+    if (!appt || !appt.prescription) {
+      return res.status(404).json({
+        valid: false,
+        error: 'Receta no encontrada o código de verificación inválido.',
+      });
+    }
+
+    const business = db.getBusinessById(appt.businessId);
+    const prof = db.getProfessionalById(appt.professionalId);
+
+    return res.json({
+      valid: true,
+      prescription: appt.prescription,
+      business: business ? { name: business.name, slug: business.slug, phone: business.phone } : null,
+      professional: prof
+        ? {
+            name: prof.name,
+            title: prof.title,
+            specialty: prof.specialty,
+            licenseNumber: prof.licenseNumber,
+          }
+        : null,
+      appointment: {
+        bookingCode: appt.bookingCode,
+        date: appt.date,
+        startTime: appt.startTime,
+        customerName: appt.customerName,
+      },
+    });
+  });
+
+  app.post('/api/prescriptions', (req, res) => {
+    const { appointmentId, prescription } = req.body;
+    if (!appointmentId || !prescription) {
+      return res.status(400).json({ error: 'appointmentId y prescription requeridos' });
+    }
+
+    const updated = db.updateAppointmentPrescription(appointmentId, prescription);
+    if (!updated) {
+      return res.status(404).json({ error: 'Turno no encontrado' });
+    }
+
+    res.json({ success: true, prescription: updated.prescription, appointment: updated });
+  });
+
   // Vite middleware setup
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
@@ -1263,7 +1443,7 @@ ${business.aiBotSystemPrompt ? `INSTRUCCIONES ESPECÍFICAS Y REGLAS ADICIONALES 
 
     // Fallback for direct URL navigation in dev mode (e.g. /book/turnosmed-demo)
     app.get('*', async (req, res, next) => {
-      if (req.originalUrl.startsWith('/api')) {
+      if (req.originalUrl.startsWith('/api') || req.originalUrl.startsWith('/ws')) {
         return next();
       }
       try {
@@ -1284,8 +1464,8 @@ ${business.aiBotSystemPrompt ? `INSTRUCCIONES ESPECÍFICAS Y REGLAS ADICIONALES 
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[TurnosMed Server] Running on http://0.0.0.0:${PORT}`);
+  httpServer.listen(PORT, '0.0.0.0', () => {
+    console.log(`[TurnosMed Server + WebRTC Signaling] Running on http://0.0.0.0:${PORT}`);
   });
 }
 

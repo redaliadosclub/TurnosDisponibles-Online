@@ -713,9 +713,9 @@ class Database {
   }
 
   // --- Appointments & Real-Time Availability ---
-  public getAppointments(businessId: string, filter?: { date?: string; professionalId?: string }): Appointment[] {
+  public getAppointments(businessId?: string, filter?: { date?: string; professionalId?: string }): Appointment[] {
     return this.data.appointments.filter((app) => {
-      if (app.businessId !== businessId) return false;
+      if (businessId && app.businessId !== businessId) return false;
       if (filter?.date && app.date !== filter.date) return false;
       if (filter?.professionalId && app.professionalId !== filter.professionalId) return false;
       return true;
@@ -859,6 +859,19 @@ class Database {
       this.recordAnalytics(appointment.businessId, 'booking_cancelled', { id, bookingCode: appointment.bookingCode });
     }
 
+    this.save();
+    return appointment;
+  }
+
+  public updateAppointmentPrescription(
+    id: string,
+    prescription: any
+  ): Appointment | null {
+    const appointment = this.data.appointments.find((a) => a.id === id || a.bookingCode === id);
+    if (!appointment) return null;
+
+    appointment.prescription = prescription;
+    appointment.updatedAt = new Date().toISOString();
     this.save();
     return appointment;
   }

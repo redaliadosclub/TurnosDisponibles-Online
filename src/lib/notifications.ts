@@ -14,11 +14,25 @@ export interface NotificationProvider {
 }
 
 export function formatCustomerWhatsAppMessage(payload: NotificationPayload): string {
-  return `Hola, soy ${payload.customerName}. Quiero confirmar mi turno con ${payload.professionalName} para el ${payload.date} a las ${payload.time}. Código de reserva: ${payload.bookingCode}. Servicio: ${payload.serviceName}.`;
+  const isOnline = payload.modality === 'online' || Boolean(payload.teleconsultaRoomUrl);
+  const roomUrl = payload.teleconsultaRoomUrl || (typeof window !== 'undefined'
+    ? `${window.location.origin}/#teleconsulta?room=${payload.bookingCode}&role=patient`
+    : `https://turnosdisponibles.online/#teleconsulta?room=${payload.bookingCode}&role=patient`);
+
+  let text = `Hola, soy ${payload.customerName}. Quiero confirmar mi turno con ${payload.professionalName} para el ${payload.date} a las ${payload.time}. Código de reserva: ${payload.bookingCode}. Servicio: ${payload.serviceName}.`;
+  if (isOnline) {
+    text += `\n\n💻 *Modalidad:* Teleconsulta Online 1 a 1 (WebRTC)\n🔗 *Acceso a tu Sala Virtual:* ${roomUrl}`;
+  }
+  return text;
 }
 
 export function formatBusinessWhatsAppAlert(payload: NotificationPayload): string {
-  return `🔔 *Nuevo turno reservado*\n\n` +
+  const isOnline = payload.modality === 'online' || Boolean(payload.teleconsultaRoomUrl);
+  const roomUrl = payload.teleconsultaRoomUrl || (typeof window !== 'undefined'
+    ? `${window.location.origin}/#teleconsulta?room=${payload.bookingCode}&role=doctor`
+    : `https://turnosdisponibles.online/#teleconsulta?room=${payload.bookingCode}&role=doctor`);
+
+  let msg = `🔔 *Nuevo turno reservado*\n\n` +
     `👤 *Paciente/Cliente:* ${payload.customerName}\n` +
     `🩺 *Servicio:* ${payload.serviceName}\n` +
     `👨‍⚕️ *Profesional:* ${payload.professionalName}\n` +
@@ -26,7 +40,13 @@ export function formatBusinessWhatsAppAlert(payload: NotificationPayload): strin
     `⏰ *Hora:* ${payload.time}\n` +
     `📱 *Teléfono:* ${payload.customerPhone}\n` +
     `🏷️ *Código de reserva:* ${payload.bookingCode}\n` +
-    `📍 *Ubicación:* ${payload.address}`;
+    `📍 *Ubicación:* ${isOnline ? '💻 Sala Virtual de Teleconsulta' : payload.address}`;
+
+  if (isOnline) {
+    msg += `\n\n💻 *Link Sala Profesional:* ${roomUrl}`;
+  }
+
+  return msg;
 }
 
 export function generateWaMeLink(phone: string, text: string): string {

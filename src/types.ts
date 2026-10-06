@@ -152,6 +152,8 @@ export interface Professional {
 
   // Aranceles / Honorarios personalizados definidos por el Staff para cada servicio
   customServicePrices?: Record<string, number>; // serviceId -> precio personalizado
+  licenseNumber?: string; // Matrícula Profesional oficial (ej: "MN 145.892 / MP 4.210")
+  digitalSignatureUrl?: string; // Firma digitalizada del profesional
 }
 
 export interface Service {
@@ -165,6 +167,7 @@ export interface Service {
   active: boolean;
   assignedProfessionalIds: string[];
   customPrices?: Record<string, number>; // professionalId -> precio personalizado
+  modality?: 'in_person' | 'online' | 'hybrid'; // Modalidad: Presencial, Teleconsulta Online, o Híbrida
 }
 
 export interface Shift {
@@ -243,8 +246,48 @@ export interface Appointment {
   professionalEarnings?: number; // Ganancia neta para el especialista
   commissionStatus?: 'pending_settlement' | 'settled' | 'retained_from_deposit' | 'waived';
   depositCollectedBy?: 'clinic' | 'professional'; // Entidad que recaudó la seña
+  
+  // Teleconsulta & Prescripción Digital
+  modality?: 'in_person' | 'online'; // Modalidad confirmada del turno
+  teleconsultaRoomUrl?: string; // Enlace único de la sala virtual WebRTC
+  prescription?: MedicalPrescription; // Receta médica digital emitida para este turno
+  clinicalNotes?: string; // Notas clínicas privadas del profesional
+
   createdAt: string;
   updatedAt: string;
+}
+
+export interface PrescriptionItem {
+  medication: string; // Nombre del fármaco / principio activo / tratamiento
+  presentation?: string; // ej. Comprimidos 500mg, Jarabe, Crema
+  dosage: string; // ej. 1 comprimido cada 8 horas
+  duration?: string; // ej. Durante 7 días
+  instructions?: string; // ej. Tomar con las comidas
+}
+
+export interface MedicalPrescription {
+  id: string;
+  appointmentId: string;
+  bookingCode: string;
+  businessId: string;
+  businessName: string;
+  professionalId: string;
+  professionalName: string;
+  professionalTitle: string;
+  professionalSpecialty?: string;
+  professionalLicense?: string; // MN / MP
+  patientName: string;
+  patientPhone: string;
+  patientEmail?: string;
+  patientDni?: string;
+  diagnosis?: string;
+  items: PrescriptionItem[];
+  generalInstructions?: string;
+  issuedAt: string;
+  expiresAt?: string;
+  verificationCode: string; // Código alfanumérico para validación online
+  verificationUrl?: string; // Link con QR para farmacia
+  signatureStamp?: string; // Sello electrónico con hash de firma
 }
 
 export interface TimeSlot {
@@ -275,6 +318,8 @@ export interface NotificationPayload {
   time: string;
   bookingCode: string;
   address: string;
+  modality?: 'in_person' | 'online' | 'hybrid';
+  teleconsultaRoomUrl?: string;
 }
 
 export interface AnalyticsEvent {

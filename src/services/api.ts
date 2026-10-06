@@ -58,6 +58,7 @@ export interface BookingPayload {
   paymentMethod?: 'mercadopago' | 'transfer' | 'cash';
   paymentStatus?: 'pending' | 'deposit_pending' | 'deposit_paid' | 'paid' | 'not_required';
   depositAmount?: number;
+  modality?: 'in_person' | 'online';
 }
 
 export interface BookingResult {
@@ -1937,6 +1938,12 @@ class ApiService {
 
     const bookingCode = `TD-${Math.floor(1000 + Math.random() * 9000)}`;
     const effectiveServicePrice = getServicePriceForProfessional(srv, prof);
+    const isOnline = payload.modality === 'online' || srv.modality === 'online';
+    const teleconsultaRoomUrl = isOnline
+      ? (typeof window !== 'undefined'
+          ? `${window.location.origin}/#teleconsulta?room=${bookingCode}&role=patient`
+          : `https://turnosdisponibles.online/#teleconsulta?room=${bookingCode}&role=patient`)
+      : undefined;
 
     const newAppointment: Appointment = {
       id: `app_${Date.now()}`,
@@ -1957,6 +1964,8 @@ class ApiService {
       paymentStatus: payload.paymentStatus || 'not_required',
       depositAmount: payload.depositAmount,
       servicePrice: effectiveServicePrice,
+      modality: isOnline ? 'online' : 'in_person',
+      teleconsultaRoomUrl,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -2015,6 +2024,31 @@ class ApiService {
     // Update in Firestore Cloud
     await setDoc(doc(db, 'appointments', updated.id), updated).catch((err) => {
       console.warn('Error updating appointment in Firestore:', err);
+    });
+
+    return updated;
+  }
+
+  async savePrescription(appointmentId: string, prescription: any): Promise<Appointment> {
+    const idx = this.appointments.findIndex((a) => a.id === appointmentId || a.bookingCode === appointmentId);
+    if (idx === -1) throw new Error('Turno no encontrado');
+    const updated = {
+      ...this.appointments[idx],
+      prescription,
+      updatedAt: new Date().toISOString(),
+    };
+    this.appointments[idx] = updated;
+    saveStorage(STORAGE_KEYS.APPOINTMENTS, this.appointments);
+
+    // Persist in backend API and Firestore
+    await fetch('/api/prescriptions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ appointmentId: updated.id, prescription }),
+    }).catch(() => {});
+
+    await setDoc(doc(db, 'appointments', updated.id), updated).catch((err) => {
+      console.warn('Error saving prescription in Firestore:', err);
     });
 
     return updated;
