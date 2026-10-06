@@ -84,17 +84,19 @@ const STORAGE_KEY = 'td_saas_pricing_config_v5';
 
 export function getSaasConfig(): SaasPlanConfig {
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      return {
-        ...DEFAULT_SAAS_CONFIG,
-        ...parsed,
-        freePlan: { ...DEFAULT_SAAS_CONFIG.freePlan, ...(parsed.freePlan || {}) },
-        proPlan: { ...DEFAULT_SAAS_CONFIG.proPlan, ...(parsed.proPlan || {}) },
-        aiPlan: { ...DEFAULT_SAAS_CONFIG.aiPlan, ...(parsed.aiPlan || {}) },
-        whiteLabelPlan: { ...DEFAULT_SAAS_CONFIG.whiteLabelPlan, ...(parsed.whiteLabelPlan || {}) },
-      };
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const raw = localStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        return {
+          ...DEFAULT_SAAS_CONFIG,
+          ...parsed,
+          freePlan: { ...DEFAULT_SAAS_CONFIG.freePlan, ...(parsed.freePlan || {}) },
+          proPlan: { ...DEFAULT_SAAS_CONFIG.proPlan, ...(parsed.proPlan || {}) },
+          aiPlan: { ...DEFAULT_SAAS_CONFIG.aiPlan, ...(parsed.aiPlan || {}) },
+          whiteLabelPlan: { ...DEFAULT_SAAS_CONFIG.whiteLabelPlan, ...(parsed.whiteLabelPlan || {}) },
+        };
+      }
     }
   } catch (err) {
     console.error('Error reading saas config', err);
@@ -104,8 +106,10 @@ export function getSaasConfig(): SaasPlanConfig {
 
 export function saveSaasConfig(config: SaasPlanConfig): void {
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
-    window.dispatchEvent(new Event('saas-config-updated'));
+    if (typeof window !== 'undefined' && window.localStorage) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(config));
+      window.dispatchEvent(new Event('saas-config-updated'));
+    }
   } catch (err) {
     console.error('Error saving saas config', err);
   }
