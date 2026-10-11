@@ -78,6 +78,7 @@ export function PublicBookingPage({
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
   const [professionals, setProfessionals] = useState<Professional[]>(defaultProfs);
   const [services, setServices] = useState<Service[]>(defaultSrvs);
+  const [workingHours, setWorkingHours] = useState<WorkingHours[]>([]);
   const [selectedProfId, setSelectedProfId] = useState<string>(defaultProfs[0]?.id || '');
   const [selectedServiceId, setSelectedServiceId] = useState<string>(defaultSrvs[0]?.id || '');
   const [selectedDate, setSelectedDate] = useState<string>(daysList[0]?.dateStr || '');
@@ -161,23 +162,34 @@ export function PublicBookingPage({
       const activeSrvs = srvs.filter((s) => s.active !== false);
       setProfessionals(activeProfs);
       setServices(activeSrvs);
+      setWorkingHours(hours || []);
 
       if (activeSrvs.length > 0) setSelectedServiceId(activeSrvs[0].id);
 
       // Auto-select first open business day if today has no shifts/hours
-      if (hours && hours.length > 0) {
-        const enabledDays = new Set(
-          hours.filter((h) => h.enabled && Array.isArray(h.shifts) && h.shifts.length > 0).map((h) => h.dayOfWeek)
-        );
-        if (enabledDays.size > 0) {
-          const firstOpenDay = daysList.find((day) => {
-            const [y, m, d] = day.dateStr.split('-').map(Number);
-            const dow = new Date(y, m - 1, d).getDay();
-            return enabledDays.has(dow);
-          });
-          if (firstOpenDay) {
-            setSelectedDate(firstOpenDay.dateStr);
-          }
+      const effectiveHours = (hours && hours.length > 0) ? hours : [1, 2, 3, 4, 5].map((d) => ({
+        id: `wh_${business.id}_${d}`,
+        businessId: business.id,
+        professionalId: null,
+        dayOfWeek: d,
+        shifts: [{ start: '08:00', end: '12:00' }, { start: '14:00', end: '18:00' }],
+        enabled: true,
+      }));
+
+      const enabledDays = new Set(
+        effectiveHours
+          .filter((h) => h.enabled && Array.isArray(h.shifts) && h.shifts.length > 0)
+          .map((h) => h.dayOfWeek)
+      );
+
+      if (enabledDays.size > 0) {
+        const firstOpenDay = daysList.find((day) => {
+          const [y, m, d] = day.dateStr.split('-').map(Number);
+          const dow = new Date(y, m - 1, d).getDay();
+          return enabledDays.has(dow);
+        });
+        if (firstOpenDay) {
+          setSelectedDate(firstOpenDay.dateStr);
         }
       }
     });
@@ -386,6 +398,20 @@ export function PublicBookingPage({
     api.recordAnalytics(business.id, 'whatsapp_click');
     window.open(url, '_blank', 'noopener,noreferrer');
   };
+
+  const openDaysSet = useMemo(() => {
+    const active = workingHours.filter((h) => h.enabled && Array.isArray(h.shifts) && h.shifts.length > 0);
+    if (active.length === 0) return new Set([1, 2, 3, 4, 5, 6]);
+    return new Set(active.map((h) => h.dayOfWeek));
+  }, [workingHours]);
+
+  const nextAvailableDay = useMemo(() => {
+    return daysList.find((d) => {
+      const [dy, dm, dd] = d.dateStr.split('-').map(Number);
+      const dow = new Date(dy, dm - 1, dd).getDay();
+      return openDaysSet.has(dow) && d.dateStr !== selectedDate;
+    });
+  }, [daysList, openDaysSet, selectedDate]);
 
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 pb-16">
@@ -1053,6 +1079,10 @@ export function PublicBookingPage({
                   <div className="flex items-center gap-2 overflow-x-auto pb-2 scrollbar-none">
                     {daysList.map((day) => {
                       const isSelected = selectedDate === day.dateStr;
+                      const [y, m, dt] = day.dateStr.split('-').map(Number);
+                      const dow = new Date(y, m - 1, dt).getDay();
+                      const isOpen = openDaysSet.has(dow);
+
                       return (
                         <button
                           key={day.dateStr}
@@ -1061,13 +1091,18 @@ export function PublicBookingPage({
                           className={`shrink-0 flex flex-col items-center justify-center w-18 py-3 rounded-2xl border transition-all text-xs cursor-pointer ${
                             isSelected
                               ? 'bg-slate-900 text-white border-slate-900 shadow-md ring-2 ring-slate-900/20'
-                              : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                              : isOpen
+                              ? 'bg-white text-slate-700 border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                              : 'bg-slate-100 text-slate-400 border-slate-200 hover:bg-slate-200/70'
                           }`}
                         >
-                          <span className={`text-[11px] font-semibold capitalize ${isSelected ? 'text-slate-300' : 'text-slate-500'}`}>
+                          <span className={`text-[11px] font-semibold capitalize ${isSelected ? 'text-slate-300' : isOpen ? 'text-slate-500' : 'text-slate-400'}`}>
                             {day.dayName.substring(0, 3)}
                           </span>
                           <span className="text-lg font-extrabold mt-0.5">{day.dayNum}</span>
+                          {!isOpen && (
+                            <span className="text-[9px] font-medium text-slate-400 mt-0.5">Cerrado</span>
+                          )}
                         </button>
                       );
                     })}
@@ -1112,9 +1147,22 @@ export function PublicBookingPage({
                       <span className="text-xs font-medium">Consultando horarios en vivo...</span>
                     </div>
                   ) : !availability || availability.slots.length === 0 ? (
-                    <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-200 text-slate-500 text-sm">
-                      <AlertCircle className="w-6 h-6 mx-auto mb-2 text-slate-400" />
-                      No hay horarios de atención configurados para este día. Por favor elige otra fecha.
+                    <div className="p-8 text-center bg-slate-50 rounded-2xl border border-slate-200 text-slate-600 text-sm">
+                      <AlertCircle className="w-7 h-7 mx-auto mb-2 text-slate-400" />
+                      <p className="font-bold text-slate-900 text-base">No hay horarios disponibles para esta fecha</p>
+                      <p className="text-xs text-slate-500 mt-1 max-w-sm mx-auto">
+                        La clínica no atiende en el día seleccionado o todos los turnos se encuentran reservados.
+                      </p>
+                      {nextAvailableDay && (
+                        <button
+                          type="button"
+                          onClick={() => setSelectedDate(nextAvailableDay.dateStr)}
+                          className="mt-4 inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white text-xs font-bold transition shadow-xs cursor-pointer"
+                        >
+                          <CalendarCheck className="w-4 h-4 text-teal-400" />
+                          <span>Ver próximo día de atención ({formatDateSpanish(nextAvailableDay.dateStr)})</span>
+                        </button>
+                      )}
                     </div>
                   ) : (
                     <div>

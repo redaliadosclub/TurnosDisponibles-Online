@@ -170,6 +170,8 @@ export function BusinessDashboard({
   const [serviceAllProfs, setServiceAllProfs] = useState(true);
   const [serviceCustomPrices, setServiceCustomPrices] = useState<Record<string, number>>({});
   const [isSavingService, setIsSavingService] = useState(false);
+  const [serviceSaveError, setServiceSaveError] = useState<string | null>(null);
+  const [serviceSaveSuccess, setServiceSaveSuccess] = useState<string | null>(null);
   const [profSelectedServiceIds, setProfSelectedServiceIds] = useState<string[]>([]);
   const [profCustomPrices, setProfCustomPrices] = useState<Record<string, number>>({});
   const [showTimeOffModal, setShowTimeOffModal] = useState(false);
@@ -201,6 +203,8 @@ export function BusinessDashboard({
 
   const handleOpenServiceModal = (srv: Service | null) => {
     setEditingService(srv);
+    setServiceSaveError(null);
+    setServiceSaveSuccess(null);
     if (srv) {
       const assigned = srv.assignedProfessionalIds || [];
       const isAll = !assigned.length || assigned.length >= professionals.length;
@@ -5551,10 +5555,26 @@ _Generado automáticamente desde ${business.name} vía Turnos Disponibles_`;
               </button>
             </div>
 
+            {serviceSaveError && (
+              <div className="mb-3 p-3 bg-rose-50 border border-rose-200 rounded-2xl flex items-center gap-2 text-rose-800 text-xs">
+                <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
+                <span>{serviceSaveError}</span>
+              </div>
+            )}
+
+            {serviceSaveSuccess && (
+              <div className="mb-3 p-3 bg-emerald-50 border border-emerald-200 rounded-2xl flex items-center gap-2 text-emerald-800 text-xs">
+                <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
+                <span>{serviceSaveSuccess}</span>
+              </div>
+            )}
+
             <form
               onSubmit={async (e) => {
                 e.preventDefault();
                 setIsSavingService(true);
+                setServiceSaveError(null);
+                setServiceSaveSuccess(null);
                 try {
                   const form = e.currentTarget;
                   const formData = new FormData(form);
@@ -5589,7 +5609,7 @@ _Generado automáticamente desde ${business.name} vía Turnos Disponibles_`;
                   }
 
                   // Sync bidirectional professional assignments and custom differential fees
-                  if (savedSrvId) {
+                  if (savedSrvId && professionals.length > 0) {
                     for (const prof of professionals) {
                       const shouldInclude = finalAssignedProfs.includes(prof.id);
                       const currentServiceIds = prof.serviceIds || [];
@@ -5614,19 +5634,26 @@ _Generado automáticamente desde ${business.name} vía Turnos Disponibles_`;
                           ? (hasService ? currentServiceIds : [...currentServiceIds, savedSrvId])
                           : currentServiceIds.filter((id) => id !== savedSrvId);
 
-                        const updatedProf = await api.updateProfessional(business.id, prof.id, {
-                          serviceIds: nextServiceIds,
-                          customServicePrices: Object.keys(currentProfPrices).length > 0 ? currentProfPrices : undefined,
-                        });
-                        setProfessionals((prev) => prev.map((p) => (p.id === prof.id ? updatedProf : p)));
+                        try {
+                          const updatedProf = await api.updateProfessional(business.id, prof.id, {
+                            serviceIds: nextServiceIds,
+                            customServicePrices: Object.keys(currentProfPrices).length > 0 ? currentProfPrices : undefined,
+                          });
+                          setProfessionals((prev) => prev.map((p) => (p.id === prof.id ? updatedProf : p)));
+                        } catch (profErr) {
+                          console.warn('Error updating professional assignments:', profErr);
+                        }
                       }
                     }
                   }
 
-                  setShowServiceModal(false);
+                  setServiceSaveSuccess('¡Servicio y asignaciones guardados correctamente!');
+                  setTimeout(() => {
+                    setShowServiceModal(false);
+                  }, 600);
                 } catch (err: any) {
                   console.error('Error saving service:', err);
-                  alert('Error al guardar el servicio: ' + (err.message || 'Intente nuevamente'));
+                  setServiceSaveError(err.message || 'Error al guardar el servicio. Intente nuevamente.');
                 } finally {
                   setIsSavingService(false);
                 }

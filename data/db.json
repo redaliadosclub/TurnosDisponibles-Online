@@ -82,6 +82,35 @@
       "status": "active",
       "id": "biz_1790547428823_37in",
       "createdAt": "2026-09-27T22:17:08.823Z"
+    },
+    {
+      "id": "biz_centro_holistico_sm",
+      "slug": "centro-holistico-sm",
+      "name": "Centro Holístico de SM",
+      "businessType": "health",
+      "description": "Terapias holísticas, armonización energética, biomagnetismo, reiki y bienestar integral.",
+      "category": "Medicina Integrativa & Terapias Holísticas",
+      "address": "Av. San Martín 1420, Piso 2, San Martín, Bs. As.",
+      "phone": "+54 11 4455-8899",
+      "whatsappNumber": "5491144558899",
+      "logoUrl": "https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=150&auto=format&fit=crop&q=80",
+      "primaryColor": "#0d9488",
+      "welcomeMessage": "Bienvenido al Centro Holístico de SM. Agenda tu sesión de armonización y bienestar en minutos.",
+      "cancellationPolicy": "Avisar con al menos 4 horas de anticipación para reprogramar tu sesión.",
+      "bufferMinutes": 10,
+      "plan": "pro",
+      "status": "active",
+      "createdAt": "2026-10-11T19:05:56.702Z",
+      "paymentsEnabled": true,
+      "depositRequired": true,
+      "depositType": "fixed",
+      "depositAmount": 5000,
+      "mpAliasOrLink": "holistico.sm.mp",
+      "bankAlias": "CENTRO.HOLISTICO.SM",
+      "bankCbu": "0170098820000088991122",
+      "bankAccountHolder": "Centro Holístico de SM",
+      "bankName": "Banco Galicia",
+      "paymentInstructions": "Para confirmar tu turno de sesión holística, se solicita una seña de .000 vía Mercado Pago o Transferencia."
     }
   ],
   "professionals": [
@@ -200,6 +229,26 @@
       "businessId": "biz_1790547428823_37in",
       "accessCode": "CONS-1007",
       "officeNumber": "Consultorio 7"
+    },
+    {
+      "id": "prof_holistico_lead",
+      "businessId": "biz_centro_holistico_sm",
+      "name": "Lic. Sofía Morales",
+      "title": "Terapeuta Holística & Bioenergía",
+      "specialty": "Biomagnetismo, Armonización & Reiki",
+      "photoUrl": "https://images.unsplash.com/photo-1594824813576-63c3d52c7c5d?w=150&auto=format&fit=crop&q=80",
+      "email": "sofia.holistico@consultorio.com",
+      "phone": "+54 11 4455-8899",
+      "active": true,
+      "officeNumber": "Consultorio Armonía 1",
+      "accessCode": "CONS-4001",
+      "commissionRate": 30,
+      "commissionType": "percentage",
+      "serviceIds": [
+        "srv_holistico_integral",
+        "srv_holistico_reiki",
+        "srv_holistico_online"
+      ]
     }
   ],
   "services": [
@@ -308,6 +357,48 @@
       ],
       "id": "srv_1791683002436_7b4k",
       "businessId": "biz_1790547428823_37in"
+    },
+    {
+      "id": "srv_holistico_integral",
+      "businessId": "biz_centro_holistico_sm",
+      "name": "Sesión Holística Integral & Biomagnetismo",
+      "description": "Equilibrio de chacras, testeo bioenergético y aplicación de imanes terapéuticos.",
+      "durationMinutes": 45,
+      "price": 18000,
+      "currency": "$",
+      "active": true,
+      "modality": "in_person",
+      "assignedProfessionalIds": [
+        "prof_holistico_lead"
+      ]
+    },
+    {
+      "id": "srv_holistico_reiki",
+      "businessId": "biz_centro_holistico_sm",
+      "name": "Armonización Energética y Reiki Usui",
+      "description": "Sesión presencial de relajación profunda, desbloqueo energético y bienestar.",
+      "durationMinutes": 30,
+      "price": 14000,
+      "currency": "$",
+      "active": true,
+      "modality": "in_person",
+      "assignedProfessionalIds": [
+        "prof_holistico_lead"
+      ]
+    },
+    {
+      "id": "srv_holistico_online",
+      "businessId": "biz_centro_holistico_sm",
+      "name": "Teleconsulta Holística & Guía Bioemocional",
+      "description": "Consulta online 1 a 1 por videollamada para acompañamiento y hábitos saludables.",
+      "durationMinutes": 30,
+      "price": 12000,
+      "currency": "$",
+      "active": true,
+      "modality": "online",
+      "assignedProfessionalIds": [
+        "prof_holistico_lead"
+      ]
     }
   ],
   "workingHours": [
@@ -710,6 +801,104 @@
         }
       ],
       "enabled": true
+    },
+    {
+      "id": "wh_biz_centro_holistico_sm_1",
+      "businessId": "biz_centro_holistico_sm",
+      "professionalId": null,
+      "dayOfWeek": 1,
+      "shifts": [
+        {
+          "start": "08:00",
+          "end": "12:00"
+        },
+        {
+          "start": "14:00",
+          "end": "18:00"
+        }
+      ],
+      "enabled": true
+    },
+    {
+      "id": "wh_biz_centro_holistico_sm_2",
+      "businessId": "biz_centro_holistico_sm",
+      "professionalId": null,
+      "dayOfWeek": 2,
+      "shifts": [
+        {
+          "start": "08:00",
+          "end": "12:00"
+        },
+        {
+          "start": "14:00",
+          "end": "18:00"
+        }
+      ],
+      "enabled": true
+    },
+    {
+      "id": "wh_biz_centro_holistico_sm_3",
+      "businessId": "biz_centro_holistico_sm",
+      "professionalId": null,
+      "dayOfWeek": 3,
+      "shifts": [
+        {
+          "start": "08:00",
+          "end": "12:00"
+        },
+        {
+          "start": "14:00",
+          "end": "18:00"
+        }
+      ],
+      "enabled": true
+    },
+    {
+      "id": "wh_biz_centro_holistico_sm_4",
+      "businessId": "biz_centro_holistico_sm",
+      "professionalId": null,
+      "dayOfWeek": 4,
+      "shifts": [
+        {
+          "start": "08:00",
+          "end": "12:00"
+        },
+        {
+          "start": "14:00",
+          "end": "18:00"
+        }
+      ],
+      "enabled": true
+    },
+    {
+      "id": "wh_biz_centro_holistico_sm_5",
+      "businessId": "biz_centro_holistico_sm",
+      "professionalId": null,
+      "dayOfWeek": 5,
+      "shifts": [
+        {
+          "start": "08:00",
+          "end": "12:00"
+        },
+        {
+          "start": "14:00",
+          "end": "18:00"
+        }
+      ],
+      "enabled": true
+    },
+    {
+      "id": "wh_biz_centro_holistico_sm_6",
+      "businessId": "biz_centro_holistico_sm",
+      "professionalId": null,
+      "dayOfWeek": 6,
+      "shifts": [
+        {
+          "start": "09:00",
+          "end": "13:00"
+        }
+      ],
+      "enabled": true
     }
   ],
   "timeOffs": [
@@ -916,6 +1105,27 @@
       "role": "business_owner",
       "businessId": "biz_1790547428823_37in",
       "id": "usr_1790547428825_sqch"
+    },
+    {
+      "id": "usr_dueno_holistico",
+      "name": "Director Centro Holístico",
+      "email": "dueno@centroholistico.com",
+      "role": "business_owner",
+      "password": "holistico123",
+      "businessId": "biz_centro_holistico_sm",
+      "phone": "+54 11 4455-8899"
+    },
+    {
+      "id": "usr_staff_holistico",
+      "name": "Lic. Sofía Morales",
+      "email": "sofia.holistico@consultorio.com",
+      "role": "staff",
+      "password": "staff123",
+      "businessId": "biz_centro_holistico_sm",
+      "phone": "+54 11 4455-8899",
+      "professionalId": "prof_holistico_lead",
+      "officeNumber": "Consultorio Armonía 1",
+      "accessCode": "CONS-4001"
     }
   ]
 }

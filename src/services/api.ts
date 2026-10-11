@@ -117,6 +117,64 @@ export const INITIAL_BUSINESSES: Business[] = [
     paymentInstructions: 'Para confirmar tu turno, se abona una seña de $5.000 mediante Mercado Pago o transferencia bancaria.',
   },
   {
+    id: 'biz_centro_holistico_sm',
+    slug: 'centro-holistico-sm',
+    name: 'Centro Holístico de SM',
+    businessType: 'health',
+    description: 'Terapias holísticas, armonización energética, biomagnetismo, reiki y bienestar integral.',
+    category: 'Medicina Integrativa & Terapias Holísticas',
+    address: 'Av. San Martín 1420, Piso 2, San Martín, Bs. As.',
+    phone: '+54 11 4455-8899',
+    whatsappNumber: '5491144558899',
+    logoUrl: 'https://images.unsplash.com/photo-1544367567-0f2fcb009e0b?w=150&auto=format&fit=crop&q=80',
+    primaryColor: '#0d9488',
+    welcomeMessage: 'Bienvenido al Centro Holístico de SM. Agenda tu sesión de armonización y bienestar en minutos.',
+    cancellationPolicy: 'Avisar con al menos 4 horas de anticipación para reprogramar tu sesión.',
+    bufferMinutes: 10,
+    plan: 'pro',
+    status: 'active',
+    createdAt: '2026-03-01T10:00:00.000Z',
+    paymentsEnabled: true,
+    depositRequired: true,
+    depositType: 'fixed',
+    depositAmount: 5000,
+    mpAliasOrLink: 'holistico.sm.mp',
+    bankAlias: 'CENTRO.HOLISTICO.SM',
+    bankCbu: '0170098820000088991122',
+    bankAccountHolder: 'Centro Holístico de SM',
+    bankName: 'Banco Galicia',
+    paymentInstructions: 'Para confirmar tu turno de sesión holística, se solicita una seña de $5.000 vía Mercado Pago o Transferencia.',
+  },
+  {
+    id: 'biz_1790547428823_37in',
+    slug: 'clinica-salto',
+    name: 'Clinica Salto',
+    businessType: 'medical',
+    description: 'Atención médica integral, consultas presenciales y teleconsultas en Salto.',
+    category: 'Clínica Médica',
+    address: 'Calle Buenos Aires 350, Salto, Bs. As.',
+    phone: '+54 2474 422000',
+    whatsappNumber: '5492474674231',
+    logoUrl: 'https://images.unsplash.com/photo-1519494026892-80bbd2d6fd0d?w=150&auto=format&fit=crop&q=80',
+    primaryColor: '#0284c7',
+    welcomeMessage: 'Bienvenido a Clínica Salto. Agenda tu consulta presencial o teleconsulta médica.',
+    cancellationPolicy: 'Avisar con al menos 2 horas de anticipación.',
+    bufferMinutes: 10,
+    plan: 'pro',
+    status: 'active',
+    createdAt: '2026-03-01T10:00:00.000Z',
+    paymentsEnabled: true,
+    depositRequired: false,
+    depositType: 'fixed',
+    depositAmount: 0,
+    mpAliasOrLink: 'clinica.salto.mp',
+    bankAlias: 'CLINICA.SALTO',
+    bankCbu: '0140022220000078123999',
+    bankAccountHolder: 'Clínica Salto',
+    bankName: 'Banco Provincia',
+    paymentInstructions: 'Abona tu consulta en recepción o al conectarte a la teleconsulta.',
+  },
+  {
     id: 'biz_odontologia_integral',
     slug: 'odontologia-integral-palermo',
     name: 'Odontología Integral & Ortodoncia Palermo',
@@ -364,9 +422,109 @@ export const INITIAL_PROFESSIONALS: Professional[] = [
     specialty: 'Medicina Veterinaria Canina y Felina',
     serviceIds: ['srv_vet_consulta', 'srv_vet_vacunas', 'srv_vet_bano'],
   },
+
+  // Centro Holístico de SM
+  {
+    id: 'prof_holistico_lead',
+    businessId: 'biz_centro_holistico_sm',
+    name: 'Lic. Sofía Morales',
+    title: 'Terapeuta Holística & Bioenergía',
+    photoUrl: 'https://images.unsplash.com/photo-1594824813576-63c3d52c7c5d?w=160&auto=format&fit=crop&q=80',
+    email: 'sofia.holistico@consultorio.com',
+    phone: '+54 11 4455-8899',
+    active: true,
+    specialty: 'Biomagnetismo, Armonización & Reiki',
+    serviceIds: ['srv_holistico_integral', 'srv_holistico_reiki', 'srv_holistico_online'],
+    officeNumber: 'Consultorio Armonía 1',
+    accessCode: 'CONS-4001',
+    commissionRate: 30,
+    commissionType: 'percentage',
+  },
+
+  // Clinica Salto
+  {
+    id: 'prof_1790547428824_tryj',
+    businessId: 'biz_1790547428823_37in',
+    name: 'Ariel Martinez',
+    title: 'Especialista en Medicina General',
+    photoUrl: 'https://images.unsplash.com/photo-1622253692010-333f2da6031d?w=160&auto=format&fit=crop&q=80',
+    email: 'atcarlosmorandi@gmail.com',
+    phone: '+54 2474 674231',
+    active: true,
+    specialty: 'Medicina General & Familiar',
+    serviceIds: ['srv_1790547428824_3r9m', 'srv_1791683002436_7b4k'],
+    officeNumber: 'Consultorio 1',
+    accessCode: 'CONS-5001',
+    commissionRate: 20,
+    commissionType: 'percentage',
+  },
 ];
 
 export const INITIAL_SERVICES: Service[] = [
+  // Centro Holístico de SM
+  {
+    id: 'srv_holistico_integral',
+    businessId: 'biz_centro_holistico_sm',
+    name: 'Sesión Holística Integral & Biomagnetismo',
+    description: 'Equilibrio de chacras, testeo bioenergético y aplicación de imanes terapéuticos.',
+    durationMinutes: 45,
+    price: 18000,
+    currency: '$',
+    active: true,
+    modality: 'in_person',
+    assignedProfessionalIds: ['prof_holistico_lead'],
+  },
+  {
+    id: 'srv_holistico_reiki',
+    businessId: 'biz_centro_holistico_sm',
+    name: 'Armonización Energética y Reiki Usui',
+    description: 'Sesión presencial de relajación profunda, desbloqueo energético y bienestar.',
+    durationMinutes: 30,
+    price: 14000,
+    currency: '$',
+    active: true,
+    modality: 'in_person',
+    assignedProfessionalIds: ['prof_holistico_lead'],
+  },
+  {
+    id: 'srv_holistico_online',
+    businessId: 'biz_centro_holistico_sm',
+    name: 'Teleconsulta Holística & Guía Bioemocional',
+    description: 'Consulta online 1 a 1 por videollamada para acompañamiento y hábitos saludables.',
+    durationMinutes: 30,
+    price: 12000,
+    currency: '$',
+    active: true,
+    modality: 'online',
+    assignedProfessionalIds: ['prof_holistico_lead'],
+  },
+
+  // Clinica Salto
+  {
+    id: 'srv_1790547428824_3r9m',
+    businessId: 'biz_1790547428823_37in',
+    name: 'Consulta General / Turno Inicial',
+    description: 'Atención personalizada y diagnóstico inicial.',
+    durationMinutes: 30,
+    price: 0,
+    currency: '$',
+    active: true,
+    modality: 'in_person',
+    assignedProfessionalIds: ['prof_1790547428824_tryj'],
+  },
+  {
+    id: 'srv_1791683002436_7b4k',
+    businessId: 'biz_1790547428823_37in',
+    name: 'Teleconsulta Médica Online',
+    description: 'Consulta virtual 1 a 1 con sala privada cifrada',
+    durationMinutes: 30,
+    price: 15000,
+    currency: '$',
+    active: true,
+    modality: 'online',
+    assignedProfessionalIds: ['prof_1790547428824_tryj'],
+  },
+
   // Dermatocosmiatría
   {
     id: 'srv_dermato_limpieza',
@@ -1502,14 +1660,38 @@ class ApiService {
   async createBusiness(data: Omit<Business, 'id' | 'createdAt'>): Promise<Business> {
     const newBiz: Business = {
       ...data,
-      id: `biz_${Date.now()}`,
+      id: `biz_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       createdAt: new Date().toISOString(),
     };
-    this.businesses.push(newBiz);
+    this.businesses.unshift(newBiz);
     saveStorage(STORAGE_KEYS.BUSINESSES, this.businesses);
 
-    // Save to Firestore Cloud
-    await setDoc(doc(db, 'businesses', newBiz.id), newBiz).catch((err) => {
+    // Sync with backend API (persists in data/db.json)
+    try {
+      const res = await fetch('/api/businesses', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newBiz),
+      });
+      if (res.ok) {
+        const serverBiz = await res.json();
+        if (serverBiz?.id) {
+          const idx = this.businesses.findIndex((b) => b.id === newBiz.id);
+          if (idx !== -1) {
+            this.businesses[idx] = serverBiz;
+          } else {
+            this.businesses.unshift(serverBiz);
+          }
+          saveStorage(STORAGE_KEYS.BUSINESSES, this.businesses);
+          return serverBiz;
+        }
+      }
+    } catch (e) {
+      console.warn('Error syncing business creation with server:', e);
+    }
+
+    // Save to Firestore Cloud in background
+    setDoc(doc(db, 'businesses', newBiz.id), newBiz).catch((err) => {
       console.warn('Error persisting business to Firestore:', err);
     });
 
@@ -1523,8 +1705,19 @@ class ApiService {
     this.businesses[idx] = updated;
     saveStorage(STORAGE_KEYS.BUSINESSES, this.businesses);
 
-    // Update in Firestore Cloud
-    await setDoc(doc(db, 'businesses', updated.id), updated).catch((err) => {
+    // Sync with backend API
+    try {
+      await fetch(`/api/businesses/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+    } catch (e) {
+      console.warn('Error syncing business update with server:', e);
+    }
+
+    // Update in Firestore Cloud in background
+    setDoc(doc(db, 'businesses', updated.id), updated).catch((err) => {
       console.warn('Error updating business in Firestore:', err);
     });
 
@@ -1616,8 +1809,8 @@ class ApiService {
       console.warn('Error syncing professional creation with server:', e);
     }
 
-    // Save to Firestore Cloud
-    await setDoc(doc(db, 'professionals', newProf.id), newProf).catch((err) => {
+    // Save to Firestore Cloud in background
+    setDoc(doc(db, 'professionals', newProf.id), newProf).catch((err) => {
       console.warn('Error persisting professional to Firestore:', err);
     });
 
@@ -1647,8 +1840,8 @@ class ApiService {
       console.warn('Error syncing professional update with server:', e);
     }
 
-    // Update in Firestore Cloud
-    await setDoc(doc(db, 'professionals', updated.id), updated).catch((err) => {
+    // Update in Firestore Cloud in background
+    setDoc(doc(db, 'professionals', updated.id), updated).catch((err) => {
       console.warn('Error updating professional in Firestore:', err);
     });
 
@@ -1667,8 +1860,8 @@ class ApiService {
       console.warn('Error deleting professional on server:', e);
     }
 
-    // Delete in Firestore Cloud
-    await deleteDoc(doc(db, 'professionals', id)).catch((err) => {
+    // Delete in Firestore Cloud in background
+    deleteDoc(doc(db, 'professionals', id)).catch((err) => {
       console.warn('Error deleting professional in Firestore:', err);
     });
 
@@ -1697,7 +1890,7 @@ class ApiService {
   async createService(businessId: string, data: Omit<Service, 'id' | 'businessId'>): Promise<Service> {
     const newSrv: Service = {
       ...data,
-      id: `srv_${Date.now()}`,
+      id: `srv_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       businessId,
     };
     this.services.push(newSrv);
@@ -1724,8 +1917,8 @@ class ApiService {
       console.warn('Error syncing service creation with server:', e);
     }
 
-    // Save to Firestore Cloud
-    await setDoc(doc(db, 'services', newSrv.id), newSrv).catch((err) => {
+    // Save to Firestore Cloud in background
+    setDoc(doc(db, 'services', newSrv.id), newSrv).catch((err) => {
       console.warn('Error persisting service to Firestore:', err);
     });
 
@@ -1755,8 +1948,8 @@ class ApiService {
       console.warn('Error syncing service update with server:', e);
     }
 
-    // Update in Firestore Cloud
-    await setDoc(doc(db, 'services', updated.id), updated).catch((err) => {
+    // Update in Firestore Cloud in background
+    setDoc(doc(db, 'services', updated.id), updated).catch((err) => {
       console.warn('Error updating service in Firestore:', err);
     });
 
@@ -1775,8 +1968,8 @@ class ApiService {
       console.warn('Error deleting service on server:', e);
     }
 
-    // Delete in Firestore Cloud
-    await deleteDoc(doc(db, 'services', id)).catch((err) => {
+    // Delete in Firestore Cloud in background
+    deleteDoc(doc(db, 'services', id)).catch((err) => {
       console.warn('Error deleting service in Firestore:', err);
     });
 
