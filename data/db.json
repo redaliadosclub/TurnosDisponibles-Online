@@ -99,7 +99,9 @@
         "srv_dermato_limpieza",
         "srv_dermato_peeling",
         "srv_dermato_antiage"
-      ]
+      ],
+      "accessCode": "CONS-1001",
+      "officeNumber": "Consultorio 1"
     },
     {
       "id": "prof_camila_dermato",
@@ -114,7 +116,9 @@
       "serviceIds": [
         "srv_dermato_limpieza",
         "srv_dermato_hidra"
-      ]
+      ],
+      "accessCode": "STAFF-2002",
+      "officeNumber": "Consultorio 2"
     },
     {
       "name": "Dr. Roberto Dueño",
@@ -128,7 +132,9 @@
         "srv_1790249375524_uw29"
       ],
       "id": "prof_1790249375524_5gkw",
-      "businessId": "biz_1790249375523_7dje"
+      "businessId": "biz_1790249375523_7dje",
+      "accessCode": "CONS-1003",
+      "officeNumber": "Consultorio 3"
     },
     {
       "name": "Dra. Florencia Médica",
@@ -138,9 +144,13 @@
       "phone": "+5491177778888",
       "active": true,
       "specialty": "Kinesiología y Rehabilitación",
-      "serviceIds": [],
+      "serviceIds": [
+        "srv_1790249375524_uw29"
+      ],
       "id": "prof_1790249375535_dgt6",
-      "businessId": "biz_1790249375523_7dje"
+      "businessId": "biz_1790249375523_7dje",
+      "accessCode": "CONS-1004",
+      "officeNumber": "Consultorio 4"
     },
     {
       "name": "Dr. Roberto Dueño",
@@ -154,7 +164,9 @@
         "srv_1790249402871_2yx0"
       ],
       "id": "prof_1790249402871_bmzu",
-      "businessId": "biz_1790249402870_9o3y"
+      "businessId": "biz_1790249402870_9o3y",
+      "accessCode": "CONS-1005",
+      "officeNumber": "Consultorio 5"
     },
     {
       "name": "Dra. Florencia Médica",
@@ -164,9 +176,13 @@
       "phone": "+5491177778888",
       "active": true,
       "specialty": "Kinesiología y Rehabilitación",
-      "serviceIds": [],
+      "serviceIds": [
+        "srv_1790249402871_2yx0"
+      ],
       "id": "prof_1790249402878_eomv",
-      "businessId": "biz_1790249402870_9o3y"
+      "businessId": "biz_1790249402870_9o3y",
+      "accessCode": "CONS-1006",
+      "officeNumber": "Consultorio 6"
     },
     {
       "name": "Ariel Martinez",
@@ -177,10 +193,13 @@
       "active": true,
       "specialty": "Atención General",
       "serviceIds": [
-        "srv_1790547428824_3r9m"
+        "srv_1790547428824_3r9m",
+        "srv_1791683002436_7b4k"
       ],
       "id": "prof_1790547428824_tryj",
-      "businessId": "biz_1790547428823_37in"
+      "businessId": "biz_1790547428823_37in",
+      "accessCode": "CONS-1007",
+      "officeNumber": "Consultorio 7"
     }
   ],
   "services": [
@@ -274,6 +293,20 @@
         "prof_1790547428824_tryj"
       ],
       "id": "srv_1790547428824_3r9m",
+      "businessId": "biz_1790547428823_37in"
+    },
+    {
+      "name": "Teleconsulta Médica Online",
+      "description": "Consulta virtual 1 a 1",
+      "durationMinutes": 30,
+      "price": 15000,
+      "currency": "$",
+      "active": true,
+      "modality": "online",
+      "assignedProfessionalIds": [
+        "prof_1790547428824_tryj"
+      ],
+      "id": "srv_1791683002436_7b4k",
       "businessId": "biz_1790547428823_37in"
     }
   ],
@@ -638,6 +671,45 @@
         }
       ],
       "enabled": true
+    },
+    {
+      "id": "wh_biz_1790249375523_7dje_6",
+      "businessId": "biz_1790249375523_7dje",
+      "professionalId": null,
+      "dayOfWeek": 6,
+      "shifts": [
+        {
+          "start": "09:00",
+          "end": "13:00"
+        }
+      ],
+      "enabled": true
+    },
+    {
+      "id": "wh_biz_1790249402870_9o3y_6",
+      "businessId": "biz_1790249402870_9o3y",
+      "professionalId": null,
+      "dayOfWeek": 6,
+      "shifts": [
+        {
+          "start": "09:00",
+          "end": "13:00"
+        }
+      ],
+      "enabled": true
+    },
+    {
+      "id": "wh_biz_1790547428823_37in_6",
+      "businessId": "biz_1790547428823_37in",
+      "professionalId": null,
+      "dayOfWeek": 6,
+      "shifts": [
+        {
+          "start": "09:00",
+          "end": "13:00"
+        }
+      ],
+      "enabled": true
     }
   ],
   "timeOffs": [
@@ -754,7 +826,10 @@
       "role": "staff",
       "password": "staff123",
       "businessId": "biz_dermatocosmiatria_spa",
-      "phone": "+5491177778888"
+      "phone": "+5491177778888",
+      "professionalId": "prof_camila_dermato",
+      "officeNumber": "Consultorio 2",
+      "accessCode": "STAFF-2002"
     },
     {
       "id": "usr_paciente_prueba",

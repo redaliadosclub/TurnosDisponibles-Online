@@ -39,16 +39,16 @@ export function isProfessionalAssignedToService(
   const hasServiceRestriction = Array.isArray(service.assignedProfessionalIds) && service.assignedProfessionalIds.length > 0;
   const hasProfRestriction = Array.isArray(prof.serviceIds) && prof.serviceIds.length > 0;
 
-  // If the service restricts which professionals provide it, prof must be in the list
-  if (hasServiceRestriction && !service.assignedProfessionalIds.includes(prof.id)) {
-    return false;
+  // 1. If service explicitly specifies assigned professionals, respect that assignment
+  if (hasServiceRestriction) {
+    return service.assignedProfessionalIds!.includes(prof.id);
   }
 
-  // If the professional restricts which services they attend, service must be in the list
-  if (hasProfRestriction && !prof.serviceIds.includes(service.id)) {
-    return false;
+  // 2. If service does not restrict, but professional specifies their particular services, check prof list
+  if (hasProfRestriction) {
+    return prof.serviceIds!.includes(service.id);
   }
 
-  // Both allow or neither restricts
+  // 3. Neither restricts -> available to all staff
   return true;
 }

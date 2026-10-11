@@ -153,15 +153,33 @@ export function PublicBookingPage({
     Promise.all([
       api.getProfessionals(business.id),
       api.getServices(business.id),
-    ]).then(([profs, srvs]) => {
+      api.getWorkingHours(business.id),
+      api.getTimeOffs(business.id),
+    ]).then(([profs, srvs, hours]) => {
       if (!isMounted) return;
-      const activeProfs = profs.filter((p) => p.active);
-      const activeSrvs = srvs.filter((s) => s.active);
+      const activeProfs = profs.filter((p) => p.active !== false);
+      const activeSrvs = srvs.filter((s) => s.active !== false);
       setProfessionals(activeProfs);
       setServices(activeSrvs);
 
-      if (activeProfs.length > 0) setSelectedProfId(activeProfs[0].id);
       if (activeSrvs.length > 0) setSelectedServiceId(activeSrvs[0].id);
+
+      // Auto-select first open business day if today has no shifts/hours
+      if (hours && hours.length > 0) {
+        const enabledDays = new Set(
+          hours.filter((h) => h.enabled && Array.isArray(h.shifts) && h.shifts.length > 0).map((h) => h.dayOfWeek)
+        );
+        if (enabledDays.size > 0) {
+          const firstOpenDay = daysList.find((day) => {
+            const [y, m, d] = day.dateStr.split('-').map(Number);
+            const dow = new Date(y, m - 1, d).getDay();
+            return enabledDays.has(dow);
+          });
+          if (firstOpenDay) {
+            setSelectedDate(firstOpenDay.dateStr);
+          }
+        }
+      }
     });
 
     return () => {
@@ -228,20 +246,18 @@ export function PublicBookingPage({
   const eligibleProfessionals = useMemo(() => {
     const activeProfs = professionals.filter((p) => p.active !== false);
     if (!selectedService) return activeProfs;
-    return activeProfs.filter((p) => isProfessionalAssignedToService(p, selectedService));
+    const assigned = activeProfs.filter((p) => isProfessionalAssignedToService(p, selectedService));
+    // Graceful fallback: If no specialist has strict assignment, allow all active clinic specialists
+    return assigned.length > 0 ? assigned : activeProfs;
   }, [professionals, selectedService]);
 
-  // Intelligent auto-selection: if only 1 professional provides this service, auto-select them!
+  // Intelligent auto-selection: ensure an eligible specialist is selected by default
   useEffect(() => {
     if (!eligibleProfessionals.length) {
       if (selectedProfId) setSelectedProfId('');
       return;
     }
-    if (eligibleProfessionals.length === 1) {
-      if (selectedProfId !== eligibleProfessionals[0].id) {
-        setSelectedProfId(eligibleProfessionals[0].id);
-      }
-    } else if (selectedProfId && !eligibleProfessionals.some((p) => p.id === selectedProfId)) {
+    if (!selectedProfId || !eligibleProfessionals.some((p) => p.id === selectedProfId)) {
       setSelectedProfId(eligibleProfessionals[0].id);
     }
   }, [eligibleProfessionals, selectedProfId]);

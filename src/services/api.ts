@@ -1549,7 +1549,6 @@ class ApiService {
     }
 
     // Safeguard: Ensure every professional has a valid, non-empty accessCode and officeNumber
-    let hasChanges = false;
     result = result.map((prof, idx) => {
       let code = prof.accessCode;
       let office = prof.officeNumber;
@@ -1561,25 +1560,19 @@ class ApiService {
         } else {
           code = `CONS-${1000 + idx + 1}`;
         }
-        hasChanges = true;
       }
       if (!office) {
         office = `Consultorio ${idx + 1}`;
-        hasChanges = true;
       }
-      if (hasChanges) {
-        return { ...prof, accessCode: code, officeNumber: office };
-      }
-      return prof;
+      return { ...prof, accessCode: code, officeNumber: office };
     });
 
-    if (hasChanges) {
-      const map = new Map<string, Professional>();
-      this.professionals.forEach((p) => map.set(p.id, p));
-      result.forEach((p) => map.set(p.id, p));
-      this.professionals = Array.from(map.values());
-      saveStorage(STORAGE_KEYS.PROFESSIONALS, this.professionals);
-    }
+    // Always merge loaded professionals into state and storage so references never fail
+    const map = new Map<string, Professional>();
+    this.professionals.forEach((p) => map.set(p.id, p));
+    result.forEach((p) => map.set(p.id, p));
+    this.professionals = Array.from(map.values());
+    saveStorage(STORAGE_KEYS.PROFESSIONALS, this.professionals);
 
     return result;
   }
@@ -1602,6 +1595,27 @@ class ApiService {
     this.professionals.push(newProf);
     saveStorage(STORAGE_KEYS.PROFESSIONALS, this.professionals);
 
+    // Sync with backend API
+    try {
+      const res = await fetch(`/api/businesses/${encodeURIComponent(businessId)}/professionals`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newProf),
+      });
+      if (res.ok) {
+        const serverProf = await res.json();
+        if (serverProf?.id) {
+          const idx = this.professionals.findIndex((p) => p.id === newProf.id);
+          if (idx !== -1) {
+            this.professionals[idx] = serverProf;
+            saveStorage(STORAGE_KEYS.PROFESSIONALS, this.professionals);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Error syncing professional creation with server:', e);
+    }
+
     // Save to Firestore Cloud
     await setDoc(doc(db, 'professionals', newProf.id), newProf).catch((err) => {
       console.warn('Error persisting professional to Firestore:', err);
@@ -1611,11 +1625,27 @@ class ApiService {
   }
 
   async updateProfessional(businessId: string, id: string, data: Partial<Professional>): Promise<Professional> {
-    const idx = this.professionals.findIndex((p) => p.id === id && p.businessId === businessId);
-    if (idx === -1) throw new Error('Profesional no encontrado');
-    const updated = { ...this.professionals[idx], ...data };
-    this.professionals[idx] = updated;
+    const idx = this.professionals.findIndex((p) => p.id === id);
+    let updated: Professional;
+    if (idx === -1) {
+      updated = { id, businessId, ...data } as Professional;
+      this.professionals.push(updated);
+    } else {
+      updated = { ...this.professionals[idx], ...data };
+      this.professionals[idx] = updated;
+    }
     saveStorage(STORAGE_KEYS.PROFESSIONALS, this.professionals);
+
+    // Sync with backend API
+    try {
+      await fetch(`/api/businesses/${encodeURIComponent(businessId)}/professionals/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+    } catch (e) {
+      console.warn('Error syncing professional update with server:', e);
+    }
 
     // Update in Firestore Cloud
     await setDoc(doc(db, 'professionals', updated.id), updated).catch((err) => {
@@ -1628,6 +1658,14 @@ class ApiService {
   async deleteProfessional(businessId: string, id: string): Promise<{ success: boolean }> {
     this.professionals = this.professionals.filter((p) => !(p.id === id && p.businessId === businessId));
     saveStorage(STORAGE_KEYS.PROFESSIONALS, this.professionals);
+
+    try {
+      await fetch(`/api/businesses/${encodeURIComponent(businessId)}/professionals/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      });
+    } catch (e) {
+      console.warn('Error deleting professional on server:', e);
+    }
 
     // Delete in Firestore Cloud
     await deleteDoc(doc(db, 'professionals', id)).catch((err) => {
@@ -1665,6 +1703,27 @@ class ApiService {
     this.services.push(newSrv);
     saveStorage(STORAGE_KEYS.SERVICES, this.services);
 
+    // Sync with backend API
+    try {
+      const res = await fetch(`/api/businesses/${encodeURIComponent(businessId)}/services`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newSrv),
+      });
+      if (res.ok) {
+        const serverSrv = await res.json();
+        if (serverSrv?.id) {
+          const idx = this.services.findIndex((s) => s.id === newSrv.id);
+          if (idx !== -1) {
+            this.services[idx] = serverSrv;
+            saveStorage(STORAGE_KEYS.SERVICES, this.services);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn('Error syncing service creation with server:', e);
+    }
+
     // Save to Firestore Cloud
     await setDoc(doc(db, 'services', newSrv.id), newSrv).catch((err) => {
       console.warn('Error persisting service to Firestore:', err);
@@ -1674,11 +1733,27 @@ class ApiService {
   }
 
   async updateService(businessId: string, id: string, data: Partial<Service>): Promise<Service> {
-    const idx = this.services.findIndex((s) => s.id === id && s.businessId === businessId);
-    if (idx === -1) throw new Error('Servicio no encontrado');
-    const updated = { ...this.services[idx], ...data };
-    this.services[idx] = updated;
+    const idx = this.services.findIndex((s) => s.id === id);
+    let updated: Service;
+    if (idx === -1) {
+      updated = { id, businessId, ...data } as Service;
+      this.services.push(updated);
+    } else {
+      updated = { ...this.services[idx], ...data };
+      this.services[idx] = updated;
+    }
     saveStorage(STORAGE_KEYS.SERVICES, this.services);
+
+    // Sync with backend API
+    try {
+      await fetch(`/api/businesses/${encodeURIComponent(businessId)}/services/${encodeURIComponent(id)}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data),
+      });
+    } catch (e) {
+      console.warn('Error syncing service update with server:', e);
+    }
 
     // Update in Firestore Cloud
     await setDoc(doc(db, 'services', updated.id), updated).catch((err) => {
@@ -1691,6 +1766,14 @@ class ApiService {
   async deleteService(businessId: string, id: string): Promise<{ success: boolean }> {
     this.services = this.services.filter((s) => !(s.id === id && s.businessId === businessId));
     saveStorage(STORAGE_KEYS.SERVICES, this.services);
+
+    try {
+      await fetch(`/api/businesses/${encodeURIComponent(businessId)}/services/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      });
+    } catch (e) {
+      console.warn('Error deleting service on server:', e);
+    }
 
     // Delete in Firestore Cloud
     await deleteDoc(doc(db, 'services', id)).catch((err) => {
@@ -1789,6 +1872,18 @@ class ApiService {
 
   // Time off
   async getTimeOffs(businessId: string): Promise<TimeOff[]> {
+    try {
+      const res = await fetch(`/api/businesses/${encodeURIComponent(businessId)}/time-offs`);
+      if (res.ok) {
+        const serverTos: TimeOff[] = await res.json();
+        if (Array.isArray(serverTos)) {
+          const other = this.timeOffs.filter((t) => t.businessId !== businessId);
+          this.timeOffs = [...other, ...serverTos];
+          saveStorage(STORAGE_KEYS.TIME_OFFS, this.timeOffs);
+          return serverTos;
+        }
+      }
+    } catch {}
     return this.timeOffs.filter((t) => t.businessId === businessId);
   }
 
@@ -1800,12 +1895,32 @@ class ApiService {
     };
     this.timeOffs.push(newTo);
     saveStorage(STORAGE_KEYS.TIME_OFFS, this.timeOffs);
+
+    try {
+      await fetch(`/api/businesses/${encodeURIComponent(businessId)}/time-offs`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newTo),
+      });
+    } catch (e) {
+      console.warn('Error syncing time off creation to server:', e);
+    }
+
     return newTo;
   }
 
   async deleteTimeOff(businessId: string, id: string): Promise<{ success: boolean }> {
     this.timeOffs = this.timeOffs.filter((t) => !(t.id === id && t.businessId === businessId));
     saveStorage(STORAGE_KEYS.TIME_OFFS, this.timeOffs);
+
+    try {
+      await fetch(`/api/businesses/${encodeURIComponent(businessId)}/time-offs/${encodeURIComponent(id)}`, {
+        method: 'DELETE',
+      });
+    } catch (e) {
+      console.warn('Error syncing time off deletion to server:', e);
+    }
+
     return { success: true };
   }
 
@@ -1821,9 +1936,23 @@ class ApiService {
     serviceId: string,
     date: string
   ): Promise<AvailabilityResponse> {
-    const biz = this.businesses.find((b) => b.id === businessId);
-    const prof = this.professionals.find((p) => p.id === professionalId);
-    const srv = this.services.find((s) => s.id === serviceId);
+    let biz = this.businesses.find((b) => b.id === businessId);
+    if (!biz) {
+      const bizs = await this.getBusinesses();
+      biz = bizs.find((b) => b.id === businessId);
+    }
+
+    let prof = this.professionals.find((p) => p.id === professionalId);
+    if (!prof) {
+      const profs = await this.getProfessionals(businessId);
+      prof = profs.find((p) => p.id === professionalId);
+    }
+
+    let srv = this.services.find((s) => s.id === serviceId);
+    if (!srv) {
+      const srvs = await this.getServices(businessId);
+      srv = srvs.find((s) => s.id === serviceId);
+    }
 
     if (!biz || !prof || !srv) {
       return {
@@ -1837,13 +1966,39 @@ class ApiService {
       };
     }
 
+    // Ensure working hours and timeoffs are loaded
+    let bizWH = this.workingHours.filter((w) => w.businessId === businessId);
+    if (bizWH.length === 0) {
+      bizWH = await this.getWorkingHours(businessId);
+    }
+
+    let bizTO = this.timeOffs.filter((t) => t.businessId === businessId);
+    if (bizTO.length === 0) {
+      bizTO = await this.getTimeOffs(businessId);
+    }
+
+    // Fallback: If clinic has no working hours saved at all, provide standard business shifts
+    if (bizWH.length === 0) {
+      bizWH = [1, 2, 3, 4, 5].map((day) => ({
+        id: `wh_${businessId}_${day}`,
+        businessId,
+        professionalId: null,
+        dayOfWeek: day,
+        shifts: [
+          { start: '08:00', end: '12:00' },
+          { start: '14:00', end: '18:00' },
+        ],
+        enabled: true,
+      }));
+    }
+
     return calculateAvailability({
       business: biz,
       professional: prof,
       service: srv,
       date,
-      workingHoursList: this.workingHours.filter((w) => w.businessId === businessId),
-      timeOffList: this.timeOffs.filter((t) => t.businessId === businessId),
+      workingHoursList: bizWH,
+      timeOffList: bizTO,
       appointments: this.appointments.filter((a) => a.businessId === businessId && a.date === date),
     });
   }

@@ -656,8 +656,7 @@ async function startServer() {
   });
 
   app.put('/api/businesses/:businessId/professionals/:id', (req, res) => {
-    const updated = db.updateProfessional(req.params.id, req.body);
-    if (!updated) return res.status(404).json({ error: 'Profesional no encontrado' });
+    const updated = db.updateProfessional(req.params.id, req.body, req.params.businessId);
     res.json(updated);
   });
 
@@ -682,8 +681,7 @@ async function startServer() {
   });
 
   app.put('/api/businesses/:businessId/services/:id', (req, res) => {
-    const updated = db.updateService(req.params.id, req.body);
-    if (!updated) return res.status(404).json({ error: 'Servicio no encontrado' });
+    const updated = db.updateService(req.params.id, req.body, req.params.businessId);
     res.json(updated);
   });
 

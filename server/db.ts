@@ -560,26 +560,57 @@ class Database {
     return this.data.professionals.find((p) => p.id === id);
   }
 
-  public createProfessional(businessId: string, prof: Omit<Professional, 'id' | 'businessId'>): Professional {
+  public createProfessional(businessId: string, prof: Omit<Professional, 'id' | 'businessId'> & { id?: string }): Professional {
     const existing = this.data.professionals.filter((p) => p.businessId === businessId);
     const count = existing.length;
     const newProf: Professional = {
       ...prof,
-      id: `prof_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      id: prof.id || `prof_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       businessId,
       officeNumber: prof.officeNumber || `Consultorio ${count + 1}`,
       accessCode: prof.accessCode || `CONS-${Math.floor(1000 + Math.random() * 9000)}`,
       commissionRate: prof.commissionRate !== undefined ? prof.commissionRate : 20,
       commissionType: prof.commissionType || 'percentage',
+      serviceIds: prof.serviceIds || [],
     };
-    this.data.professionals.push(newProf);
+    // If professional with this id already exists, update it instead
+    const existingIdx = this.data.professionals.findIndex((p) => p.id === newProf.id);
+    if (existingIdx !== -1) {
+      this.data.professionals[existingIdx] = { ...this.data.professionals[existingIdx], ...newProf };
+    } else {
+      this.data.professionals.push(newProf);
+    }
     this.save();
     return newProf;
   }
 
-  public updateProfessional(id: string, updates: Partial<Professional>): Professional | null {
+  public updateProfessional(id: string, updates: Partial<Professional>, businessId?: string): Professional {
     const index = this.data.professionals.findIndex((p) => p.id === id);
-    if (index === -1) return null;
+    if (index === -1) {
+      const bId = businessId || updates.businessId || '';
+      const existing = this.data.professionals.filter((p) => p.businessId === bId);
+      const count = existing.length;
+      const newProf: Professional = {
+        id,
+        businessId: bId,
+        name: updates.name || 'Profesional',
+        title: updates.title || 'Especialista',
+        specialty: updates.specialty || 'Atención General',
+        photoUrl: updates.photoUrl || '',
+        email: updates.email || '',
+        phone: updates.phone || '',
+        active: updates.active !== false,
+        officeNumber: updates.officeNumber || `Consultorio ${count + 1}`,
+        accessCode: updates.accessCode || `CONS-${Math.floor(1000 + Math.random() * 9000)}`,
+        commissionRate: updates.commissionRate !== undefined ? updates.commissionRate : 20,
+        commissionType: updates.commissionType || 'percentage',
+        serviceIds: updates.serviceIds || [],
+        ...updates,
+      };
+      this.data.professionals.push(newProf);
+      this.save();
+      return newProf;
+    }
     this.data.professionals[index] = { ...this.data.professionals[index], ...updates };
     this.save();
     return this.data.professionals[index];
@@ -601,20 +632,42 @@ class Database {
     return this.data.services.find((s) => s.id === id);
   }
 
-  public createService(businessId: string, srv: Omit<Service, 'id' | 'businessId'>): Service {
+  public createService(businessId: string, srv: Omit<Service, 'id' | 'businessId'> & { id?: string }): Service {
     const newService: Service = {
       ...srv,
-      id: `srv_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+      id: srv.id || `srv_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
       businessId,
     };
-    this.data.services.push(newService);
+    const existingIdx = this.data.services.findIndex((s) => s.id === newService.id);
+    if (existingIdx !== -1) {
+      this.data.services[existingIdx] = { ...this.data.services[existingIdx], ...newService };
+    } else {
+      this.data.services.push(newService);
+    }
     this.save();
     return newService;
   }
 
-  public updateService(id: string, updates: Partial<Service>): Service | null {
+  public updateService(id: string, updates: Partial<Service>, businessId?: string): Service {
     const index = this.data.services.findIndex((s) => s.id === id);
-    if (index === -1) return null;
+    if (index === -1) {
+      const bId = businessId || updates.businessId || '';
+      const newService: Service = {
+        id,
+        businessId: bId,
+        name: updates.name || 'Servicio',
+        description: updates.description || '',
+        durationMinutes: updates.durationMinutes || 30,
+        price: updates.price || 0,
+        currency: updates.currency || '$',
+        active: updates.active !== false,
+        assignedProfessionalIds: updates.assignedProfessionalIds || [],
+        ...updates,
+      };
+      this.data.services.push(newService);
+      this.save();
+      return newService;
+    }
     this.data.services[index] = { ...this.data.services[index], ...updates };
     this.save();
     return this.data.services[index];
@@ -629,9 +682,30 @@ class Database {
 
   // --- Working Hours & TimeOff ---
   public getWorkingHours(businessId: string, professionalId?: string | null): WorkingHours[] {
-    return this.data.workingHours.filter(
+    const list = this.data.workingHours.filter(
       (wh) => wh.businessId === businessId && (professionalId === undefined || wh.professionalId === professionalId)
     );
+    if (list.length === 0 && (professionalId === undefined || professionalId === null)) {
+      // Auto-generate default clinic working hours if none exist
+      const defaults: WorkingHours[] = [];
+      for (let day = 1; day <= 5; day++) {
+        defaults.push({
+          id: `wh_${businessId}_${day}`,
+          businessId,
+          professionalId: null,
+          dayOfWeek: day,
+          shifts: [
+            { start: '08:00', end: '12:00' },
+            { start: '14:00', end: '18:00' },
+          ],
+          enabled: true,
+        });
+      }
+      this.data.workingHours.push(...defaults);
+      this.save();
+      return defaults;
+    }
+    return list;
   }
 
   public updateWorkingHours(businessId: string, hours: WorkingHours[]): WorkingHours[] {

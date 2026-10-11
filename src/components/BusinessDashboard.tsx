@@ -169,6 +169,7 @@ export function BusinessDashboard({
   const [serviceSelectedProfIds, setServiceSelectedProfIds] = useState<string[]>([]);
   const [serviceAllProfs, setServiceAllProfs] = useState(true);
   const [serviceCustomPrices, setServiceCustomPrices] = useState<Record<string, number>>({});
+  const [isSavingService, setIsSavingService] = useState(false);
   const [profSelectedServiceIds, setProfSelectedServiceIds] = useState<string[]>([]);
   const [profCustomPrices, setProfCustomPrices] = useState<Record<string, number>>({});
   const [showTimeOffModal, setShowTimeOffModal] = useState(false);
@@ -5553,74 +5554,82 @@ _Generado automáticamente desde ${business.name} vía Turnos Disponibles_`;
             <form
               onSubmit={async (e) => {
                 e.preventDefault();
-                const form = e.currentTarget;
-                const formData = new FormData(form);
+                setIsSavingService(true);
+                try {
+                  const form = e.currentTarget;
+                  const formData = new FormData(form);
 
-                const finalAssignedProfs = serviceAllProfs
-                  ? professionals.map((p) => p.id)
-                  : serviceSelectedProfIds.length > 0
-                  ? serviceSelectedProfIds
-                  : professionals.map((p) => p.id);
+                  const finalAssignedProfs = serviceAllProfs
+                    ? professionals.map((p) => p.id)
+                    : serviceSelectedProfIds.length > 0
+                    ? serviceSelectedProfIds
+                    : professionals.map((p) => p.id);
 
-                const data: Partial<Service> = {
-                  name: formData.get('name') as string,
-                  description: (formData.get('description') as string) || '',
-                  durationMinutes: Number(formData.get('durationMinutes')),
-                  price: Number(formData.get('price')),
-                  modality: (formData.get('modality') as any) || 'in_person',
-                  currency: '$',
-                  active: formData.get('active') === 'on',
-                  assignedProfessionalIds: finalAssignedProfs,
-                  customPrices: Object.keys(serviceCustomPrices).length > 0 ? serviceCustomPrices : undefined,
-                };
+                  const data: Partial<Service> = {
+                    name: (formData.get('name') as string)?.trim() || 'Servicio',
+                    description: ((formData.get('description') as string) || '').trim(),
+                    durationMinutes: Number(formData.get('durationMinutes')) || 30,
+                    price: Number(formData.get('price')) || 0,
+                    modality: (formData.get('modality') as any) || 'in_person',
+                    currency: '$',
+                    active: formData.get('active') === 'on',
+                    assignedProfessionalIds: finalAssignedProfs,
+                    customPrices: Object.keys(serviceCustomPrices).length > 0 ? serviceCustomPrices : undefined,
+                  };
 
-                let savedSrvId = '';
-                if (editingService) {
-                  savedSrvId = editingService.id;
-                  const updated = await api.updateService(business.id, editingService.id, data);
-                  setServices((prev) => prev.map((s) => (s.id === editingService.id ? updated : s)));
-                } else {
-                  const created = await api.createService(business.id, data as any);
-                  savedSrvId = created.id;
-                  setServices((prev) => [...prev, created]);
-                }
+                  let savedSrvId = '';
+                  if (editingService) {
+                    savedSrvId = editingService.id;
+                    const updated = await api.updateService(business.id, editingService.id, data);
+                    setServices((prev) => prev.map((s) => (s.id === editingService.id ? updated : s)));
+                  } else {
+                    const created = await api.createService(business.id, data as any);
+                    savedSrvId = created.id;
+                    setServices((prev) => [...prev, created]);
+                  }
 
-                // Sync bidirectional professional assignments and custom differential fees
-                if (savedSrvId) {
-                  for (const prof of professionals) {
-                    const shouldInclude = finalAssignedProfs.includes(prof.id);
-                    const currentServiceIds = prof.serviceIds || [];
-                    const hasService = currentServiceIds.includes(savedSrvId);
-                    const customFee = serviceCustomPrices[prof.id];
+                  // Sync bidirectional professional assignments and custom differential fees
+                  if (savedSrvId) {
+                    for (const prof of professionals) {
+                      const shouldInclude = finalAssignedProfs.includes(prof.id);
+                      const currentServiceIds = prof.serviceIds || [];
+                      const hasService = currentServiceIds.includes(savedSrvId);
+                      const customFee = serviceCustomPrices[prof.id];
 
-                    let currentProfPrices = prof.customServicePrices ? { ...prof.customServicePrices } : {};
-                    let profPricesChanged = false;
+                      let currentProfPrices = prof.customServicePrices ? { ...prof.customServicePrices } : {};
+                      let profPricesChanged = false;
 
-                    if (shouldInclude && customFee !== undefined && customFee > 0) {
-                      if (currentProfPrices[savedSrvId] !== customFee) {
-                        currentProfPrices[savedSrvId] = customFee;
+                      if (shouldInclude && customFee !== undefined && customFee > 0) {
+                        if (currentProfPrices[savedSrvId] !== customFee) {
+                          currentProfPrices[savedSrvId] = customFee;
+                          profPricesChanged = true;
+                        }
+                      } else if (currentProfPrices[savedSrvId] !== undefined) {
+                        delete currentProfPrices[savedSrvId];
                         profPricesChanged = true;
                       }
-                    } else if (currentProfPrices[savedSrvId] !== undefined) {
-                      delete currentProfPrices[savedSrvId];
-                      profPricesChanged = true;
-                    }
 
-                    if ((shouldInclude && !hasService) || (!shouldInclude && hasService) || profPricesChanged) {
-                      const nextServiceIds = shouldInclude
-                        ? (hasService ? currentServiceIds : [...currentServiceIds, savedSrvId])
-                        : currentServiceIds.filter((id) => id !== savedSrvId);
+                      if ((shouldInclude && !hasService) || (!shouldInclude && hasService) || profPricesChanged) {
+                        const nextServiceIds = shouldInclude
+                          ? (hasService ? currentServiceIds : [...currentServiceIds, savedSrvId])
+                          : currentServiceIds.filter((id) => id !== savedSrvId);
 
-                      const updatedProf = await api.updateProfessional(business.id, prof.id, {
-                        serviceIds: nextServiceIds,
-                        customServicePrices: Object.keys(currentProfPrices).length > 0 ? currentProfPrices : undefined,
-                      });
-                      setProfessionals((prev) => prev.map((p) => (p.id === prof.id ? updatedProf : p)));
+                        const updatedProf = await api.updateProfessional(business.id, prof.id, {
+                          serviceIds: nextServiceIds,
+                          customServicePrices: Object.keys(currentProfPrices).length > 0 ? currentProfPrices : undefined,
+                        });
+                        setProfessionals((prev) => prev.map((p) => (p.id === prof.id ? updatedProf : p)));
+                      }
                     }
                   }
-                }
 
-                setShowServiceModal(false);
+                  setShowServiceModal(false);
+                } catch (err: any) {
+                  console.error('Error saving service:', err);
+                  alert('Error al guardar el servicio: ' + (err.message || 'Intente nuevamente'));
+                } finally {
+                  setIsSavingService(false);
+                }
               }}
               className="space-y-3.5 text-xs overflow-y-auto pr-1 flex-1"
             >
@@ -5813,9 +5822,17 @@ _Generado automáticamente desde ${business.name} vía Turnos Disponibles_`;
               <div className="pt-2 shrink-0">
                 <button
                   type="submit"
-                  className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white font-bold transition shadow-xs cursor-pointer"
+                  disabled={isSavingService}
+                  className="w-full py-2.5 rounded-xl bg-slate-900 hover:bg-black text-white font-bold transition shadow-xs cursor-pointer flex items-center justify-center gap-2 disabled:opacity-60"
                 >
-                  Guardar Servicio & Asignaciones
+                  {isSavingService ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Guardando Servicio y Asignaciones...</span>
+                    </>
+                  ) : (
+                    <span>Guardar Servicio & Asignaciones</span>
+                  )}
                 </button>
               </div>
             </form>
