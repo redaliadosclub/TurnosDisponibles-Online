@@ -17,6 +17,7 @@ import {
   User as UserIcon,
   LayoutDashboard,
 } from 'lucide-react';
+import { GuidedModeToggle } from '../guided/GuidedModeToggle';
 
 interface PortalNavbarProps {
   onOpenLookupModal: () => void;
@@ -135,6 +136,8 @@ export function PortalNavbar({
 
         {/* Action Buttons */}
         <div className="hidden sm:flex items-center gap-2.5">
+          <GuidedModeToggle />
+
           {currentUser ? (
             <div className="flex items-center gap-2">
               {/* User Profile Pill */}
@@ -267,6 +270,10 @@ export function PortalNavbar({
           </div>
 
           <div className="pt-3 border-t border-slate-800/80 space-y-2">
+            <div className="flex justify-center pb-1">
+              <GuidedModeToggle />
+            </div>
+
             {currentUser ? (
               <div className="space-y-2">
                 <div className="px-3 py-2 rounded-xl bg-slate-900 border border-slate-800 flex items-center justify-between text-xs">

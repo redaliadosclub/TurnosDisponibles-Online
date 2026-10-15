@@ -45,6 +45,7 @@ import {
   Video,
 } from 'lucide-react';
 import { Appointment } from '../types';
+import { GuidedModeToggle } from './guided/GuidedModeToggle';
 
 interface PublicBookingPageProps {
   key?: React.Key;
@@ -447,6 +448,8 @@ export function PublicBookingPage({
             </div>
 
             <div className="flex flex-wrap items-center gap-2 self-stretch sm:self-center">
+              <GuidedModeToggle />
+
               {onBackToPortal && (
                 <button
                   type="button"
