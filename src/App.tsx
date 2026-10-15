@@ -23,6 +23,10 @@ import {
   X,
   Stethoscope,
 } from 'lucide-react';
+import { GuidedModeProvider } from './context/GuidedModeContext';
+import { GuidedStepperBanner } from './components/guided/GuidedStepperBanner';
+import { UserGuideModal } from './components/guided/UserGuideModal';
+import { GuidedModeToggle } from './components/guided/GuidedModeToggle';
 
 export default function App() {
   // Helper to find a business by slug/id in an array
@@ -251,6 +255,24 @@ export default function App() {
   });
   const [showAuthModal, setShowAuthModal] = useState(false);
   const [loading, setLoading] = useState(true);
+
+  // Tabs for guided mode deep navigation
+  const [businessTab, setBusinessTab] = useState<string | undefined>(undefined);
+  const [staffTab, setStaffTab] = useState<string | undefined>(undefined);
+
+  const handleNavigateView = (
+    view: 'portal' | 'public' | 'business' | 'superadmin' | 'staff',
+    tab?: string
+  ) => {
+    if (view === 'business' && tab) {
+      setBusinessTab(tab);
+    }
+    if (view === 'staff' && tab) {
+      setStaffTab(tab);
+    }
+    setActiveView(view);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   // Demo bar switch: only accessible when authenticated as superadmin
   const [showDemoBar, setShowDemoBar] = useState<boolean>(() => {
@@ -576,9 +598,14 @@ export default function App() {
   const shouldRenderTopBar = currentUser !== null && activeView !== 'staff' && (activeView !== 'portal' || showDemoBar);
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col relative">
-      {/* Top Demo & Multi-Tenant Control Bar */}
-      {shouldRenderTopBar && (
+    <GuidedModeProvider
+      userRole={currentUser?.role}
+      activeView={activeView}
+      onNavigateView={handleNavigateView}
+    >
+      <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col relative">
+        {/* Top Demo & Multi-Tenant Control Bar */}
+        {shouldRenderTopBar && (
         <nav className="bg-slate-950 text-white border-b border-slate-800 text-xs py-2 px-4 sticky top-0 z-50 shadow-md">
           <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-3">
             {/* Brand & View Switcher */}
@@ -715,6 +742,9 @@ export default function App() {
                 </div>
               )}
 
+              {/* Guided Mode Switch & Manual & Tutorial Button */}
+              <GuidedModeToggle />
+
               {/* Auth Button / Profile */}
               {currentUser ? (
                 <div className="flex items-center gap-2">
@@ -758,6 +788,16 @@ export default function App() {
             </div>
           </div>
         </nav>
+      )}
+
+      {/* Guided Onboarding Stepper Banner (Dynamic by Role) */}
+      {activeView !== 'staff' && <GuidedStepperBanner />}
+
+      {/* Floating Guided Mode & Manual Quick Action when top bar is hidden */}
+      {!shouldRenderTopBar && activeView !== 'staff' && (
+        <div className="fixed bottom-4 left-4 z-40 flex items-center gap-2 bg-slate-950/90 p-1.5 rounded-2xl border border-slate-800 shadow-2xl backdrop-blur-md">
+          <GuidedModeToggle />
+        </div>
       )}
 
       {/* Main View Render */}
@@ -833,6 +873,7 @@ export default function App() {
             }}
             onViewPublicPage={() => setActiveView('public')}
             onStartTeleconsulta={(appt) => handleStartTeleconsulta(appt, 'doctor')}
+            initialTab={businessTab}
           />
         )}
 
@@ -850,6 +891,7 @@ export default function App() {
             }
             onUserUpdate={(updated) => setCurrentUser(updated)}
             onStartTeleconsulta={(appt) => handleStartTeleconsulta(appt, 'doctor')}
+            initialTab={staffTab}
           />
         )}
 
@@ -937,7 +979,11 @@ export default function App() {
         allowSuperAdminQuickLogin={true}
         currentUser={currentUser}
       />
+
+      {/* Role-Adaptive Manual & Tutorial Modal */}
+      <UserGuideModal />
     </div>
+    </GuidedModeProvider>
   );
 }
 

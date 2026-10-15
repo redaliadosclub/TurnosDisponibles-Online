@@ -5,6 +5,7 @@ import {
   Service,
   AvailabilityResponse,
   TimeSlot,
+  WorkingHours,
   User,
 } from '../types';
 import { getBusinessLabels } from '../lib/businessTypes';

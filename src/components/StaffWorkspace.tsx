@@ -75,6 +75,8 @@ import {
 } from 'lucide-react';
 import { MedicalPrescriptionModal } from './teleconsulta/MedicalPrescriptionModal';
 import { MedicalPrescription } from '../types';
+import { GuidedModeToggle } from './guided/GuidedModeToggle';
+import { GuidedStepperBanner } from './guided/GuidedStepperBanner';
 
 interface StaffWorkspaceProps {
   business: Business;
@@ -85,6 +87,7 @@ interface StaffWorkspaceProps {
   onSwitchToOwner?: () => void;
   onUserUpdate?: (updatedUser: User) => void;
   onStartTeleconsulta?: (appointment: Appointment) => void;
+  initialTab?: string;
 }
 
 export function StaffWorkspace({
@@ -96,8 +99,17 @@ export function StaffWorkspace({
   onSwitchToOwner,
   onUserUpdate,
   onStartTeleconsulta,
+  initialTab,
 }: StaffWorkspaceProps) {
-  const [activeTab, setActiveTab] = useState<'agenda' | 'customers' | 'hours' | 'payments' | 'services' | 'analytics'>('agenda');
+  const [activeTab, setActiveTab] = useState<'agenda' | 'customers' | 'hours' | 'payments' | 'services' | 'analytics'>(
+    (initialTab as any) || 'agenda'
+  );
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab as any);
+    }
+  }, [initialTab]);
   const [professionals, setProfessionals] = useState<Professional[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -1090,8 +1102,10 @@ export function StaffWorkspace({
             </div>
           )}
 
-          {/* Actions: Owner Return / Logout */}
+          {/* Actions: Guided Mode Toggle & Tutorial / Owner Return / Logout */}
           <div className="flex items-center gap-2">
+            <GuidedModeToggle compact />
+
             {onSwitchToOwner && (
               <button
                 type="button"
@@ -1205,6 +1219,9 @@ export function StaffWorkspace({
           </div>
         )}
       </header>
+
+      {/* Guided Onboarding Stepper for Staff / Medical Doctors */}
+      <GuidedStepperBanner />
 
       {/* Main Workspace Body */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6">

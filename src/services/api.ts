@@ -120,7 +120,7 @@ export const INITIAL_BUSINESSES: Business[] = [
     id: 'biz_centro_holistico_sm',
     slug: 'centro-holistico-sm',
     name: 'Centro Holístico de SM',
-    businessType: 'health',
+    businessType: 'medical',
     description: 'Terapias holísticas, armonización energética, biomagnetismo, reiki y bienestar integral.',
     category: 'Medicina Integrativa & Terapias Holísticas',
     address: 'Av. San Martín 1420, Piso 2, San Martín, Bs. As.',

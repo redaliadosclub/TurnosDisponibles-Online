@@ -103,6 +103,7 @@ interface BusinessDashboardProps {
   onUpdateBusiness: (updated: Business) => void;
   onViewPublicPage: () => void;
   onStartTeleconsulta?: (appointment: Appointment) => void;
+  initialTab?: string;
 }
 
 export function BusinessDashboard({
@@ -112,6 +113,7 @@ export function BusinessDashboard({
   onUpdateBusiness,
   onViewPublicPage,
   onStartTeleconsulta,
+  initialTab,
 }: BusinessDashboardProps) {
   const labels = useMemo(() => getBusinessLabels(business), [business]);
 
@@ -128,7 +130,13 @@ export function BusinessDashboard({
     | 'analytics'
     | 'plans'
     | 'payments'
-  >('agenda');
+  >((initialTab as any) || 'agenda');
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab as any);
+    }
+  }, [initialTab]);
 
   // Calendar View: 'day' | 'week' | 'list'
   const [calendarView, setCalendarView] = useState<'day' | 'week' | 'list'>('day');
